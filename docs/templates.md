@@ -5,6 +5,11 @@ the source; the GUI compiler validates its structure and generates ordinary Zig
 projection functions. The tokenizer, compiler and template source run only at
 build time. There is no template interpreter in the browser or WASM module.
 
+The working demo is split into [markup](../examples/demo.gui.html) and
+[state/view values](../examples/demo.zig). Both native tests and the WASM build
+consume the same generated module. Editing the template and rebuilding is enough;
+there is no separate generation command to remember for this example.
+
 ```html
 <section>
   <input :value="$name" :input="$inputs.name">
@@ -129,3 +134,5 @@ limits, not a reservation of source-parser storage in the application.
 Run `npm run test:templates` for parser/compiler checks, generated projection
 tests, allocation-failure coverage, and expected compiler diagnostics. Vendored
 files and their unchanged source hashes are recorded in `vendor/superhtml/`.
+`npm test` additionally creates a temporary independent Zig package and verifies
+the public compiler-artifact integration shown above.

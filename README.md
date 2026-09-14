@@ -1,13 +1,19 @@
 # zg-gui
 
-A standalone Zig/WASM GUI core. Zig owns state,
-rendering decisions, and stable node IDs. A small JavaScript host applies the
+A standalone Zig/WASM GUI core with HTML-like templates compiled into Zig.
+Zig owns state and rendering decisions. A small JavaScript host applies the
 typed DOM stream and forwards declared actions and inputs.
 
 Includes bounded escaped HTML, leaf snapshots, structural and keyed child
 lists, text/attribute/form/focus/move patches, browser validation, UTF-8 exchange,
 and mount/dispose lifecycle. Runtime dependencies: a browser and WebAssembly.
 Playwright is only a development dependency.
+
+Write layouts in [HTML templates](examples/demo.gui.html), with bindings such
+as `:text="$count"` and `:on-click="$actions.increment"`. The native compiler
+generates stable node IDs and projection code during the build. Application
+state, derived view values and actions stay in [Zig](examples/demo.zig).
+See the [template language and build guide](docs/templates.md).
 
 Use the exact compiler in `.zigversion`.
 
@@ -34,7 +40,7 @@ the [command protocol](docs/protocol.md), and the working [example](examples/dem
 
 Verified locally: native core/example tests, a ReleaseSafe WASM build, Chromium
 interaction and recovery tests, and desktop/mobile screenshots. The example's
-WASM is 25,255 bytes and starts with two 64 KiB memory pages, including a 64 KiB
+WASM is 34,275 bytes and starts with two 64 KiB memory pages, including a 64 KiB
 stack. These are example measurements, not a budget for other applications;
 peak stack/heap use has not been profiled. Screenshots are generated under
 ignored `test-results/` by the browser test command.

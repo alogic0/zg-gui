@@ -89,6 +89,8 @@ pub fn build(b: *std.Build) void {
     b.installDirectory(.{ .source_dir = b.path("web"), .install_dir = .prefix, .install_subdir = "web" });
 
     const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding });
+    const demo_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("examples/demo.gui.html") });
+    const wasm_gui = b.createModule(.{ .root_source_file = b.path("src/root.zig"), .target = wasm_target, .optimize = .safe });
     const demo = b.addExecutable(.{
         .name = "demo",
         .root_module = b.createModule(.{
@@ -96,11 +98,15 @@ pub fn build(b: *std.Build) void {
             .target = wasm_target,
             .optimize = .safe,
             .strip = true,
-            .imports = &.{.{ .name = "zg_gui", .module = b.createModule(.{
-                .root_source_file = b.path("src/root.zig"),
-                .target = wasm_target,
-                .optimize = .safe,
-            }) }},
+            .imports = &.{
+                .{ .name = "zg_gui", .module = wasm_gui },
+                .{ .name = "demo_template", .module = b.createModule(.{
+                    .root_source_file = demo_source,
+                    .target = wasm_target,
+                    .optimize = .safe,
+                    .imports = &.{.{ .name = "zg_gui", .module = wasm_gui }},
+                }) },
+            },
         }),
     });
     demo.entry = .disabled;
@@ -114,11 +120,15 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("examples/demo.zig"),
             .target = b.graph.host,
             .optimize = .debug,
-            .imports = &.{.{ .name = "zg_gui", .module = b.createModule(.{
-                .root_source_file = b.path("src/root.zig"),
-                .target = b.graph.host,
-                .optimize = .debug,
-            }) }},
+            .imports = &.{
+                .{ .name = "zg_gui", .module = test_gui },
+                .{ .name = "demo_template", .module = b.createModule(.{
+                    .root_source_file = demo_source,
+                    .target = b.graph.host,
+                    .optimize = .debug,
+                    .imports = &.{.{ .name = "zg_gui", .module = test_gui }},
+                }) },
+            },
         }),
     });
     b.top_level_steps.get("test").?.step.dependOn(&b.addRunArtifact(demo_tests).step);

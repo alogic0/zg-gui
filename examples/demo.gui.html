@@ -1,0 +1,50 @@
+<main class="demo" data-theme="$theme">
+  <header>
+    <p class="eyebrow">ZG GUI · ZIG + WEBASSEMBLY</p>
+    <h1>Small updates.<br>Steady controls.</h1>
+    <p>A standalone application built with the extracted GUI core.</p>
+  </header>
+
+  <section class="card">
+    <h2>Your workspace</h2>
+    <label for="name">Workspace name</label>
+    <input id="name" placeholder="Try typing here" :value="$name" :input="$inputs.name">
+    <p class="preview">Hello, <span id="greeting" :text="$greeting"></span>.</p>
+    <label class="toggle">
+      <input type="checkbox" :checked="$dark" :input="$inputs.theme">
+      Dark theme
+    </label>
+  </section>
+
+  <section class="card">
+    <h2>Keep things in place</h2>
+    <div class="counter">
+      <output :ref="count" :text="$count"></output>
+      <button :on-click="$actions.increment">Increment</button>
+    </div>
+    <button class="secondary" aria-controls="details" :ref="details_trigger"
+            :on-click="$actions.details" aria-expanded="$details">Show / hide details</button>
+    <p id="details" :ref="details" :visible="$details">This paragraph stays mounted when hidden. The counter updates only its own text.</p>
+  </section>
+
+  <section class="card wide">
+    <div class="section-heading">
+      <h2>Retained list rows</h2>
+      <div class="actions">
+        <button class="secondary" :on-click="$actions.reverse">Reverse rows</button>
+        <button class="secondary" :on-click="$actions.extra">Toggle third row</button>
+      </div>
+    </div>
+    <ul :loop="$rows" :key="id" :limit="3">
+      <li>
+        <label>
+          <span :text="$item.label"></span>
+          <input aria-label="$item.input_label" placeholder="Unsaved browser draft">
+        </label>
+      </li>
+    </ul>
+    <p class="hint">Type into a row, then reorder it. Its input and draft stay intact.</p>
+  </section>
+
+  <footer>No backend. No UI runtime dependencies. State and updates belong to Zig.</footer>
+</main>

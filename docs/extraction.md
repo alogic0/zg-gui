@@ -2,6 +2,11 @@
 
 Initial rendering-core boundary, September 14, 2026.
 
+The inventory and measurements below describe the initial extraction. The
+subsequent [template compiler work](template-verification.md) vendors a licensed
+SuperHTML tokenizer subset and converts the demo to generated projections.
+Its provenance, checks and current measurements are recorded separately.
+
 | Source | Extracted module | Adaptation |
 | --- | --- | --- |
 | `src/ui/html.zig` | `src/html.zig` | Bounded escaped writer and tests |

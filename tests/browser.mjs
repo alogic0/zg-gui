@@ -16,7 +16,7 @@ test('standalone WASM application retains state, identity and focus', async () =
     await page.goto(server.url);
     await page.waitForFunction(() => window.demo);
     await page.getByLabel('Workspace name').fill('Studio 🧭 <test>');
-    assert.equal(await page.locator('[data-node-id="3"]').textContent(), 'Studio 🧭 <test>');
+    assert.equal(await page.locator('#greeting').textContent(), 'Studio 🧭 <test>');
     const retained = await page.evaluate(() => {
       const field = document.querySelector('#name');
       const ancestor = document.querySelector('main');
@@ -35,13 +35,15 @@ test('standalone WASM application retains state, identity and focus', async () =
     assert.equal(await page.locator('output').textContent(), '2');
     await page.getByLabel('First row draft').fill('keep this browser draft');
     assert.equal(await page.evaluate(() => {
-      const row = document.querySelector('[data-node-id="10"]');
+      const row = document.querySelector('[aria-label="First row draft"]').closest('li');
       const input = row.querySelector('input'); input.focus();
       window.demo.dispatch({ action: 3 });
       window.demo.dispatch({ action: 4 });
       window.demo.dispatch({ action: 4 });
-      return row.isConnected && row === document.querySelector('[data-node-id="10"]')
-        && input === document.activeElement && input.value === 'keep this browser draft';
+      const ids = Array.from(document.querySelectorAll('[data-node-id]'), node => node.dataset.nodeId);
+      return row.isConnected && row === document.querySelector('[aria-label="First row draft"]').closest('li')
+        && input === document.activeElement && input.value === 'keep this browser draft'
+        && new Set(ids).size === ids.length;
     }), true);
     assert.equal(await page.evaluate(() => {
       try { window.demo.setInput({ kind: 1, value: '🧭'.repeat(33) }); } catch (error) { return error instanceof RangeError; }

@@ -1,7 +1,10 @@
-//! A standalone example using only the public framework API.
+//! State and view values for the HTML-template demo. No runtime parser.
 const std = @import("std");
 const gui = @import("zg_gui");
-const P = gui.Projection(48);
+const template = @import("demo_template");
+const P = gui.Projection(template.snapshot_capacity);
+const Row = struct { id: u32, label: []const u8, input_label: []const u8 };
+const InputKind = enum(u32) { name = 1, theme = 2 };
 const State = struct {
     count: u32 = 0,
     dark: bool = false,
@@ -15,55 +18,12 @@ const State = struct {
 var state = State{};
 var snapshot = P.Snapshot{};
 var exchange: [128]u8 = undefined;
-var scratch: [4096]u8 = undefined;
-var output: [4096]u8 = undefined;
+// Admit the formatted template, generated IDs, all three rows and the full
+// 128-byte draft after HTML escaping; native tests exercise that full resync.
+var scratch: [8192]u8 = undefined;
+var output: [8192]u8 = undefined;
 var output_len: usize = 0;
 var render_mode: gui.patch.RenderMode = .full;
-
-fn project(p: *P, s: *const State) void {
-    p.add("<main class=\"demo\"");
-    p.node(1);
-    p.attr(.{ .node = 1, .name = "data-theme", .value = if (s.dark) "dark" else "light" });
-    p.add("><header><p class=\"eyebrow\">ZG GUI · ZIG + WEBASSEMBLY</p><h1>Small updates.<br>Steady controls.</h1><p>A standalone application built with the extracted GUI core.</p></header><section class=\"card\"><h2>Your workspace</h2><label for=\"name\">Workspace name</label><input id=\"name\" data-input-kind=\"1\" placeholder=\"Try typing here\"");
-    p.node(2);
-    p.formValue(.{ .node = 2, .text_value = s.name[0..s.name_len] });
-    p.add("><p class=\"preview\">Hello, ");
-    p.textElement("span", .{ .node = 3, .value = if (s.name_len == 0) "friend" else s.name[0..s.name_len] });
-    p.add(".</p><label class=\"toggle\"><input type=\"checkbox\" data-input-kind=\"2\" data-value-format=\"checked\"");
-    p.node(4);
-    p.checked(.{ .node = 4, .value = s.dark });
-    p.add("> Dark theme</label></section><section class=\"card\"><h2>Keep things in place</h2><div class=\"counter\">");
-    var digits: [16]u8 = undefined;
-    p.textElement("output", .{ .node = 5, .value = std.fmt.bufPrint(&digits, "{d}", .{s.count}) catch unreachable });
-    p.add("<button data-event=\"1\" data-node-id=\"6\">Increment</button></div><button class=\"secondary\" data-event=\"2\" aria-controls=\"details\"");
-    p.node(7);
-    p.attr(.{ .node = 7, .name = "aria-expanded", .value = if (s.details) "true" else "false" });
-    p.add(">Show / hide details</button><p id=\"details\"");
-    p.node(8);
-    p.visible(.{ .node = 8, .value = s.details });
-    p.add(">This paragraph stays mounted when hidden. The counter updates only its own text.</p></section><section class=\"card wide\"><div class=\"section-heading\"><h2>Retained list rows</h2><div class=\"actions\"><button class=\"secondary\" data-event=\"3\">Reverse rows</button><button class=\"secondary\" data-event=\"4\">Toggle third row</button></div></div><ul data-node-id=\"9\">");
-    var ids: [3]u32 = if (s.reversed) .{ 11, 10, 12 } else .{ 10, 11, 12 };
-    const rows = ids[0..if (s.extra) @as(usize, 3) else 2];
-    p.keyedList(.{ .owner = 9, .nodes = rows });
-    for (rows) |id| {
-        const child = p.beginChild(.{ .owner = 9, .node = id });
-        p.add("<li");
-        p.node(id);
-        p.add("><label>");
-        const label: []const u8 = switch (id) {
-            10 => "First row",
-            11 => "Second row",
-            else => "Third row",
-        };
-        p.escaped(label);
-        p.add("<input aria-label=\"");
-        p.escaped(label);
-        p.add(" draft\" placeholder=\"Unsaved browser draft\"></label></li>");
-        p.endChild(child);
-    }
-    p.order(.{ .owner = 9, .nodes = rows });
-    p.add("</ul><p class=\"hint\">Type into a row, then reorder it. Its input and draft stay intact.</p></section><footer>No backend. No UI runtime dependencies. State and updates belong to Zig.</footer></main>");
-}
 
 // Publish state and snapshot only after BOTH bounded writers succeed.
 fn render(input: struct { next_state: State, mode: gui.patch.RenderMode }) u32 {
@@ -78,7 +38,24 @@ fn render(input: struct { next_state: State, mode: gui.patch.RenderMode }) u32 {
         .next = &next_snapshot,
         .writing = input.mode == .full,
     };
-    project(&p, &input.next_state);
+    const s = &input.next_state;
+    var rows = [_]Row{
+        .{ .id = 1, .label = "First row", .input_label = "First row draft" },
+        .{ .id = 2, .label = "Second row", .input_label = "Second row draft" },
+        .{ .id = 3, .label = "Third row", .input_label = "Third row draft" },
+    };
+    if (s.reversed) std.mem.swap(Row, &rows[0], &rows[1]);
+    template.project(&p, .{
+        .name = s.name[0..s.name_len],
+        .greeting = if (s.name_len == 0) "friend" else s.name[0..s.name_len],
+        .theme = @as([]const u8, if (s.dark) "dark" else "light"),
+        .dark = s.dark,
+        .details = s.details,
+        .count = s.count,
+        .rows = rows[0..if (s.extra) @as(usize, 3) else 2],
+        .actions = .{ .increment = Action.increment, .details = Action.details, .reverse = Action.reverse, .extra = Action.extra },
+        .inputs = .{ .name = InputKind.name, .theme = InputKind.theme },
+    });
     if (html.failed or stream.failed) {
         // No partial stream, candidate state or snapshot is published.
         output_len = 0;
@@ -121,16 +98,16 @@ fn acceptInput(input: struct { kind: u32, length: u32 }) u32 {
     var next = state;
     if (input.length <= exchange.len) {
         const value = exchange[0..input.length];
-        switch (input.kind) {
-            1 => if (std.unicode.utf8ValidateSlice(value)) {
+        const kind = std.enums.fromInt(InputKind, input.kind) orelse return render(.{ .next_state = next, .mode = .patch });
+        switch (kind) {
+            .name => if (std.unicode.utf8ValidateSlice(value)) {
                 @memcpy(next.name[0..value.len], value);
                 next.name_len = value.len;
             },
-            2 => {
+            .theme => {
                 if (std.mem.eql(u8, value, "true")) next.dark = true;
                 if (std.mem.eql(u8, value, "false")) next.dark = false;
             },
-            else => {},
         }
     }
     return render(.{ .next_state = next, .mode = .patch });
@@ -157,9 +134,10 @@ pub export fn getExchangeCapacity() u32 {
 test "counter and disclosure changes never replace their ancestor" {
     _ = init();
     _ = dispatch(1, 0);
-    try std.testing.expectEqualStrings("T\t5\t\"1\"\n", output[0..output_len]);
+    var expected: [256]u8 = undefined;
+    try std.testing.expectEqualStrings(try std.fmt.bufPrint(&expected, "T\t{d}\t\"1\"\n", .{template.nodes.count}), output[0..output_len]);
     _ = dispatch(2, 0);
-    try std.testing.expectEqualStrings("A\t7\taria-expanded\ttrue\nR\t8\thidden\n", output[0..output_len]);
+    try std.testing.expectEqualStrings(try std.fmt.bufPrint(&expected, "A\t{d}\taria-expanded\ttrue\nR\t{d}\thidden\n", .{ template.nodes.details_trigger, template.nodes.details }), output[0..output_len]);
 }
 
 test "input admission preserves state on overflow and invalid UTF-8" {

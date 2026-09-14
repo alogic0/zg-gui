@@ -1,5 +1,9 @@
 # Integration and ownership
 
+For template authoring, start with [compiled GUI templates](templates.md) and
+the [demo layout](../examples/demo.gui.html). The projection API below remains
+available for handwritten renderers and generated code uses the same lifecycle.
+
 ## Importing the package
 
 Use the pinned compiler in `.zigversion`. Add a path dependency to your own
