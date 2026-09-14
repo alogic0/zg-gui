@@ -28,6 +28,49 @@ pub fn build(b: *std.Build) void {
         const tests = b.addTest(.{ .root_module = module });
         tokenizer_tests.dependOn(&b.addRunArtifact(tests).step);
     }
+    const compiler_imports: []const std.Build.Module.Import = &.{
+        .{ .name = "html-tokenizer", .module = html_tokenizer },
+        .{ .name = "template-syntax", .module = template_syntax },
+    };
+    const template_compiler = b.addExecutable(.{
+        .name = "zg-template",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/template/main.zig"),
+            .target = b.graph.host,
+            .optimize = .safe,
+            .imports = compiler_imports,
+        }),
+    });
+    b.installArtifact(template_compiler);
+    const compiler_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/template/compiler.zig"),
+            .target = b.graph.host,
+            .optimize = .debug,
+            .imports = compiler_imports,
+        }),
+    });
+    const template_tests = b.step("test-templates", "Test template validation and code generation");
+    template_tests.dependOn(&b.addRunArtifact(compiler_tests).step);
+    const fixture_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/view.gui.html") });
+    const test_gui = b.createModule(.{ .root_source_file = b.path("src/root.zig"), .target = b.graph.host, .optimize = .debug });
+    const generated_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/templates/generated_test.zig"),
+            .target = b.graph.host,
+            .optimize = .debug,
+            .imports = &.{
+                .{ .name = "zg_gui", .module = test_gui },
+                .{ .name = "fixture", .module = b.createModule(.{
+                    .root_source_file = fixture_source,
+                    .target = b.graph.host,
+                    .optimize = .debug,
+                    .imports = &.{.{ .name = "zg_gui", .module = test_gui }},
+                }) },
+            },
+        }),
+    });
+    template_tests.dependOn(&b.addRunArtifact(generated_tests).step);
     _ = b.addModule("zg_gui", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
@@ -42,6 +85,7 @@ pub fn build(b: *std.Build) void {
     });
     b.step("test", "Test the GUI core").dependOn(&b.addRunArtifact(unit_tests).step);
     b.top_level_steps.get("test").?.step.dependOn(tokenizer_tests);
+    b.top_level_steps.get("test").?.step.dependOn(template_tests);
     b.installDirectory(.{ .source_dir = b.path("web"), .install_dir = .prefix, .install_subdir = "web" });
 
     const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding });
@@ -78,4 +122,10 @@ pub fn build(b: *std.Build) void {
         }),
     });
     b.top_level_steps.get("test").?.step.dependOn(&b.addRunArtifact(demo_tests).step);
+}
+
+pub fn generateTemplate(b: *std.Build, input: struct { compiler: *std.Build.Step.Compile, source: std.Build.LazyPath }) std.Build.LazyPath {
+    const run = b.addRunArtifact(input.compiler);
+    run.addFileArg(input.source);
+    return run.addOutputFileArg("template.zig");
 }

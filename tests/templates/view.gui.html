@@ -1,0 +1,17 @@
+<main :ref="root" data-theme="$theme">
+  <p>Hello <span :ref="greeting" :text="$name"></span> &amp; goodbye.</p>
+  <input :ref="input" :value="$name" :input="$inputs.name">
+  <textarea :ref="notes" :value="$name"></textarea>
+  <input :ref="checked" type="checkbox" :checked="$checked" :input="$inputs.checked">
+  <button :ref="button" :on-click="$actions.increment" disabled="$disabled" title="$title">Increment</button>
+  <output :ref="count" :text="$count"></output>
+  <section :ref="conditional" :if="$show">
+    <span :ref="conditional_text" :text="$name"></span>
+  </section>
+  <ul :ref="list" :loop="$rows" :key="id" :limit="2">
+    <li><span :text="$item.label"></span><input aria-label="$item.label"></li>
+  </ul>
+  <ul :ref="other_list" :loop="$other_rows" :key="id" :limit="2">
+    <li><span :text="$item.label"></span></li>
+  </ul>
+</main>
