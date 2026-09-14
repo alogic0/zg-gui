@@ -23,3 +23,10 @@ Application integration and product acceptance belong to consumers.
 See [templates](templates.md) and [verification](template-verification.md).
 Focus trapping, modal dismissal, routing and business effects remain application
 policy. Examples and tests use general-purpose controls and local fixtures.
+
+## Delivery checklist
+
+- [ ] Specify each feature through a neutral capability contract.
+- [ ] Implement the public API with explicit ownership and failure behavior.
+- [ ] Verify native behavior, consumer build integration and browser interactions.
+- [ ] Record limits and artifact/memory measurements separately from correctness.
