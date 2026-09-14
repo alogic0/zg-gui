@@ -1,0 +1,12 @@
+{
+  "source_package": "superhtml-0.7.0-Y7MdPKLDJgBZWdqCE_KYn6LIA9Vua-JdwaKNJLUL0nUL",
+  "source_directory": "/home/oleg/prog/zig-markdown-viewer/zig-pkg/superhtml-0.7.0-Y7MdPKLDJgBZWdqCE_KYn6LIA9Vua-JdwaKNJLUL0nUL",
+  "files": {
+    "LICENSE": "fce6401325da3777483f1567966de44f712d71bb5c7dcfc5cd15e292b968a7a2",
+    "src/syntax_types.zig": "ce3363f9e256343da7dc847ba9e00dac026e0d77c4f945cd462d801862696c9f",
+    "src/html_tokenizer.zig": "ae8890cac58f1a3be3fc0f06ef1cd383ba490a634bc5bc6ce3c38c18dd331e77",
+    "src/template_syntax.zig": "f0f5929c7bd53519e91308bd780d80d1bad4c3e96e62602761c35ea478e30d7d",
+    "src/html/Tokenizer.zig": "5a53d58260ca2eda821b69ac35edf607be4aed226dd7c83e70ccbf4a2001b9d6",
+    "src/html/named_character_references.zig": "9c447025042f6aa56a3f03b5d510286c0f666186292b5ee9945378fb59464e2f"
+  }
+}

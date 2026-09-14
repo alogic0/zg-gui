@@ -9,6 +9,25 @@ pub fn build(b: *std.Build) void {
     }
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const syntax_types = b.createModule(.{
+        .root_source_file = b.path("vendor/superhtml/src/syntax_types.zig"),
+        .target = b.graph.host,
+    });
+    const html_tokenizer = b.createModule(.{
+        .root_source_file = b.path("vendor/superhtml/src/html_tokenizer.zig"),
+        .target = b.graph.host,
+        .imports = &.{.{ .name = "syntax-types", .module = syntax_types }},
+    });
+    const template_syntax = b.createModule(.{
+        .root_source_file = b.path("vendor/superhtml/src/template_syntax.zig"),
+        .target = b.graph.host,
+        .imports = &.{.{ .name = "html-tokenizer", .module = html_tokenizer }},
+    });
+    const tokenizer_tests = b.step("test-tokenizers", "Test the vendored HTML tokenizer and syntax utilities");
+    for ([_]*std.Build.Module{ syntax_types, html_tokenizer, template_syntax }) |module| {
+        const tests = b.addTest(.{ .root_module = module });
+        tokenizer_tests.dependOn(&b.addRunArtifact(tests).step);
+    }
     _ = b.addModule("zg_gui", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
@@ -22,6 +41,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
     b.step("test", "Test the GUI core").dependOn(&b.addRunArtifact(unit_tests).step);
+    b.top_level_steps.get("test").?.step.dependOn(tokenizer_tests);
     b.installDirectory(.{ .source_dir = b.path("web"), .install_dir = .prefix, .install_subdir = "web" });
 
     const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding });
