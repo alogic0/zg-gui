@@ -97,3 +97,38 @@ test "typed lookup follows view fields and preserves borrowed strings" {
     const view = .{ .user = .{ .name = @as([]const u8, "name") } };
     try std.testing.expectEqualStrings("name", get(view, "user.name", "test"));
 }
+
+/// One admitted DOM ID range. Instantiate generated templates with disjoint ranges.
+pub const Namespace = struct {
+    first: u32 = 1,
+    count: u32 = std.math.maxInt(u32),
+    pub fn validate(comptime s: Namespace) void {
+        if (s.first == 0 or s.count == 0 or @as(u64, s.first) + s.count - 1 > std.math.maxInt(u32))
+            @compileError("invalid template namespace range");
+    }
+    pub fn node(s: Namespace, local: u32) error{NamespaceOverflow}!u32 {
+        if (s.first == 0 or local == 0 or local > s.count) return error.NamespaceOverflow;
+        return std.math.cast(u32, @as(u64, s.first) + local - 1) orelse error.NamespaceOverflow;
+    }
+};
+/// Validate the ranges assigned by a composing application, including handwritten owners.
+pub fn validateNamespaces(comptime spaces: []const Namespace) void {
+    for (spaces, 0..) |s, i| {
+        s.validate();
+        for (spaces[0..i]) |other| {
+            if (@as(u64, s.first) < @as(u64, other.first) + other.count and
+                @as(u64, other.first) < @as(u64, s.first) + s.count)
+                @compileError("overlapping template namespaces");
+        }
+    }
+}
+
+test "template namespace bounds reject overflow and preserve disjoint ranges" {
+    comptime validateNamespaces(&.{ .{ .first = 10, .count = 10 }, .{ .first = 20, .count = 10 } });
+    const space = Namespace{ .first = 10, .count = 10 };
+    try std.testing.expectEqual(@as(u32, 10), try space.node(1));
+    try std.testing.expectEqual(@as(u32, 19), try space.node(10));
+    try std.testing.expectError(error.NamespaceOverflow, space.node(11));
+    try std.testing.expectError(error.NamespaceOverflow, space.node(0));
+    try std.testing.expectError(error.NamespaceOverflow, (Namespace{ .first = std.math.maxInt(u32) }).node(2));
+}

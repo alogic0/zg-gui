@@ -127,3 +127,37 @@ test "invalid keys and loop limits reject the candidate snapshot and allow recov
     const accepted = try h.render(.{ .value = model, .mode = .patch });
     try std.testing.expect(std.mem.indexOf(u8, accepted, "J\t") != null);
 }
+
+test "independently scoped templates compose leaf and keyed owners without collisions" {
+    const left = view.Scoped(.{ .first = 1000, .count = 1000 });
+    const right = view.Scoped(.{ .first = 3000, .count = 1000 });
+    const Both = gui.Projection(left.snapshot_capacity + right.snapshot_capacity);
+    var before = Both.Snapshot{};
+    var after = Both.Snapshot{};
+    var bytes: [16384]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var output_bytes: [8192]u8 = undefined;
+    var output = gui.html.Writer{ .buffer = &output_bytes };
+    var patches = gui.patch.Writer{ .output = &output };
+    var p = Both{ .html = &html, .next = &before };
+    const model = View{ .rows = &.{.{ .id = 3, .label = "row" }} };
+    left.project(&p, model);
+    right.project(&p, model);
+    try std.testing.expect(!html.failed);
+    for (before.entries[0..before.len], 0..) |entry, i| {
+        for (before.entries[0..i]) |other| try std.testing.expect(entry.node != other.node or entry.property != other.property);
+    }
+    p = .{ .html = &html, .next = &after, .previous = &before, .patches = &patches, .writing = false };
+    var changed = model;
+    changed.count = 7;
+    left.project(&p, changed);
+    right.project(&p, model);
+    var expected: [128]u8 = undefined;
+    try std.testing.expectEqualStrings(try std.fmt.bufPrint(&expected, "T\t{d}\t\"7\"\n", .{left.nodes.count}), output.slice());
+    var too_large = model;
+    too_large.rows = &.{.{ .id = 1000, .label = "outside namespace" }};
+    html.failed = false;
+    after = .{};
+    left.project(&p, too_large);
+    try std.testing.expect(html.failed);
+}

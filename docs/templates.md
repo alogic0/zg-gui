@@ -61,8 +61,8 @@ Numeric keys are not arbitrary database IDs: very large keys can exceed the
 32-bit DOM namespace. The formula is `(key + 1) * element_count + slot`.
 Use stable compact application keys when external IDs do not fit. Different
 loops have disjoint template slots, so equal keys across those loops are valid.
-One generated tree owns one root namespace; independently generated templates
-cannot yet be composed under the same root without an explicit namespace layer.
+Independent templates can share a root using explicit disjoint namespaces; see
+the composition guide below. The default namespace is for a standalone tree.
 
 The generated module exposes `project(p, view)`, `nodes`, and
 `snapshot_capacity`. Use `gui.Projection(template.snapshot_capacity)` and the
@@ -136,3 +136,21 @@ tests, allocation-failure coverage, and expected compiler diagnostics. Vendored
 files and their unchanged source hashes are recorded in `vendor/superhtml/`.
 `npm test` additionally creates a temporary independent Zig package and verifies
 the public compiler-artifact integration shown above.
+
+## Composing independently compiled panels
+
+A generated module supports `Scoped(.{ .first = 1000, .count = 10000 })`.
+Its `project`, `nodes` and `snapshot_capacity` use that reserved DOM ID range.
+The original module-level API remains the default namespace starting at 1.
+Use explicit, disjoint ranges when multiple templates or handwritten projections
+share a root; call `gui.template.validateNamespaces(&.{ ... })` at comptime to
+check the application's complete range assignment. Ranges reserve IDs, not memory.
+Every static and keyed descendant must fit its range or the writer fails; never
+publish a failed projection. Key limits still apply within each range.
+
+Instantiate one template with different ranges to reuse a panel. Call the scoped
+projections from a Zig composition owner, either using separate snapshots or a
+combined projection sized to the sum of their capacities. This supports incremental
+adoption alongside handwritten renderers through one DOM patch pipeline. Literal
+HTML `id` attributes are not rewritten: use application-supplied associations when
+reusing markup with labels. Template include/component syntax is not yet provided.
