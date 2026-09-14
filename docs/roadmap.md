@@ -34,3 +34,6 @@ policy. Examples and tests use general-purpose controls and local fixtures.
 
 The next priority is reusable components. Existing scoped templates can be
 composed in Zig; template-level invocation is still pending.
+Track its contract and acceptance in
+[request 001](requests/001-template-components.md). Follow the
+[provider workflow](contributing.md) for new capabilities.

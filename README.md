@@ -48,3 +48,6 @@ ignored `test-results/` by the browser test command.
 The demo also composes two [integration panels](examples/controls.gui.html) with
 SVG icons, keyed table rows and controlled selects. See the
 [framework roadmap](docs/roadmap.md) for available and planned capabilities.
+
+Framework work follows [neutral capability requests](docs/contributing.md).
+Consumer integration and product acceptance remain outside this repository.
