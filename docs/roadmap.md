@@ -10,6 +10,7 @@ Application integration and product acceptance belong to consumers.
 - [x] Explicit table structure with retained keyed rows.
 - [x] Controlled single selects, keyed options and selection recovery.
 - [x] Native and browser checks for identity, focus, invalid input and overflow.
+- [x] Public build registration verified by an independent consumer package.
 
 ## Planned capabilities
 

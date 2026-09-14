@@ -152,3 +152,25 @@ pub fn generateTemplate(b: *std.Build, input: struct { compiler: *std.Build.Step
     run.addFileArg(input.source);
     return run.addOutputFileArg("template.zig");
 }
+
+/// Compile an application-owned template and register its generated projection.
+/// Instantiate dependency with the same target/optimization as owner. Its public
+/// zg_gui module is shared with the application when the application imports it.
+pub fn addTemplate(b: *std.Build, input: struct {
+    dependency: *std.Build.Dependency,
+    owner: *std.Build.Module,
+    name: []const u8,
+    source: std.Build.LazyPath,
+}) void {
+    const gui = input.dependency.module("zg_gui");
+    const source = generateTemplate(b, .{
+        .compiler = input.dependency.artifact("zg-template"),
+        .source = input.source,
+    });
+    input.owner.addImport(input.name, b.createModule(.{
+        .root_source_file = source,
+        .target = gui.resolved_target,
+        .optimize = gui.optimize,
+        .imports = &.{.{ .name = "zg_gui", .module = gui }},
+    }));
+}

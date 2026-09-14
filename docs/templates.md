@@ -85,22 +85,27 @@ not open the output until validation succeeds. Missing view fields produce Zig
 compile errors naming the template location; Zig also checks property and event
 types when the generated projection is instantiated.
 
-In a consuming project's build, use the package's native compiler artifact:
+In a consuming project's build, register a template with the public build helper:
 
 ```zig
 const dependency = b.dependency("zg_gui", .{ .target = target, .optimize = optimize });
-const gui = dependency.module("zg_gui");
-const generate = b.addRunArtifact(dependency.artifact("zg-template"));
-generate.addFileArg(b.path("view.gui.html"));
-const generated = generate.addOutputFileArg("view.zig");
-app.root_module.addImport("zg_gui", gui);
-app.root_module.addImport("view", b.createModule(.{
-    .root_source_file = generated,
-    .target = target,
-    .optimize = optimize,
-    .imports = &.{.{ .name = "zg_gui", .module = gui }},
-}));
+@import("zg_gui").addTemplate(b, .{
+    .dependency = dependency,
+    .owner = app.root_module,
+    .name = "view",
+    .source = b.path("view.gui.html"),
+});
 ```
+
+Use a dependency configured for the owner's target and optimization mode. For
+native tests and WASM builds, create one dependency per configuration and register
+the template on each root module. The compiler itself always runs on the build
+host. Applications using GUI runtime types directly can import the same
+`dependency.module("zg_gui")`; the generated module shares that module instance.
+Adapters to another projection API need only the generated `view` import.
+
+The compiler artifact `dependency.artifact("zg-template")` and `generateTemplate`
+build helper remain available for custom generation pipelines.
 
 This makes template edits build dependencies and keeps generated code in Zig's
 cache. Generated code should not be hand-edited or checked in.
