@@ -118,6 +118,11 @@ evaluation, or implicit persistence. `:if` owns children;
 use `:visible` when hidden descendants must retain drafts and focus identity.
 Refs inside loops are rejected because their IDs depend on the current key.
 
+Description lists support `dl`, `dt`, and `dd`, including direct div groups.
+Terms/descriptions must be direct children of the list or its div group. Groups
+contain only terms/descriptions; the list admits only these elements and whitespace
+between children. Text bindings on `dd` update only that description.
+
 Supported HTML tags include the original fragment elements plus `table`, `caption`,
 `colgroup`, `col`, `thead`, `tbody`, `tfoot`, `tr`, `th`, `td`, `select`, `optgroup`
 and `option`. Tables require explicit sections: put rows inside `tbody`, `thead`

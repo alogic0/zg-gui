@@ -40,7 +40,7 @@ the [command protocol](docs/protocol.md), and the working [example](examples/dem
 
 Verified locally: native core/example tests, a ReleaseSafe WASM build, Chromium
 interaction and recovery tests, and desktop/mobile screenshots. The composed example's
-WASM is 53,215 bytes and starts with two 64 KiB memory pages, including a 64 KiB
+WASM is 54,325 bytes and starts with two 64 KiB memory pages, including a 64 KiB
 stack. These are example measurements, not a budget for other applications;
 peak stack/heap use has not been profiled. Screenshots are generated under
 ignored `test-results/` by the browser test command.

@@ -130,7 +130,7 @@ const Compiler = struct {
                         stack.items.len -= 1;
                     },
                     .start, .start_self => {
-                        if (!oneOf(tag_name, "main header footer section article aside nav div p span h1 h2 h3 h4 h5 h6 a strong em small b i code pre br hr form fieldset legend label input textarea button output ul ol li img details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs symbol path circle ellipse rect line polyline polygon use title")) {
+                        if (!oneOf(tag_name, "main header footer section article aside nav div p span h1 h2 h3 h4 h5 h6 a strong em small b i code pre br hr form fieldset legend label input textarea button output ul ol li dl dt dd img details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs symbol path circle ellipse rect line polyline polygon use title")) {
                             return c.reject(tag.name.start, "unsupported element; use the documented HTML fragment subset");
                         }
                         if (tag.kind == .start_self and !tag.isVoid(c.input.source, .html) and !isSvg(tag_name)) return c.reject(tag.span.start, "non-void HTML elements require an explicit closing tag");
@@ -140,6 +140,11 @@ const Compiler = struct {
                             if (!isSvg(parent_name) and oneOf(ancestor, "p h1 h2 h3 h4 h5 h6") and !isPhrasing(tag_name)) return c.reject(tag.name.start, "block content would implicitly close a phrasing-only ancestor");
                             if (oneOf(tag_name, "a button form") and std.mem.eql(u8, tag_name, ancestor)) return c.reject(tag.name.start, "nested interactive element would be repaired by the browser");
                             if (std.mem.eql(u8, ancestor, "button") and oneOf(tag_name, "a input textarea button select")) return c.reject(tag.name.start, "interactive content is not allowed inside a button");
+                        }
+                        const grouped = std.mem.eql(u8, parent_name, "div") and stack.items.len >= 2 and std.mem.eql(u8, c.name(stack.items[stack.items.len - 2]), "dl");
+                        if (grouped and !oneOf(tag_name, "dt dd")) return c.reject(tag.name.start, "description list groups require terms and descriptions");
+                        if (oneOf(tag_name, "dt dd")) {
+                            if (!std.mem.eql(u8, parent_name, "dl") and !grouped) return c.reject(tag.name.start, "description term/value requires a dl or its direct div group");
                         }
                         if (structureError(.{ .parent = parent_name, .child = tag_name })) |message| return c.reject(tag.name.start, message);
                         if (oneOf(parent_name, "ul ol") and !std.mem.eql(u8, tag_name, "li")) return c.reject(tag.name.start, "list containers require direct li children");
@@ -237,7 +242,7 @@ const Compiler = struct {
                 };
             }
         }
-        if (oneOf(tag_name, "table colgroup thead tbody tfoot tr select optgroup")) {
+        if (oneOf(tag_name, "dl table colgroup thead tbody tfoot tr select optgroup")) {
             if (has_text) return c.reject(node.tag.span.start, "this container requires structural children, not text");
             var previous: usize = node.tag.span.end;
             for (node.children.items) |child| {
@@ -520,6 +525,7 @@ fn isSvg(name: []const u8) bool {
 fn structureError(input: struct { parent: []const u8, child: []const u8 }) ?[]const u8 {
     const p = input.parent;
     const n = input.child;
+    if (std.mem.eql(u8, p, "dl") and !oneOf(n, "div dt dd")) return "description lists require terms, descriptions or div groups";
     if (isSvg(p)) {
         if (!isSvg(n) or !oneOf(p, "svg g defs symbol")) return "invalid SVG child structure";
     } else if (isSvg(n) and !std.mem.eql(u8, n, "svg")) return "SVG elements require an SVG container";
@@ -623,4 +629,15 @@ test "components enforce expansion and nesting bounds" {
     // A component cannot balance an opener belonging to its caller.
     const broken = Component{ .name = "field", .file = .{ .name = "broken", .source = "</div><div>" } };
     try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = "<div>" ++ component_invocation ++ "</div>", .name = "parent", .components = &.{broken}, .diagnostic = &d }));
+}
+
+test "description lists validate term and value ownership" {
+    for ([_][]const u8{ "<dt>Term</dt>", "<div><dd>Value</dd></div>", "<dl><p>wrong</p></dl>", "<dl><div><span>wrong</span></div></dl>", "<dl>text<dt>Term</dt></dl>", "<dl><div><div><dd>Value</dd></div></div></dl>" }) |source| {
+        var d = Diagnostic{};
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "description.gui.html", .diagnostic = &d }));
+    }
+    var d = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{ .source = "<dl><dt>Term</dt><dd :text=\"$value\"></dd></dl><dl><div><dt>Term</dt><dd :text=\"$value\"></dd></div></dl>", .name = "description.gui.html", .diagnostic = &d });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "snapshot_capacity: usize = 2") != null);
 }

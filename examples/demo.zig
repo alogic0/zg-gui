@@ -211,6 +211,7 @@ test "component select updates only its instance without replacing either panel"
     const stream = output[0..output_len];
     try std.testing.expect(std.mem.indexOf(u8, stream, "H\t") == null);
     try std.testing.expect(std.mem.indexOf(u8, stream, "J\t") == null);
+    try std.testing.expect(std.mem.indexOf(u8, stream, std.fmt.comptimePrint("T\t{d}\t\"sms\"\n", .{panels.nodes.@"primary.selection"})) != null);
     var expected: [128]u8 = undefined;
     try std.testing.expect(std.mem.indexOf(u8, stream, try std.fmt.bufPrint(&expected, "V\t{d}\t\"sms\"", .{panels.nodes.@"primary.channel"})) != null);
     try std.testing.expect(std.mem.indexOf(u8, stream, try std.fmt.bufPrint(&expected, "V\t{d}\t", .{panels.nodes.@"secondary.channel"})) == null);

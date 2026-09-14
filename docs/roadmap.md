@@ -12,6 +12,9 @@ Application integration and product acceptance belong to consumers.
 - [x] Native and browser checks for identity, focus, invalid input and overflow.
 - [x] Public build registration verified by an independent consumer package.
 
+- [x] Semantic description lists with retained value leaves; see
+  [request 002](requests/002-description-lists.md).
+
 ## Capability extensions
 
 - [x] Reusable template invocation with typed inputs, stable instance namespaces

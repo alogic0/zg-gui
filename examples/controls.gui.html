@@ -8,6 +8,7 @@
           :loop="$options" :key="id" :limit="3">
     <option value="$item.value" :text="$item.label"></option>
   </select>
+  <dl><div><dt>Selected channel</dt><dd :ref="selection" :text="$selected"></dd></div></dl>
   <table>
     <caption>Field mapping</caption>
     <thead><tr><th>Incoming field</th><th>Draft</th></tr></thead>

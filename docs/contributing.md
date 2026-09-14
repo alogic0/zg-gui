@@ -47,3 +47,5 @@ tune to an unstated budget.
 ## Requests
 
 - [001: reusable template components](requests/001-template-components.md)
+
+- [002: description lists](requests/002-description-lists.md)

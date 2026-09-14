@@ -127,9 +127,14 @@ test('invoked components retain table rows, SVG namespaces and controlled select
       const second = document.querySelector('[aria-label="Secondary integration"]');
       const select = first.querySelector('select');
       const input = second.querySelector('input');
+      const list = first.querySelector('dl');
+      const description = list.querySelector('dd');
+      const sibling = second.querySelector('dd');
       input.value = 'independent browser draft'; input.focus();
       window.demo.setInput({ kind: 3, value: 'email' });
       return first.isConnected && second.isConnected && select === first.querySelector('select')
+        && list === first.querySelector('dl') && description === list.querySelector('dd')
+        && description.textContent === 'email' && sibling === second.querySelector('dd') && sibling.textContent === 'email'
         && input === second.querySelector('input') && document.activeElement === input
         && input.value === 'independent browser draft' && select.value === 'email'
         && second.querySelector('select').value === 'email';
