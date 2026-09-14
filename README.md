@@ -9,7 +9,7 @@ lists, text/attribute/form/focus/move patches, browser validation, UTF-8 exchang
 and mount/dispose lifecycle. Runtime dependencies: a browser and WebAssembly.
 Playwright is only a development dependency.
 
-Use the exact compiler in `.zigversion` (the source project's installed snapshot).
+Use the exact compiler in `.zigversion`.
 
 ```sh
 cd ~/prog/zg-gui
@@ -27,9 +27,6 @@ Press Ctrl+C to stop the development server.
 
 For browser tests, install Chromium with `npx playwright install chromium` if
 it is not already available. Tests run headlessly and require no backend.
-
-The extraction is an independent repository. The original application continues
-to use its existing implementation. See [provenance](docs/extraction.md).
 
 For another application, import the `zg_gui` Zig module and host it with
 `web/runtime.js`. See the [integration and ownership guide](docs/integration.md),
