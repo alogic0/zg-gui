@@ -12,9 +12,9 @@ Application integration and product acceptance belong to consumers.
 - [x] Native and browser checks for identity, focus, invalid input and overflow.
 - [x] Public build registration verified by an independent consumer package.
 
-## Planned capabilities
+## Capability extensions
 
-- [ ] Reusable template invocation with typed inputs, stable instance namespaces
+- [x] Reusable template invocation with typed inputs, stable instance namespaces
   and derived combined snapshot capacity.
 - [ ] Nested keyed loops with explicit ownership and admission limits.
 - [ ] Stable compact keys for arbitrary external identifiers.
@@ -32,8 +32,7 @@ policy. Examples and tests use general-purpose controls and local fixtures.
 - [ ] Verify native behavior, consumer build integration and browser interactions.
 - [ ] Record limits and artifact/memory measurements separately from correctness.
 
-The next priority is reusable components. Existing scoped templates can be
-composed in Zig; template-level invocation is still pending.
-Track its contract and acceptance in
-[request 001](requests/001-template-components.md). Follow the
+Reusable components are implemented and verified in
+[request 001](requests/001-template-components.md). Further extensions remain
+separate requests; invocation within keyed loops is not yet supported. Follow the
 [provider workflow](contributing.md) for new capabilities.

@@ -22,6 +22,7 @@ test('template diagnostics preserve output and typed bindings fail at compile ti
   const source = join(directory, 'view.gui.html');
   const generated = join(directory, 'generated.zig');
   const wrapper = join(directory, 'consumer.zig');
+  const component = join(directory, 'field.gui.html');
   try {
     await writeFile(source, '<div>\n<span :text="$name + bad()"></span>\n</div>');
     await writeFile(generated, 'previous successful artifact');
@@ -29,7 +30,12 @@ test('template diagnostics preserve output and typed bindings fail at compile ti
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /view\.gui\.html:2:7: expected \$field\.path/);
     assert.equal(await readFile(generated, 'utf8'), 'previous successful artifact');
+    const invocation = '<template :component="field" :view="$field" :ref="field"></template>';
     const cases = [
+      { html: invocation, component: '<span></span>', view: '.{}', message: /unknown binding field 'field'/ },
+      { html: invocation, component: '<span></span>', view: '.{ .field = @as(u32, 1) }', message: /component input requires a struct/ },
+      { html: invocation, component: '<span :text="$missing"></span>', view: '.{ .field = .{} }', message: /field\.gui\.html:1:7: unknown binding field 'missing'/ },
+      { html: invocation, component: '<button :on-click="$action">Go</button>', view: '.{ .field = .{ .action = @as(u32, 1) } }', message: /actions and input kinds must be enum values/ },
       { html: '<p></p>', view: '.{}', setup: 'comptime { gui.template.validateNamespaces(&.{ .{ .first=1, .count=10 }, .{ .first=10, .count=2 } }); }\n', message: /overlapping template namespaces/ },
       { html: '<p></p>', view: '.{}', setup: 'comptime { (gui.template.Namespace{ .first=0, .count=1 }).validate(); }\n', message: /invalid template namespace range/ },
       { html: '<p :text="$missing"></p>', view: '.{}', message: /view\.gui\.html:1:4: unknown binding field 'missing'/ },
@@ -38,7 +44,8 @@ test('template diagnostics preserve output and typed bindings fail at compile ti
     ];
     for (const example of cases) {
       await writeFile(source, example.html);
-      result = spawnSync(compiler, [source, generated], { encoding: 'utf8' });
+      if (example.component) await writeFile(component, example.component);
+      result = spawnSync(compiler, [source, generated, ...(example.component ? ['field', component] : [])], { encoding: 'utf8' });
       assert.equal(result.status, 0, result.stderr);
       await writeFile(wrapper,
         'const gui = @import("zg_gui");\nconst fixture = @import("fixture");\n' + (example.setup || '') +

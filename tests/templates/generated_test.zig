@@ -161,3 +161,64 @@ test "independently scoped templates compose leaf and keyed owners without colli
     left.project(&p, too_large);
     try std.testing.expect(html.failed);
 }
+
+test "nested components derive exact capacity and update one instance without ancestor patches" {
+    const component = @import("components").Scoped(.{ .first = 500, .count = 100 });
+    const CP = gui.Projection(component.snapshot_capacity);
+    const Field = struct { label: []const u8, value: []const u8 };
+    var model: struct { left: Field, right: struct { field: Field } } = .{ .left = Field{ .label = "Left", .value = "one" }, .right = .{ .field = Field{ .label = "Right", .value = "two" } } };
+    try std.testing.expectEqual(@as(usize, 4), component.snapshot_capacity);
+    try std.testing.expect(component.nodes.@"left.input" != component.nodes.@"right.inner.input");
+    var bytes: [2048]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var previous = CP.Snapshot{};
+    var p = CP{ .html = &html, .next = &previous };
+    component.project(&p, model);
+    try std.testing.expect(!html.failed);
+    try std.testing.expectEqual(component.snapshot_capacity, previous.len);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "<template") == null);
+    var output_bytes: [512]u8 = undefined;
+    var output = gui.html.Writer{ .buffer = &output_bytes };
+    var patches = gui.patch.Writer{ .output = &output };
+    var next = CP.Snapshot{};
+    p = .{ .html = &html, .next = &next, .previous = &previous, .patches = &patches, .writing = false };
+    model.left.value = "changed";
+    component.project(&p, model);
+    try std.testing.expect(!html.failed and !output.failed);
+    var expected: [128]u8 = undefined;
+    try std.testing.expectEqualStrings(try std.fmt.bufPrint(&expected, "V\t{d}\t\"changed\"\n", .{component.nodes.@"left.input"}), output.slice());
+    previous = next;
+    next = .{};
+    output.len = 0;
+    component.project(&p, model);
+    try std.testing.expectEqual(@as(usize, 0), output.len);
+    // Full recovery projects both current instances, never cached template input.
+    html.len = 0;
+    next = .{};
+    p = .{ .html = &html, .next = &next };
+    component.project(&p, model);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "changed") != null);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "two") != null);
+}
+
+test "component snapshot HTML and namespace exhaustion reject the candidate projection" {
+    const component = @import("components");
+    const model = .{ .left = .{ .label = "Left", .value = "one" }, .right = .{ .field = .{ .label = "Right", .value = "two" } } };
+    const Small = gui.Projection(component.snapshot_capacity - 1);
+    var bytes: [2048]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var snapshot = Small.Snapshot{};
+    var p = Small{ .html = &html, .next = &snapshot };
+    component.project(&p, model);
+    try std.testing.expect(html.failed);
+    const Full = gui.Projection(component.snapshot_capacity);
+    var full_snapshot = Full.Snapshot{};
+    var full = Full{ .html = &html, .next = &full_snapshot };
+    html = .{ .buffer = bytes[0..8] };
+    component.project(&full, model);
+    try std.testing.expect(html.failed);
+    html = .{ .buffer = &bytes };
+    full_snapshot = .{};
+    component.Scoped(.{ .first = 1, .count = 2 }).project(&full, model);
+    try std.testing.expect(html.failed);
+}

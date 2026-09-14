@@ -1,6 +1,6 @@
 # Request 001: reusable template components
 
-Status: requested. Template-level invocation is not implemented.
+Status: implemented and verified in the provider, September 14, 2026.
 
 ## Reusable problem
 
@@ -32,25 +32,34 @@ ownership model.
 
 ## Acceptance checklist
 
-- [ ] Specify invocation syntax, source registration and the typed input API.
-- [ ] Specify namespace/ref composition and supported nesting contexts.
-- [ ] Implement repeated invocation without extra layout wrappers.
-- [ ] Derive combined snapshot capacity and define admission limits.
-- [ ] Test independent instance updates, unchanged output and semantic refs.
-- [ ] Reject missing/invalid inputs, invalid structure and namespace overflow.
-- [ ] Test allocation failure, snapshot exhaustion and recovery.
-- [ ] Verify public build integration from an independent consumer package.
-- [ ] Verify repeated controls in a neutral browser example, including retained
+- [x] Specify invocation syntax, source registration and the typed input API.
+- [x] Specify namespace/ref composition and supported nesting contexts.
+- [x] Implement repeated invocation without extra layout wrappers.
+- [x] Derive combined snapshot capacity and define admission limits.
+- [x] Test independent instance updates, unchanged output and semantic refs.
+- [x] Reject missing/invalid inputs, invalid structure and namespace overflow.
+- [x] Test allocation failure, snapshot exhaustion and recovery.
+- [x] Verify public build integration from an independent consumer package.
+- [x] Verify repeated controls in a neutral browser example, including retained
   DOM objects, focused inputs and globally unique node IDs.
-- [ ] Document supported limits and record artifact/memory measurements.
+- [x] Document supported limits and record artifact/memory measurements.
 
-## Open design choices
+## Delivered API and limits
 
-Invocation syntax, source registration, namespace allocation and component
-nesting limits need design and implementation. These are not delivered APIs.
-Nested keyed loops, arbitrary external-ID mapping and multiple selection remain
-separate roadmap items.
+The [template guide](../templates.md#reusable-template-components) specifies
+`:component`, explicit `:view`, instance `:ref`, build registration, qualified
+references and derived snapshot capacity. Expansion shares the parent template's
+slot allocator and adds no layout wrappers or runtime interpreter.
+
+Nested components and component-owned keyed loops are supported. Invocation
+inside keyed loops remains explicitly rejected. Nested keyed loops, arbitrary
+external-ID mapping and multiple selection remain separate roadmap items.
 
 ## Verification
 
-Pending. Existing scoped-composition tests do not verify template invocation.
+`npm test` passes native/compiler tests and five JavaScript tests, including
+allocation failure, invalid source/type diagnostics and independent consumer
+registration with component-source rebuild invalidation. `npm run test:browser`
+passes four tests including independent instance updates, retained focus/drafts,
+keyed rows, SVG namespaces, selection recovery and global node-ID uniqueness.
+See [verification evidence](../template-verification.md#reusable-components).

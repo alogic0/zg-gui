@@ -53,6 +53,10 @@ pub fn build(b: *std.Build) void {
     const template_tests = b.step("test-templates", "Test template validation and code generation");
     template_tests.dependOn(&b.addRunArtifact(compiler_tests).step);
     const fixture_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/view.gui.html") });
+    const component_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/components.gui.html"), .components = &.{
+        .{ .name = "field", .source = b.path("tests/templates/field.gui.html") },
+        .{ .name = "wrapped", .source = b.path("tests/templates/wrapped-field.gui.html") },
+    } });
     const test_gui = b.createModule(.{ .root_source_file = b.path("src/root.zig"), .target = b.graph.host, .optimize = .debug });
     const generated_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -61,6 +65,12 @@ pub fn build(b: *std.Build) void {
             .optimize = .debug,
             .imports = &.{
                 .{ .name = "zg_gui", .module = test_gui },
+                .{ .name = "components", .module = b.createModule(.{
+                    .root_source_file = component_source,
+                    .target = b.graph.host,
+                    .optimize = .debug,
+                    .imports = &.{.{ .name = "zg_gui", .module = test_gui }},
+                }) },
                 .{ .name = "fixture", .module = b.createModule(.{
                     .root_source_file = fixture_source,
                     .target = b.graph.host,
@@ -89,7 +99,7 @@ pub fn build(b: *std.Build) void {
     b.installDirectory(.{ .source_dir = b.path("web"), .install_dir = .prefix, .install_subdir = "web" });
 
     const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding });
-    const controls_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("examples/controls.gui.html") });
+    const controls_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("examples/panels.gui.html"), .components = &.{.{ .name = "controls", .source = b.path("examples/controls.gui.html") }} });
     const demo_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("examples/demo.gui.html") });
     const wasm_gui = b.createModule(.{ .root_source_file = b.path("src/root.zig"), .target = wasm_target, .optimize = .safe });
     const demo = b.addExecutable(.{
@@ -147,10 +157,17 @@ pub fn build(b: *std.Build) void {
     b.top_level_steps.get("test").?.step.dependOn(&b.addRunArtifact(demo_tests).step);
 }
 
-pub fn generateTemplate(b: *std.Build, input: struct { compiler: *std.Build.Step.Compile, source: std.Build.LazyPath }) std.Build.LazyPath {
+pub const TemplateComponent = struct { name: []const u8, source: std.Build.LazyPath };
+
+pub fn generateTemplate(b: *std.Build, input: struct { compiler: *std.Build.Step.Compile, source: std.Build.LazyPath, components: []const TemplateComponent = &.{} }) std.Build.LazyPath {
     const run = b.addRunArtifact(input.compiler);
     run.addFileArg(input.source);
-    return run.addOutputFileArg("template.zig");
+    const output = run.addOutputFileArg("template.zig");
+    for (input.components) |component| {
+        run.addArg(component.name);
+        run.addFileArg(component.source);
+    }
+    return output;
 }
 
 /// Compile an application-owned template and register its generated projection.
@@ -161,11 +178,13 @@ pub fn addTemplate(b: *std.Build, input: struct {
     owner: *std.Build.Module,
     name: []const u8,
     source: std.Build.LazyPath,
+    components: []const TemplateComponent = &.{},
 }) void {
     const gui = input.dependency.module("zg_gui");
     const source = generateTemplate(b, .{
         .compiler = input.dependency.artifact("zg-template"),
         .source = input.source,
+        .components = input.components,
     });
     input.owner.addImport(input.name, b.createModule(.{
         .root_source_file = source,

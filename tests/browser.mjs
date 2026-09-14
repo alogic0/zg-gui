@@ -106,7 +106,7 @@ test('runtime resynchronizes an invalid patch and can remount after disposal', a
   } finally { await browser?.close(); await server.close(); }
 });
 
-test('composed templates retain table rows, SVG namespaces and controlled select values', async () => {
+test('invoked components retain table rows, SVG namespaces and controlled select values', async () => {
   const server = await serve({ directory: new URL('../zig-out/web', import.meta.url).pathname });
   let browser;
   try {
@@ -121,7 +121,20 @@ test('composed templates retain table rows, SVG namespaces and controlled select
     assert.equal(await first.getByRole('combobox').inputValue(), 'email');
     assert.equal(await second.getByRole('combobox').inputValue(), 'email');
     await first.getByRole('combobox').selectOption('sms');
-    assert.equal(await second.getByRole('combobox').inputValue(), 'sms');
+    assert.equal(await second.getByRole('combobox').inputValue(), 'email');
+    const independent = await page.evaluate(() => {
+      const first = document.querySelector('[aria-label="Primary integration"]');
+      const second = document.querySelector('[aria-label="Secondary integration"]');
+      const select = first.querySelector('select');
+      const input = second.querySelector('input');
+      input.value = 'independent browser draft'; input.focus();
+      window.demo.setInput({ kind: 3, value: 'email' });
+      return first.isConnected && second.isConnected && select === first.querySelector('select')
+        && input === second.querySelector('input') && document.activeElement === input
+        && input.value === 'independent browser draft' && select.value === 'email'
+        && second.querySelector('select').value === 'email';
+    });
+    assert.equal(independent, true);
     await first.getByRole('combobox').selectOption('email');
     await first.getByRole('textbox', { name: 'First row', exact: true }).fill('retained mapping draft');
     const result = await page.evaluate(() => {

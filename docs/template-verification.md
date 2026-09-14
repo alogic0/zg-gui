@@ -64,4 +64,32 @@ These measurements include additional example behavior and are not a frontend
 performance guarantee.
 
 See the [framework roadmap](roadmap.md) for planned capabilities. Nested loops,
-template invocation syntax and large-application profiling remain deferred.
+invocation within keyed loops and large-application profiling remain deferred.
+
+
+## Reusable components
+
+September 14, 2026, using the pinned Zig compiler. Components expand at build time
+with scoped typed bindings and qualified refs. The normal parser validates the
+expanded tree and derives slot ownership and snapshot capacity. Source mappings
+preserve diagnostics from nested source files.
+
+- `npm test`: native checks and five JavaScript test cases pass. Covers repeated
+  and nested instances, exact composed capacity, single-instance value patches,
+  unchanged projections, recovery, HTML/snapshot/namespace exhaustion, allocation
+  failure, recursion, duplicate names, unsupported loop context and expanded
+  source overflow. Invalid typed views report the original source location.
+- Independent-package test registers a component through the public build helper.
+  It verifies both instances and then changes only the component source; the old
+  output assertion fails as expected, proving regeneration is a build dependency.
+- `npm run test:browser`: four tests pass. The demo now invokes two control panels
+  from a template and gives them independent selections. Updating one retains the
+  other instance's focused input, draft and DOM objects. Existing keyed table,
+  SVG, selected-option recovery, unique-ID and resynchronization coverage passes.
+- `zig fmt` and `git diff --check` pass. No browser runtime changes were required.
+
+Demo WASM: 53,215 bytes (previous composed demo: 51,651). Initial memory remains
+two 64 KiB pages; the explicit memory-growth test reaches three pages. These
+measurements include independent selection state and expanded ID allocation.
+They are not an application benchmark or a peak stack/heap profile, and no
+budget tuning was performed.

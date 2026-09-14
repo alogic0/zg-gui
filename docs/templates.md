@@ -113,8 +113,8 @@ cache. Generated code should not be hand-edited or checked in.
 ## Current language boundary
 
 This is a GUI-specific subset, not the complete SuperHTML/Scripty language.
-There is no raw HTML injection, `:else`, nested loop, template include/component invocation,
-runtime expression evaluation, or implicit persistence. `:if` owns children;
+There is no raw HTML injection, `:else`, nested keyed loop, runtime expression
+evaluation, or implicit persistence. `:if` owns children;
 use `:visible` when hidden descendants must retain drafts and focus identity.
 Refs inside loops are rejected because their IDs depend on the current key.
 
@@ -178,4 +178,98 @@ projections from a Zig composition owner, either using separate snapshots or a
 combined projection sized to the sum of their capacities. This supports incremental
 adoption alongside handwritten renderers through one DOM patch pipeline. Literal
 HTML `id` attributes are not rewritten: use application-supplied associations when
-reusing markup with labels. Template include/component syntax is not yet provided.
+reusing markup with labels. For invocation from markup, use components below.
+
+
+## Reusable template components
+
+Register named source files with `addTemplate` (or `generateTemplate`):
+
+```zig
+@import("zg_gui").addTemplate(b, .{
+    .dependency = dependency,
+    .owner = app.root_module,
+    .name = "view",
+    .source = b.path("view.gui.html"),
+    .components = &.{
+        .{ .name = "field", .source = b.path("field.gui.html") },
+    },
+});
+```
+
+Invoke the component using an empty, explicitly closed template element:
+
+```html
+<section>
+  <template :component="field" :view="$first" :ref="first"></template>
+  <template :component="field" :view="$second" :ref="second"></template>
+</section>
+```
+
+For example, `field.gui.html` can contain:
+
+```html
+<label><span :text="$label"></span><input :ref="input" :value="$value"></label>
+```
+
+Pass typed values from Zig:
+
+```zig
+const Field = struct { label: []const u8, value: []const u8 };
+view.project(&projection, .{
+    .first = Field{ .label = "First", .value = "one" },
+    .second = Field{ .label = "Second", .value = "two" },
+});
+```
+
+Each `:view` is an explicit struct or single-item struct pointer. Bindings read
+only that view's fields; missing fields and incorrect property/action types fail
+Zig compilation. Even a static component requires a valid view. This is the same
+structural typing as ordinary template views; the framework does not impose a
+particular application struct or event enum.
+
+`:ref` names the instance. Component-local refs become qualified names such as
+`view.nodes.@"first.input"` and `view.nodes.@"second.input"`. Nested invocation
+adds another segment, for example `view.nodes.@"first.editor.input"`. Instance
+and local ref names must be simple identifiers; dots are compiler-owned. Repeated
+instance names in the same scope are rejected, including components without refs.
+
+Expansion emits the component's actual markup, with no `template` DOM element or
+additional wrapper. All expanded elements share the parent's generated slot
+allocation and `Scoped` range, so repeated instances have disjoint node IDs.
+IDs remain stable through state updates, visibility changes and keyed reorder;
+editing template structure can change numeric IDs. Use semantic refs and do not
+persist generated IDs as application data. HTML `id`/`for` values remain consumer
+owned: bind unique associations when reusing a component with explicit IDs.
+
+The parent `snapshot_capacity` derives all expanded bindings and declared loop
+limits. It includes each instance once; consumers must not add the component's
+capacity again. Compose the resulting template with handwritten entries using
+the normal snapshot lifecycle. Failure flags still require discarding candidate
+HTML, patches and snapshots before publishing anything.
+
+Components may invoke other registered components and contain their own keyed
+loops. Invocation inside a keyed loop is rejected in this version. Components
+inside `:if` follow its structural owner's lifecycle; `:visible` retains them.
+Each source must be balanced independently, and the expanded tree undergoes the
+normal HTML/SVG/table/select structure validation across component boundaries.
+Recursive invocation, unknown sources, extra invocation attributes and nonempty
+invocation content are rejected. Whitespace between invocation tags is allowed.
+
+Bounds: 64 registered sources, 16 invocation levels, 256 expanded instances,
+256 KiB per source and expanded document, and the existing 4096-element/depth-64
+bounds on the final tree. These constrain build-time work, not runtime allocation.
+Source files are explicit build dependencies: editing a nested component rebuilds
+the generated consumer. No runtime compiler, source loader or second DOM host is
+introduced. Diagnostics retain original source filenames, lines and columns.
+
+The equivalent direct compiler command supplies name/path pairs after the output:
+
+```sh
+zig-out/bin/zg-template view.gui.html generated.zig field field.gui.html
+```
+
+See [panels.gui.html](../examples/panels.gui.html) for two instances of a component
+containing keyed tables, SVG and a controlled select. Each instance receives its
+own selection state; browser tests check that edits retain the other instance's
+focused input and draft.

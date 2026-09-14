@@ -3,14 +3,17 @@ const std = @import("std");
 const html = @import("html-tokenizer");
 const syntax = @import("template-syntax");
 const Allocator = std.mem.Allocator;
+const composition = @import("composition.zig");
 const Attr = html.Tokenizer.Attr;
 const Error = error{ OutOfMemory, InvalidTemplate };
-pub const max_source_bytes = 256 * 1024;
-pub const Diagnostic = struct { offset: usize = 0, message: []const u8 = "" };
+pub const max_source_bytes = composition.max_source_bytes;
+pub const Diagnostic = composition.Diagnostic;
+pub const Component = composition.Component;
 pub const Input = struct {
     source: []const u8,
     name: []const u8,
     diagnostic: *Diagnostic,
+    components: []const Component = &.{},
 };
 
 const Node = struct {
@@ -54,9 +57,14 @@ pub fn compile(allocator: Allocator, input: Input) Error![]u8 {
     input.diagnostic.* = .{};
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
-    var compiler = Compiler{ .a = arena.allocator(), .input = input, .code = .{ .allocator = arena.allocator() } };
-    if (input.source.len > max_source_bytes) return compiler.reject(0, "template exceeds 256 KiB");
-    if (!std.unicode.utf8ValidateSlice(input.source)) return compiler.reject(0, "template must be valid UTF-8");
+    const document = try composition.expand(arena.allocator(), .{
+        .file = .{ .source = input.source, .name = input.name },
+        .components = input.components,
+        .diagnostic = input.diagnostic,
+    });
+    var expanded = input;
+    expanded.source = document.source;
+    var compiler = Compiler{ .a = arena.allocator(), .input = expanded, .document = document, .code = .{ .allocator = arena.allocator() } };
     try compiler.parse();
     for (compiler.roots.items) |idx| try compiler.validate(.{ .idx = idx, .in_loop = false });
     try compiler.generate();
@@ -66,13 +74,14 @@ pub fn compile(allocator: Allocator, input: Input) Error![]u8 {
 const Compiler = struct {
     a: Allocator,
     input: Input,
+    document: composition.Document,
     code: Code,
     nodes: std.ArrayList(Node) = .empty,
     roots: std.ArrayList(usize) = .empty,
     entries: usize = 0,
 
     fn reject(c: *Compiler, at: usize, message: []const u8) Error {
-        c.input.diagnostic.* = .{ .offset = at, .message = message };
+        c.input.diagnostic.* = c.document.location(at).diagnostic(message);
         return error.InvalidTemplate;
     }
     fn name(c: *const Compiler, idx: usize) []const u8 {
@@ -181,7 +190,7 @@ const Compiler = struct {
             }
             if (std.mem.eql(u8, n, ":ref")) {
                 const ref = try c.value(a);
-                if (!identifier(ref) or input.in_loop) return c.reject(a.name.start, ":ref requires a simple name outside loops");
+                if (!validPath(ref) or input.in_loop) return c.reject(a.name.start, ":ref requires a simple name outside loops");
                 for (c.nodes.items[0..input.idx], 0..) |_, previous| {
                     if (c.attr(.{ .idx = previous, .name = ":ref" })) |other| {
                         if (std.mem.eql(u8, ref, try c.value(other))) return c.reject(a.name.start, "duplicate :ref");
@@ -278,8 +287,8 @@ const Compiler = struct {
         try c.code.print("binding.get({s}, ", .{if (item) "item" else "view"});
         try c.code.string(if (item) v[5..] else v);
         try c.code.add(", ");
-        const range = a.name.range(c.input.source);
-        try c.code.string(try std.fmt.allocPrint(c.a, "{s}:{d}:{d}", .{ c.input.name, range.start.row + 1, range.start.col + 1 }));
+        const location = c.document.location(a.name.start).diagnostic("");
+        try c.code.string(try std.fmt.allocPrint(c.a, "{s}:{d}:{d}", .{ location.name, location.line, location.column }));
         try c.code.add(")");
     }
     fn id(c: *Compiler, input: struct { slot: u32, in_loop: bool }) Error!void {
@@ -410,6 +419,17 @@ const Compiler = struct {
             try c.code.print(": u32 = space.node({d}) catch @compileError(\"template ref exceeds namespace\");\n", .{node.slot});
         };
         try c.code.add("};\npub fn project(p: anytype, view: anytype) void {\n_ = &view;\n");
+        for (c.document.instances) |instance| {
+            const location = instance.location.diagnostic("");
+            const label = try std.fmt.allocPrint(c.a, "{s}:{d}:{d}", .{ location.name, location.line, location.column });
+            try c.code.add("binding.componentInput(binding.get(view, ");
+            try c.code.string(instance.view);
+            try c.code.add(", ");
+            try c.code.string(label);
+            try c.code.add("), ");
+            try c.code.string(label);
+            try c.code.add(");\n");
+        }
         var previous: usize = 0;
         for (c.roots.items) |root| {
             try c.literal(c.input.source[previous..c.nodes.items[root].tag.span.start]);
@@ -536,4 +556,71 @@ test "table select and SVG structures are validated before browser repair" {
     const code = try compile(std.testing.allocator, .{ .source = "<section><h2><svg><path d=\"M0 0h1\" /></svg></h2><svg viewBox=\"0 0 24 24\"><path d=\"M0 0h1\" /></svg><table><tbody><tr><td>x</td></tr></tbody></table><select :value=\"$selected\" :input=\"$input\"><option value=\"a\">A</option></select></section>", .name = "controls.gui.html", .diagnostic = &d });
     defer std.testing.allocator.free(code);
     try std.testing.expect(std.mem.indexOf(u8, code, "p.selectedValue") != null);
+}
+
+const component_fixture = Component{ .name = "field", .file = .{ .name = "field.gui.html", .source = "<label><span :text=\"$label\"></span><input :ref=\"input\" :value=\"$value\"></label>" } };
+const component_invocation = "<template :component=\"field\" :view=\"$first\" :ref=\"first\"></template>";
+
+test "components scope views and references and derive combined capacity" {
+    var d = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{ .source = component_invocation ++ "<template :component=\"field\" :view=\"$second\" :ref=\"second\"></template>", .name = "parent.gui.html", .components = &.{component_fixture}, .diagnostic = &d });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "first.input") != null);
+    try std.testing.expect(std.mem.indexOf(u8, code, "second.value") != null);
+    try std.testing.expect(std.mem.indexOf(u8, code, "snapshot_capacity: usize = 4") != null);
+    try std.testing.expect(std.mem.indexOf(u8, code, "<template") == null);
+    try std.testing.expect(std.mem.indexOf(u8, code, "field.gui.html:1:14") != null);
+}
+
+test "component composition rejects invalid boundaries names loops and recursion" {
+    const recursive = Component{ .name = "recursive", .file = .{ .name = "recursive.gui.html", .source = "<template :component=\"recursive\" :view=\"$child\" :ref=\"child\"></template>" } };
+    for ([_][]const u8{
+        "<template :component=\"missing\" :view=\"$first\" :ref=\"first\"></template>",
+        "<template :component=\"field\" :view=\"$first\"></template>",
+        "<template :component=\"field\" :view=\"$first + bad()\" :ref=\"first\"></template>",
+        "<template :component=\"field\" :view=\"$first\" :ref=\"first\">text</template>",
+        "<template :component=\"field\" :view=\"$first\" :ref=\"first\"></template extra>",
+        component_invocation ++ component_invocation,
+        "<ul :loop=\"$rows\" :key=\"id\" :limit=\"2\"><li>" ++ component_invocation ++ "</li></ul>",
+        "<button>" ++ component_invocation ++ "</button>",
+        "<template :component=\"recursive\" :view=\"$first\" :ref=\"first\"></template>",
+    }) |source| {
+        var d = Diagnostic{};
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "parent.gui.html", .components = &.{ component_fixture, recursive }, .diagnostic = &d }));
+        try std.testing.expect(d.message.len != 0 and d.name.len != 0);
+    }
+    var d = Diagnostic{};
+    try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = component_invocation, .name = "parent.gui.html", .components = &.{ component_fixture, component_fixture }, .diagnostic = &d }));
+    const broken = Component{ .name = "field", .file = .{ .name = "broken.gui.html", .source = "<div>\n<span :text=\"$bad + expression\"></span></div>" } };
+    try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = component_invocation, .name = "parent.gui.html", .components = &.{broken}, .diagnostic = &d }));
+    try std.testing.expectEqualStrings("broken.gui.html", d.name);
+    try std.testing.expectEqual(@as(usize, 2), d.line);
+    try std.testing.expectEqual(@as(usize, 7), d.column);
+}
+
+fn componentAllocationProbe(a: Allocator) !void {
+    var d = Diagnostic{};
+    const code = try compile(a, .{ .source = component_invocation, .name = "parent.gui.html", .components = &.{component_fixture}, .diagnostic = &d });
+    defer a.free(code);
+}
+test "component expansion releases every allocation on failure" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, componentAllocationProbe, .{});
+}
+
+test "components enforce expansion and nesting bounds" {
+    var d = Diagnostic{};
+    const large = try std.testing.allocator.alloc(u8, max_source_bytes);
+    defer std.testing.allocator.free(large);
+    @memset(large, 'a');
+    @memcpy(large[0..3], "<p>");
+    @memcpy(large[large.len - 4 ..], "</p>");
+    const oversized = Component{ .name = "field", .file = .{ .name = "large.gui.html", .source = large } };
+    try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = "<div>" ++ component_invocation ++ "</div>", .name = "parent", .components = &.{oversized}, .diagnostic = &d }));
+    try std.testing.expectEqualStrings("expanded template exceeds 256 KiB", d.message);
+    const whitespace = "<template :component=\"field\" :view=\"$first\" :ref=\"first\"> \n </template>";
+    const code = try compile(std.testing.allocator, .{ .source = whitespace, .name = "parent", .components = &.{component_fixture}, .diagnostic = &d });
+    defer std.testing.allocator.free(code);
+    // A component cannot balance an opener belonging to its caller.
+    const broken = Component{ .name = "field", .file = .{ .name = "broken", .source = "</div><div>" } };
+    try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = "<div>" ++ component_invocation ++ "</div>", .name = "parent", .components = &.{broken}, .diagnostic = &d }));
 }

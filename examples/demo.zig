@@ -2,18 +2,17 @@
 const std = @import("std");
 const gui = @import("zg_gui");
 const template = @import("demo_template").Scoped(.{ .first = 1, .count = 999 });
-const controls = @import("controls_template");
-const primary = controls.Scoped(.{ .first = 1000, .count = 1000 });
-const secondary = controls.Scoped(.{ .first = 3000, .count = 1000 });
+const panels = @import("controls_template").Scoped(.{ .first = 1000, .count = 3000 });
 comptime {
-    gui.template.validateNamespaces(&.{ .{ .first = 1, .count = 999 }, .{ .first = 1000, .count = 1000 }, .{ .first = 3000, .count = 1000 } });
+    gui.template.validateNamespaces(&.{ .{ .first = 1, .count = 999 }, .{ .first = 1000, .count = 3000 } });
 }
-const P = gui.Projection(template.snapshot_capacity + primary.snapshot_capacity + secondary.snapshot_capacity);
+const P = gui.Projection(template.snapshot_capacity + panels.snapshot_capacity);
 const Row = struct { id: u32, label: []const u8, input_label: []const u8 };
-const InputKind = enum(u32) { name = 1, theme = 2, channel = 3 };
+const InputKind = enum(u32) { name = 1, theme = 2, channel = 3, secondary_channel = 4 };
 const State = struct {
     count: u32 = 0,
     email: bool = true,
+    secondary_email: bool = true,
     dark: bool = false,
     details: bool = false,
     reversed: bool = false,
@@ -86,11 +85,12 @@ fn render(input: struct { next_state: State, mode: gui.patch.RenderMode }) u32 {
         .rows = rows[0..if (s.extra) @as(usize, 3) else 2],
         .markers = markers[0..if (s.extra) @as(usize, 3) else 2],
     };
-    primary.project(&p, shared);
     var other = shared;
     other.title = "Secondary integration";
     other.control_id = "secondary-channel";
-    secondary.project(&p, other);
+    other.selected = if (s.secondary_email) "email" else "sms";
+    other.inputs.channel = .secondary_channel;
+    panels.project(&p, .{ .primary = shared, .secondary = other });
     if (html.failed or stream.failed) {
         // No partial stream, candidate state or snapshot is published.
         output_len = 0;
@@ -142,6 +142,10 @@ fn acceptInput(input: struct { kind: u32, length: u32 }) u32 {
             .channel => {
                 if (std.mem.eql(u8, value, "email")) next.email = true;
                 if (std.mem.eql(u8, value, "sms")) next.email = false;
+            },
+            .secondary_channel => {
+                if (std.mem.eql(u8, value, "email")) next.secondary_email = true;
+                if (std.mem.eql(u8, value, "sms")) next.secondary_email = false;
             },
             .theme => {
                 if (std.mem.eql(u8, value, "true")) next.dark = true;
@@ -200,7 +204,7 @@ test "maximum admitted escaped input also fits a full recovery projection" {
     try std.testing.expectEqual(@as(usize, 128), state.name_len);
 }
 
-test "controlled select updates patch both values without replacing either panel" {
+test "component select updates only its instance without replacing either panel" {
     _ = init();
     @memcpy(exchange[0..3], "sms");
     _ = setInput(3, 3);
@@ -208,7 +212,6 @@ test "controlled select updates patch both values without replacing either panel
     try std.testing.expect(std.mem.indexOf(u8, stream, "H\t") == null);
     try std.testing.expect(std.mem.indexOf(u8, stream, "J\t") == null);
     var expected: [128]u8 = undefined;
-    for ([_]u32{ primary.nodes.channel, secondary.nodes.channel }) |node| {
-        try std.testing.expect(std.mem.indexOf(u8, stream, try std.fmt.bufPrint(&expected, "V\t{d}\t\"sms\"", .{node})) != null);
-    }
+    try std.testing.expect(std.mem.indexOf(u8, stream, try std.fmt.bufPrint(&expected, "V\t{d}\t\"sms\"", .{panels.nodes.@"primary.channel"})) != null);
+    try std.testing.expect(std.mem.indexOf(u8, stream, try std.fmt.bufPrint(&expected, "V\t{d}\t", .{panels.nodes.@"secondary.channel"})) == null);
 }

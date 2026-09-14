@@ -182,3 +182,13 @@ test "select values reject lossy attribute control characters and optional icons
     attribute(&p, "href", .{ .node = 1, .value = @as(?[]const u8, null) });
     try std.testing.expect(!html.failed);
 }
+
+/// Validate even static component views, whose fields are not otherwise read.
+pub fn componentInput(value: anytype, comptime location: []const u8) void {
+    const T = @TypeOf(value);
+    const Base = switch (@typeInfo(T)) {
+        .pointer => |p| if (p.size == .one) p.child else @compileError(location ++ ": component input requires a struct or a single-item struct pointer"),
+        else => T,
+    };
+    if (@typeInfo(Base) != .@"struct") @compileError(location ++ ": component input requires a struct");
+}
