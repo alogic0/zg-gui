@@ -177,7 +177,7 @@ const Compiler = struct {
         if ((std.mem.eql(u8, v, "$item") or std.mem.startsWith(u8, v, "$item.")) and !input.in_loop) return c.reject(input.attr.name.start, "$item is only available inside a loop");
     }
 
-    fn validate(c: *Compiler, input: struct { idx: usize, in_loop: bool, factor: usize = 1 }) Error!void {
+    fn validate(c: *Compiler, input: struct { idx: usize, in_loop: bool, in_condition: bool = false, factor: usize = 1 }) Error!void {
         const node = &c.nodes.items[input.idx];
         node.in_loop = input.in_loop;
         node.factor = input.factor;
@@ -201,6 +201,12 @@ const Compiler = struct {
                         if (std.mem.eql(u8, ref, try c.value(other))) return c.reject(a.name.start, "duplicate :ref");
                     }
                 }
+                continue;
+            }
+            if (std.mem.eql(u8, n, ":slot")) {
+                if (input.in_loop or input.in_condition)
+                    return c.reject(a.name.start, ":slot is not supported inside loops or conditions");
+                try c.binding(.{ .attr = a, .in_loop = false });
                 continue;
             }
             if (std.mem.eql(u8, n, ":limit")) {
@@ -242,6 +248,11 @@ const Compiler = struct {
                 };
             }
         }
+        if (c.attr(.{ .idx = input.idx, .name = ":slot" })) |a| {
+            if (!oneOf(tag_name, "div section") or has_text or has_value or has_if or has_loop or
+                std.mem.trim(u8, c.input.source[node.tag.span.end..node.close_start], " \t\r\n").len != 0)
+                return c.reject(a.name.start, ":slot requires an empty div or section with no other content owner");
+        }
         if (oneOf(tag_name, "dl table colgroup thead tbody tfoot tr select optgroup")) {
             if (has_text) return c.reject(node.tag.span.start, "this container requires structural children, not text");
             var previous: usize = node.tag.span.end;
@@ -273,7 +284,7 @@ const Compiler = struct {
             const child = c.nodes.items[node.children.items[0]];
             if (std.mem.trim(u8, c.input.source[node.tag.span.end..child.tag.span.start], " \t\r\n").len != 0 or std.mem.trim(u8, c.input.source[child.end..node.close_start], " \t\r\n").len != 0) return c.reject(node.tag.span.start, "loop container permits only whitespace around its child element");
         } else if (node.loop_limit != null or c.attr(.{ .idx = input.idx, .name = ":key" }) != null) return c.reject(node.tag.span.start, ":key and :limit require :loop");
-        for (node.children.items) |child| try c.validate(.{ .idx = child, .in_loop = input.in_loop or has_loop, .factor = input.factor * (node.loop_limit orelse 1) });
+        for (node.children.items) |child| try c.validate(.{ .idx = child, .in_loop = input.in_loop or has_loop, .in_condition = input.in_condition or has_if, .factor = input.factor * (node.loop_limit orelse 1) });
     }
 
     fn literal(c: *Compiler, value_: []const u8) Error!void {
@@ -306,7 +317,11 @@ const Compiler = struct {
 
     fn children(c: *Compiler, input: Emission) Error!void {
         const node = c.nodes.items[input.idx];
-        if (node.loop_limit) |limit| {
+        if (c.attr(.{ .idx = input.idx, .name = ":slot" })) |a| {
+            try c.code.add("binding.projectSlot(p, .{ .value = ");
+            try c.expression(a);
+            try c.code.print(", .node = space.node({d}) catch unreachable }});\n", .{node.slot});
+        } else if (node.loop_limit) |limit| {
             const loop = c.attr(.{ .idx = input.idx, .name = ":loop" }).?;
             const key = c.attr(.{ .idx = input.idx, .name = ":key" }).?;
             const child = node.children.items[0];
@@ -322,13 +337,13 @@ const Compiler = struct {
             try c.code.string(try c.value(key));
             try c.code.print(", \"loop key\");\nconst child = p.beginChild(.{{ .owner = space.node({d}) catch unreachable, .node = ids[i] }});\n", .{node.slot});
             c.entries += limit * input.factor; // Parent identities.
-            try c.code.print("element_{d}(p, view, item, key);\n", .{c.nodes.items[child].slot});
+            try c.code.print("element_{d}(p, view, space, item, key);\n", .{c.nodes.items[child].slot});
             try c.code.print("p.endChild(child);\n}}\np.order(.{{ .owner = space.node({d}) catch unreachable, .nodes = ids[0..items.len] }});\n}}\n", .{node.slot});
         } else {
             var previous: usize = node.tag.span.end;
             for (node.children.items) |child| {
                 try c.literal(c.input.source[previous..c.nodes.items[child].tag.span.start]);
-                try c.code.print("element_{d}(p, view{s});\n", .{ c.nodes.items[child].slot, if (input.in_loop) ", item, key" else "" });
+                try c.code.print("element_{d}(p, view, space{s});\n", .{ c.nodes.items[child].slot, if (input.in_loop) ", item, key" else "" });
                 previous = c.nodes.items[child].end;
             }
             try c.literal(c.input.source[previous..node.close_start]);
@@ -338,7 +353,7 @@ const Compiler = struct {
     fn element(c: *Compiler, input: Emission) Error!void {
         const node = c.nodes.items[input.idx];
         const tag_name = c.name(input.idx);
-        try c.code.print("fn element_{d}(p: anytype, view: anytype{s}) void {{\n_ = &view;\n{s}const node: u32 = ", .{ node.slot, if (input.in_loop) ", item: anytype, key: u32" else "", if (input.in_loop) "_ = &item;\n" else "" });
+        try c.code.print("fn element_{d}(p: anytype, view: anytype, space: binding.Namespace{s}) void {{\n_ = &view;\n{s}const node: u32 = ", .{ node.slot, if (input.in_loop) ", item: anytype, key: u32" else "", if (input.in_loop) "_ = &item;\n" else "" });
         try c.id(.{ .slot = node.slot, .in_loop = input.in_loop });
         try c.code.add(";\n");
         try c.literal(try std.fmt.allocPrint(c.a, "<{s}", .{tag_name}));
@@ -348,7 +363,7 @@ const Compiler = struct {
         const if_attr = c.attr(.{ .idx = input.idx, .name = ":if" });
         for (node.attrs) |a| {
             const n = a.name.slice(c.input.source);
-            if (oneOf(n, ":ref :key :limit :loop :text :if")) continue;
+            if (oneOf(n, ":ref :key :limit :loop :text :if :slot")) continue;
             if (std.mem.eql(u8, n, ":value")) {
                 if (oneOf(tag_name, "textarea select")) continue;
                 c.entries += input.factor;
@@ -417,13 +432,27 @@ const Compiler = struct {
         try c.code.add("}\n");
     }
     fn generate(c: *Compiler) Error!void {
-        try c.code.add("// Generated by zg-template. Edit the HTML template, not this file.\nconst binding = @import(\"zg_gui\").template;\npub const nodes = Scoped(.{}).nodes;\npub const project = Scoped(.{}).project;\npub fn Scoped(comptime space: binding.Namespace) type {\ncomptime space.validate();\nreturn struct {\npub const nodes = struct {\n");
+        try c.code.add("// Generated by zg-template. Edit the HTML template, not this file.\nconst binding = @import(\"zg_gui\").template;\npub const nodes = Scoped(.{}).nodes;\npub const project = Scoped(.{}).project;\npub const projectAt = Runtime.projectAt;\npub const snapshot_capacity = Runtime.snapshot_capacity;\npub const Refs = struct {\n");
+        for (c.nodes.items, 0..) |_, idx| if (c.attr(.{ .idx = idx, .name = ":ref" })) |a| {
+            try c.code.add("@");
+            try c.code.string(try c.value(a));
+            try c.code.add(": u32,\n");
+        };
+        try c.code.add("};\npub fn nodesAt(space: binding.Namespace) error{NamespaceOverflow}!Refs {\n");
+        try c.code.print("_ = try space.node({d});\nreturn .{{\n", .{@max(c.nodes.items.len, 1)});
+        for (c.nodes.items, 0..) |node, idx| if (c.attr(.{ .idx = idx, .name = ":ref" })) |a| {
+            try c.code.add(".@");
+            try c.code.string(try c.value(a));
+            try c.code.print(" = try space.node({d}),\n", .{node.slot});
+        };
+        try c.code.add("};\n}\npub fn Scoped(comptime space: binding.Namespace) type {\ncomptime space.validate();\nreturn struct {\npub const nodes = struct {\n");
         for (c.nodes.items, 0..) |node, idx| if (c.attr(.{ .idx = idx, .name = ":ref" })) |a| {
             try c.code.add("pub const @");
             try c.code.string(try c.value(a));
             try c.code.print(": u32 = space.node({d}) catch @compileError(\"template ref exceeds namespace\");\n", .{node.slot});
         };
-        try c.code.add("};\npub fn project(p: anytype, view: anytype) void {\n_ = &view;\n");
+        try c.code.add("};\npub const snapshot_capacity = Runtime.snapshot_capacity;\npub fn project(p: anytype, view: anytype) void { Runtime.projectAt(p, view, space); }\n};\n}\nconst Runtime = struct {\npub fn projectAt(p: anytype, view: anytype, space: binding.Namespace) void {\n_ = &view;\n");
+        try c.code.print("_ = space.node({d}) catch {{ p.html.failed = true; return; }};\n", .{@max(c.nodes.items.len, 1)});
         for (c.document.instances) |instance| {
             const location = instance.location.diagnostic("");
             const label = try std.fmt.allocPrint(c.a, "{s}:{d}:{d}", .{ location.name, location.line, location.column });
@@ -438,13 +467,13 @@ const Compiler = struct {
         var previous: usize = 0;
         for (c.roots.items) |root| {
             try c.literal(c.input.source[previous..c.nodes.items[root].tag.span.start]);
-            try c.code.print("element_{d}(p, view);\n", .{c.nodes.items[root].slot});
+            try c.code.print("element_{d}(p, view, space);\n", .{c.nodes.items[root].slot});
             previous = c.nodes.items[root].end;
         }
         try c.literal(c.input.source[previous..]);
         try c.code.add("}\n");
         for (c.nodes.items, 0..) |node, idx| try c.element(.{ .idx = idx, .in_loop = node.in_loop, .factor = node.factor });
-        try c.code.print("pub const snapshot_capacity: usize = {d};\n}};\n}}\npub const snapshot_capacity = Scoped(.{{}}).snapshot_capacity;\n", .{@max(c.entries, 1)});
+        try c.code.print("pub const snapshot_capacity: usize = {d};\n}};\n", .{@max(c.entries, 1)});
     }
 };
 
@@ -640,4 +669,25 @@ test "description lists validate term and value ownership" {
     const code = try compile(std.testing.allocator, .{ .source = "<dl><dt>Term</dt><dd :text=\"$value\"></dd></dl><dl><div><dt>Term</dt><dd :text=\"$value\"></dd></div></dl>", .name = "description.gui.html", .diagnostic = &d });
     defer std.testing.allocator.free(code);
     try std.testing.expect(std.mem.indexOf(u8, code, "snapshot_capacity: usize = 2") != null);
+}
+
+test "typed projection slots reject competing owners and ambiguous placement" {
+    var d = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{ .source = "<section :ref=\"body\" :slot=\"$children\"></section>", .name = "slots.gui.html", .diagnostic = &d });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "binding.projectSlot") != null);
+    try std.testing.expect(std.mem.indexOf(u8, code, "pub fn nodesAt") != null);
+    for ([_][]const u8{
+        "<div :slot=\"literal\"></div>",
+        "<div :slot=\"$children\">content</div>",
+        "<div :slot=\"$children\"><p></p></div>",
+        "<div :slot=\"$children\" :text=\"$text\"></div>",
+        "<div :slot=\"$children\" :if=\"$shown\"></div>",
+        "<div :if=\"$shown\"><div :slot=\"$children\"></div></div>",
+        "<ul :loop=\"$rows\" :key=\"id\" :limit=\"2\"><div :slot=\"$children\"></div></ul>",
+        "<span :slot=\"$children\"></span>",
+        "<input :slot=\"$children\">",
+    }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad-slot.gui.html", .diagnostic = &d }));
+    }
 }

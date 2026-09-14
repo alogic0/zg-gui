@@ -52,6 +52,7 @@ fn render(input: struct { next_state: State, mode: gui.patch.RenderMode }) u32 {
     };
     if (s.reversed) std.mem.swap(Row, &rows[0], &rows[1]);
     template.project(&p, .{
+        .panels = PanelSlot{ .state = s },
         .name = s.name[0..s.name_len],
         .greeting = if (s.name_len == 0) "friend" else s.name[0..s.name_len],
         .theme = @as([]const u8, if (s.dark) "dark" else "light"),
@@ -62,35 +63,6 @@ fn render(input: struct { next_state: State, mode: gui.patch.RenderMode }) u32 {
         .actions = .{ .increment = Action.increment, .details = Action.details, .reverse = Action.reverse, .extra = Action.extra },
         .inputs = .{ .name = InputKind.name, .theme = InputKind.theme },
     });
-    const Option = struct { id: u32, value: []const u8, label: []const u8 };
-    const options = [_]Option{ .{ .id = 1, .value = "sms", .label = "SMS" }, .{ .id = 2, .value = "email", .label = "Email" } };
-    const Marker = struct { id: u32, x: u32 };
-    const markers = [_]Marker{ .{ .id = 1, .x = 8 }, .{ .id = 2, .x = 20 }, .{ .id = 3, .x = 32 } };
-    const shared: struct {
-        title: []const u8,
-        control_id: []const u8,
-        selected: []const u8,
-        icon: []const u8,
-        inputs: struct { channel: InputKind },
-        options: []const Option,
-        rows: []const Row,
-        markers: []const Marker,
-    } = .{
-        .title = @as([]const u8, "Primary integration"),
-        .control_id = @as([]const u8, "primary-channel"),
-        .selected = @as([]const u8, if (s.email) "email" else "sms"),
-        .icon = @as([]const u8, if (s.dark) "icons.svg#link-active" else "icons.svg#link"),
-        .inputs = .{ .channel = InputKind.channel },
-        .options = options[0..if (s.extra) @as(usize, 1) else 2],
-        .rows = rows[0..if (s.extra) @as(usize, 3) else 2],
-        .markers = markers[0..if (s.extra) @as(usize, 3) else 2],
-    };
-    var other = shared;
-    other.title = "Secondary integration";
-    other.control_id = "secondary-channel";
-    other.selected = if (s.secondary_email) "email" else "sms";
-    other.inputs.channel = .secondary_channel;
-    panels.project(&p, .{ .primary = shared, .secondary = other });
     if (html.failed or stream.failed) {
         // No partial stream, candidate state or snapshot is published.
         output_len = 0;
@@ -106,6 +78,49 @@ fn render(input: struct { next_state: State, mode: gui.patch.RenderMode }) u32 {
     render_mode = input.mode;
     return @intCast(output_len);
 }
+
+const PanelSlot = struct {
+    state: *const State,
+    pub fn project(slot: PanelSlot, p: anytype, owner: struct { node: u32 }) void {
+        _ = owner; // These two panels have fixed membership.
+        const s = slot.state;
+        var rows = [_]Row{
+            .{ .id = 1, .label = "First row", .input_label = "First row draft" },
+            .{ .id = 2, .label = "Second row", .input_label = "Second row draft" },
+            .{ .id = 3, .label = "Third row", .input_label = "Third row draft" },
+        };
+        if (s.reversed) std.mem.swap(Row, &rows[0], &rows[1]);
+        const Option = struct { id: u32, value: []const u8, label: []const u8 };
+        const options = [_]Option{ .{ .id = 1, .value = "sms", .label = "SMS" }, .{ .id = 2, .value = "email", .label = "Email" } };
+        const Marker = struct { id: u32, x: u32 };
+        const markers = [_]Marker{ .{ .id = 1, .x = 8 }, .{ .id = 2, .x = 20 }, .{ .id = 3, .x = 32 } };
+        const shared: struct {
+            title: []const u8,
+            control_id: []const u8,
+            selected: []const u8,
+            icon: []const u8,
+            inputs: struct { channel: InputKind },
+            options: []const Option,
+            rows: []const Row,
+            markers: []const Marker,
+        } = .{
+            .title = @as([]const u8, "Primary integration"),
+            .control_id = @as([]const u8, "primary-channel"),
+            .selected = @as([]const u8, if (s.email) "email" else "sms"),
+            .icon = @as([]const u8, if (s.dark) "icons.svg#link-active" else "icons.svg#link"),
+            .inputs = .{ .channel = InputKind.channel },
+            .options = options[0..if (s.extra) @as(usize, 1) else 2],
+            .rows = rows[0..if (s.extra) @as(usize, 3) else 2],
+            .markers = markers[0..if (s.extra) @as(usize, 3) else 2],
+        };
+        var other = shared;
+        other.title = "Secondary integration";
+        other.control_id = "secondary-channel";
+        other.selected = if (s.secondary_email) "email" else "sms";
+        other.inputs.channel = .secondary_channel;
+        @import("controls_template").projectAt(p, .{ .primary = shared, .secondary = other }, .{ .first = 1000, .count = 3000 });
+    }
+};
 
 pub export fn init() u32 {
     return render(.{ .next_state = .{}, .mode = .full });

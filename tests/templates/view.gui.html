@@ -1,6 +1,6 @@
 <main :ref="root" data-theme="$theme">
   <p>Hello <span :ref="greeting" :text="$name"></span> &amp; goodbye.</p>
-  <input :ref="input" :value="$name" :input="$inputs.name">
+  <input :ref="input" data-input-prefix="$prefix" :value="$name" :input="$inputs.name">
   <textarea :ref="notes" :value="$name"></textarea>
   <input :ref="checked" type="checkbox" :checked="$checked" :input="$inputs.checked">
   <button :ref="button" :on-click="$actions.increment" disabled="$disabled" title="$title">Increment</button>

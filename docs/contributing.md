@@ -49,3 +49,5 @@ tune to an unstated budget.
 - [001: reusable template components](requests/001-template-components.md)
 
 - [002: description lists](requests/002-description-lists.md)
+
+- [003: projection composition](requests/003-projection-composition.md)

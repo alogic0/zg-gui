@@ -6,6 +6,7 @@ const Action = enum(u32) { increment = 1 };
 const Input = enum(u32) { name = 1, checked = 2 };
 const Row = struct { id: u32, label: []const u8 };
 const View = struct {
+    prefix: []const u8 = "",
     name: []const u8 = "Ada & <Zig>",
     theme: []const u8 = "light",
     count: u32 = 0,
@@ -221,4 +222,43 @@ test "component snapshot HTML and namespace exhaustion reject the candidate proj
     full_snapshot = .{};
     component.Scoped(.{ .first = 1, .count = 2 }).project(&full, model);
     try std.testing.expect(html.failed);
+}
+
+test "runtime placement shares checked refs and rejects invalid ranges before writing" {
+    const component = @import("components");
+    const Model = struct { label: []const u8, value: []const u8 };
+    const model = .{ .left = Model{ .label = "Left", .value = "one" }, .right = .{ .field = Model{ .label = "Right", .value = "two" } } };
+    const CP = gui.Projection(component.snapshot_capacity);
+    var bytes: [2048]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var snapshot = CP.Snapshot{};
+    var p = CP{ .html = &html, .next = &snapshot };
+    var first: u32 = 600;
+    _ = &first;
+    const space = gui.template.Namespace{ .first = first, .count = 100 };
+    const refs = try component.nodesAt(space);
+    component.projectAt(&p, model, space);
+    var expected: [64]u8 = undefined;
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), try std.fmt.bufPrint(&expected, "data-node-id=\"{d}\"", .{refs.@"left.input"})) != null);
+    try std.testing.expectEqual(component.snapshot_capacity, snapshot.len);
+    for ([_]gui.template.Namespace{
+        .{ .first = 0, .count = 100 },
+        .{ .first = 1, .count = 0 },
+        .{ .first = 1, .count = 2 },
+        .{ .first = std.math.maxInt(u32) - 1, .count = 100 },
+    }) |invalid| {
+        html = .{ .buffer = &bytes };
+        snapshot = .{};
+        try std.testing.expectError(error.NamespaceOverflow, component.nodesAt(invalid));
+        component.projectAt(&p, model, invalid);
+        try std.testing.expect(html.failed and html.len == 0 and snapshot.len == 0);
+    }
+}
+
+test "dynamic input prefixes use a named attribute leaf" {
+    var h = Harness{};
+    var model = View{};
+    _ = try h.render(.{ .value = model, .mode = .full });
+    model.prefix = "12:";
+    try std.testing.expectEqualStrings(std.fmt.comptimePrint("A\t{d}\tdata-input-prefix\t12:\n", .{view.nodes.input}), try h.render(.{ .value = model, .mode = .patch }));
 }

@@ -125,7 +125,7 @@ pub const Namespace = struct {
             @compileError("invalid template namespace range");
     }
     pub fn node(s: Namespace, local: u32) error{NamespaceOverflow}!u32 {
-        if (s.first == 0 or local == 0 or local > s.count) return error.NamespaceOverflow;
+        if (s.first == 0 or s.count == 0 or @as(u64, s.first) + s.count - 1 > std.math.maxInt(u32) or local == 0 or local > s.count) return error.NamespaceOverflow;
         return std.math.cast(u32, @as(u64, s.first) + local - 1) orelse error.NamespaceOverflow;
     }
 };
@@ -191,4 +191,28 @@ pub fn componentInput(value: anytype, comptime location: []const u8) void {
         else => T,
     };
     if (@typeInfo(Base) != .@"struct") @compileError(location ++ ": component input requires a struct");
+}
+
+/// A typed child projection. Capacity, membership and descendant IDs belong to
+/// the composing consumer; the generated template owns only the slot element.
+pub fn projectSlot(p: anytype, input: anytype) void {
+    componentInput(input.value, "template slot");
+    input.value.project(p, .{ .node = input.node });
+}
+
+test "slot children share failure admission and do not hide snapshot costs" {
+    const gui = @import("root.zig");
+    const Children = struct {
+        pub fn project(_: @This(), p: anytype, owner: struct { node: u32 }) void {
+            p.text(.{ .node = owner.node + 1, .value = "first" });
+            p.text(.{ .node = owner.node + 2, .value = "second" });
+        }
+    };
+    const P = gui.Projection(1);
+    var bytes: [64]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var next = P.Snapshot{};
+    var p = P{ .html = &html, .next = &next };
+    projectSlot(&p, .{ .value = Children{}, .node = 100 });
+    try std.testing.expect(html.failed);
 }

@@ -278,3 +278,51 @@ See [panels.gui.html](../examples/panels.gui.html) for two instances of a compon
 containing keyed tables, SVG and a controlled select. Each instance receives its
 own selection state; browser tests check that edits retain the other instance's
 focused input and draft.
+
+## Typed child slots and runtime fragment placement
+
+Use a slot when the composing application owns child projection and membership:
+
+```html
+<section :ref="body" :slot="$children"></section>
+```
+
+`children` is a struct or single-item struct pointer with a public
+`project(self, p, owner)` method. `owner` has the named `node: u32` field. The
+compiler emits the slot element and invokes that method inside it on every
+projection pass. The callback receives the same typed projection or adapter as
+its parent. Use its ordinary text, attribute, visibility and structural methods;
+there is no raw-HTML binding or runtime template loader.
+
+Slots require an empty `div` or `section`, may retain their subtree through
+`:visible`, and cannot also own text, a condition or a loop. Slots inside loops
+or conditional subtrees are currently rejected. Consumer callbacks are responsible
+for valid child markup, disjoint descendant IDs, structural introduction/removal,
+failure propagation, and the smallest changed owner. The compiler cannot validate
+the callback's emitted children or discover its memory costs.
+
+The generated `snapshot_capacity` **excludes slot children**. The consumer must
+add their declared costs when they share the parent's snapshot, or explicitly own
+a separate snapshot/revision scheme. A slot does not reserve storage for a
+maximum collection. Any writer failure invalidates the entire candidate output
+and snapshot, including child work.
+
+A separately compiled fragment also exposes:
+
+```zig
+fragment.projectAt(&projection, view, .{ .first = first, .count = 100 });
+const refs = try fragment.nodesAt(.{ .first = first, .count = 100 });
+```
+
+`first` may be runtime data. `nodesAt` returns a typed `Refs` value with the same
+semantic names as `Scoped(...).nodes`; use it for focus and child ownership.
+Placement validates the whole namespace and its static element slots before
+emitting anything. Invalid ranges fail with `NamespaceOverflow` for refs or set
+the HTML writer's failure flag for projection. Keyed descendants additionally
+check their calculated IDs during projection. Consumers still own cross-fragment
+collision checks and must discard a failed candidate stream.
+
+`Scoped`, its static `nodes` declarations, and module-level `project` remain
+compatible. Placement reserves node IDs, not storage. The demo composes its two
+control panels through a typed slot and runtime placement; browser tests retain
+the slot, controls, sibling drafts and focus through independent updates.
