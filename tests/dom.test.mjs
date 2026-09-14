@@ -31,10 +31,12 @@ test('DOM host retains controls and validates typed patch commands', async () =>
       for (const stream of ['T\t999\t"absent"\n', 'A\t3\tonclick\tevil\n', 'C\t3\ttrue\n', 'H\t3\t42\n', 'M\t6\t3\tafter\n', 'A\t3\thref\tjavascript:alert(1)\n']) {
         try { dom.applyPatchStream(stream); } catch { rejected++; }
       }
+      dom.applyPatchStream('J\t5\t"<input data-node-id=\\"20\\" type=\\"datetime-local\\" data-value-format=\\"instant-local\\" data-initial-value=\\"2026-09-14T12:00:00Z\\">"\n');
+      const dateFormatted = root.querySelector('[data-node-id="20"]').value.length > 0;
       dom.applyPatchStream('H\t3\t"<span data-node-id=\\"2\\">duplicate</span>"\n');
       try { dom.applyPatchStream('T\t2\t"ambiguous"\n'); } catch { rejected++; }
-      return { retained, moved, focused, checked: root.querySelector('[data-node-id="4"]').checked, rejected };
+      return { retained, moved, focused, dateFormatted, checked: root.querySelector('[data-node-id="4"]').checked, rejected };
     });
-    assert.deepEqual(result, { retained: true, moved: true, focused: true, checked: true, rejected: 7 });
+    assert.deepEqual(result, { retained: true, moved: true, focused: true, dateFormatted: true, checked: true, rejected: 7 });
   } finally { await browser?.close(); await server.close(); }
 });

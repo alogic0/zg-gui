@@ -1,0 +1,28 @@
+* { box-sizing: border-box; }
+body { margin: 0; font: 16px/1.55 system-ui, sans-serif; background: #f3f2ed; color: #202b29; }
+.demo { --surface: #fffefa; --border: #d6ddd7; --ink: #202b29; --muted: #53665e; min-height: 100vh; padding: 64px max(24px, calc((100vw - 1020px)/2)); display: grid; grid-template-columns: 1fr 1fr; gap: 24px; background: #f3f2ed; color: var(--ink); }
+.demo[data-theme="dark"] { --surface: #202c29; --border: #40554a; --ink: #eef5ef; --muted: #b2c6b9; background: #14201d; color-scheme: dark; }
+header, .wide, footer { grid-column: 1 / -1; }
+header { padding-bottom: 20px; }
+.eyebrow { font-size: 12px; letter-spacing: .16em; color: var(--muted); }
+h1 { font-size: clamp(40px, 7vw, 64px); line-height: 1.04; letter-spacing: -.045em; font-weight: 650; margin: 20px 0; }
+h2 { font-size: 20px; line-height: 1.3; margin: 0 0 20px; }
+header > p:last-child, footer, .hint { color: var(--muted); }
+.card { padding: 28px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
+label { display: block; font-size: 14px; }
+input:not([type="checkbox"]) { width: 100%; padding: 11px 12px; margin-top: 7px; border: 1px solid var(--border); border-radius: 7px; background: transparent; font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid #398962; outline-offset: 3px; }
+.toggle { display: flex; align-items: center; gap: 8px; }
+button { padding: 11px 16px; border: 1px solid transparent; border-radius: 8px; background: #245c43; color: #fff; font: inherit; font-size: 14px; cursor: pointer; }
+button:hover { filter: brightness(1.12); }
+button.secondary { border-color: var(--border); color: var(--ink); background: transparent; }
+.counter { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+output { font-size: 48px; font-variant-numeric: tabular-nums; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.section-heading h2 { margin: 0; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+ul { list-style: none; padding: 0; display: grid; gap: 12px; }
+li { padding: 14px; border: 1px solid var(--border); border-radius: 8px; }
+.hint, footer { font-size: 13px; }
+[hidden] { display: none !important; }
+@media (max-width: 700px) { .demo { grid-template-columns: 1fr; padding: 32px 18px; } .card { padding: 22px; } }

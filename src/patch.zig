@@ -152,3 +152,23 @@ test "ranges reject out of bounds and integer overflow" {
     try std.testing.expectError(error.InvalidNodeId, (Range{ .base = 10, .count = 2 }).id(2));
     try std.testing.expectError(error.InvalidNodeId, (Range{ .base = std.math.maxInt(u32), .count = 2 }).id(1));
 }
+
+test "named state commands cover accessibility values and focus modes" {
+    var bytes: [1024]u8 = undefined;
+    var html = Html{ .buffer = &bytes };
+    var p = Writer{ .output = &html };
+    p.set(.{ .node = 7, .attributes = .{ .class_name = "active", .aria_expanded = true, .aria_pressed = false, .aria_checked = false, .aria_busy = true, .aria_label = "one\ntwo" } });
+    p.visible(.{ .node = 8, .value = false });
+    p.visible(.{ .node = 8, .value = true });
+    p.focus(.{ .node = 9 });
+    p.focus(.{ .node = 9, .mode = .nearest });
+    p.focus(.{ .node = 9, .mode = .end });
+    try std.testing.expect(!html.failed);
+    try std.testing.expectEqualStrings(
+        "A\t7\tclass\tactive\nA\t7\taria-label\tone two\n" ++
+            "A\t7\taria-expanded\ttrue\nA\t7\taria-pressed\tfalse\n" ++
+            "A\t7\taria-checked\tfalse\nA\t7\taria-busy\ttrue\n" ++
+            "A\t8\thidden\t\nR\t8\thidden\nF\t9\nF\t9\tnearest\nF\t9\tend\n",
+        html.slice(),
+    );
+}

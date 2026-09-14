@@ -30,6 +30,7 @@ export function declaredInputValue(input) {
   return (input.dataset.inputPrefix || '') + (input.dataset.valueFormat === 'instant-local' ? instantFromLocal(value) : value);
 }
 export function applyInitialTimeFormats(scope) {
-  for (const input of scope.querySelectorAll('[data-value-format="instant-local"]')) input.value = localDatetime(input.dataset.initialValue);
-  for (const node of scope.querySelectorAll('[data-text-format]')) node.textContent = localTimeLabel(node.textContent, { format: node.dataset.textFormat });
+  const nodes = selector => [...(scope.matches?.(selector) ? [scope] : []), ...scope.querySelectorAll(selector)];
+  for (const input of nodes('[data-value-format="instant-local"]')) input.value = localDatetime(input.dataset.initialValue);
+  for (const node of nodes('[data-text-format]')) node.textContent = localTimeLabel(node.textContent, { format: node.dataset.textFormat });
 }

@@ -179,6 +179,25 @@ pub fn boolean(value: bool) []const u8 {
     return if (value) "true" else "false";
 }
 
+test "snapshot capacity rejects the candidate without modifying the previous snapshot" {
+    const P = Projection(1);
+    var bytes: [128]u8 = undefined;
+    var html = Html{ .buffer = &bytes };
+    var previous = P.Snapshot{};
+    var p = P{ .html = &html, .next = &previous };
+    p.text(.{ .node = 1, .value = "saved" });
+    const saved = previous.entries[0];
+    var next = P.Snapshot{};
+    html.len = 0;
+    p.previous = &previous;
+    p.next = &next;
+    p.text(.{ .node = 1, .value = "candidate" });
+    p.text(.{ .node = 2, .value = "over capacity" });
+    try std.testing.expect(html.failed);
+    try std.testing.expectEqual(saved.value, previous.entries[0].value);
+    try std.testing.expectEqual(@as(usize, 1), previous.len);
+}
+
 test "structural owners introduce descendants once and leaf changes never replace ancestors" {
     const P = Projection(8);
     var scratch_buffer: [1024]u8 = undefined;

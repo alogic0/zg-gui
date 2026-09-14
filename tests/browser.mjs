@@ -1,0 +1,105 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { mkdir, stat } from 'node:fs/promises';
+import { chromium } from 'playwright';
+import { serve } from '../tools/server.mjs';
+
+test('standalone WASM application retains state, identity and focus', async () => {
+  const server = await serve({ directory: new URL('../zig-out/web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
+    const failures = [];
+    page.on('pageerror', error => failures.push(error.message));
+    page.on('console', message => { if (message.type() === 'error') failures.push(message.text()); });
+    await page.goto(server.url);
+    await page.waitForFunction(() => window.demo);
+    await page.getByLabel('Workspace name').fill('Studio 🧭 <test>');
+    assert.equal(await page.locator('[data-node-id="3"]').textContent(), 'Studio 🧭 <test>');
+    const retained = await page.evaluate(() => {
+      const field = document.querySelector('#name');
+      const ancestor = document.querySelector('main');
+      field.focus(); field.setSelectionRange(2, 5);
+      window.demo.dispatch({ action: 1 });
+      window.demo.dispatch({ action: 2 });
+      window.demo.setInput({ kind: 2, value: 'true' });
+      return field === document.querySelector('#name') && field.isConnected && document.activeElement === field
+        && field.selectionStart === 2 && field.selectionEnd === 5 && ancestor === document.querySelector('main');
+    });
+    assert.equal(retained, true);
+    assert.equal(await page.locator('output').textContent(), '1');
+    await page.getByLabel('Dark theme').uncheck();
+    assert.equal(await page.locator('main').getAttribute('data-theme'), 'light');
+    await page.getByRole('button', { name: 'Increment', exact: true }).click();
+    assert.equal(await page.locator('output').textContent(), '2');
+    await page.getByLabel('First row draft').fill('keep this browser draft');
+    assert.equal(await page.evaluate(() => {
+      const row = document.querySelector('[data-node-id="10"]');
+      const input = row.querySelector('input'); input.focus();
+      window.demo.dispatch({ action: 3 });
+      window.demo.dispatch({ action: 4 });
+      window.demo.dispatch({ action: 4 });
+      return row.isConnected && row === document.querySelector('[data-node-id="10"]')
+        && input === document.activeElement && input.value === 'keep this browser draft';
+    }), true);
+    assert.equal(await page.evaluate(() => {
+      try { window.demo.setInput({ kind: 1, value: '🧭'.repeat(33) }); } catch (error) { return error instanceof RangeError; }
+      return false;
+    }), true);
+    assert.equal(await page.locator('#name').inputValue(), 'Studio 🧭 <test>');
+    await page.getByRole('button', { name: 'Show / hide details' }).click();
+    assert.equal(await page.locator('#details').isVisible(), false);
+    await mkdir(new URL('../test-results', import.meta.url), { recursive: true });
+    await page.screenshot({ path: new URL('../test-results/demo-desktop.png', import.meta.url).pathname, fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+    await page.screenshot({ path: new URL('../test-results/demo-mobile.png', import.meta.url).pathname, fullPage: true });
+    assert.deepEqual(failures, []);
+    assert.equal(await page.evaluate(() => {
+      window.demo.dispose();
+      document.querySelector('[data-event="1"]').click();
+      const unchanged = document.querySelector('output').textContent === '2';
+      try { window.demo.dispatch({ action: 1 }); } catch { return unchanged; }
+      return false;
+    }), true);
+    const artifact = await stat(new URL('../zig-out/web/demo.wasm', import.meta.url));
+    console.log(`Standalone demo WASM: ${artifact.size} bytes`);
+  } finally { await browser?.close(); await server.close(); }
+});
+
+test('runtime resynchronizes an invalid patch and can remount after disposal', async () => {
+  const server = await serve({ directory: new URL('../zig-out/web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url);
+    await page.waitForFunction(() => window.demo);
+    const result = await page.evaluate(async () => {
+      const { mount } = await import('/runtime.js');
+      window.demo.dispose();
+      const root = document.querySelector('#app');
+      const { instance } = await WebAssembly.instantiate(await (await fetch('/demo.wasm')).arrayBuffer());
+      const errors = [];
+      const gui = mount({ root, wasm: instance.exports, onError: error => errors.push(error.message) });
+      let duplicate = false;
+      try { mount({ root, wasm: instance.exports }); } catch { duplicate = true; }
+      // Deliberately corrupt a leaf to exercise the host's recovery boundary.
+      root.querySelector('output').remove();
+      gui.dispatch({ action: 1 });
+      const recovered = root.querySelector('output').textContent === '1' && errors.length === 1;
+      instance.exports.memory.grow(1);
+      gui.setInput({ kind: 1, value: 'after memory growth' });
+      const freshMemory = root.querySelector('#name').value === 'after memory growth';
+      gui.dispose();
+      const next = mount({ root, wasm: instance.exports });
+      root.querySelector('[data-event="1"]').click();
+      const singleHandler = root.querySelector('output').textContent === '1';
+      next.dispose();
+      return { duplicate, recovered, freshMemory, singleHandler, pages: instance.exports.memory.buffer.byteLength / 65536 };
+    });
+    assert.equal(result.duplicate && result.recovered && result.freshMemory && result.singleHandler, true);
+    console.log(`Demo initial memory: ${result.pages - 1} WASM pages; after test growth: ${result.pages}`);
+  } finally { await browser?.close(); await server.close(); }
+});
