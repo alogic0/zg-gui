@@ -31,3 +31,6 @@ policy. Examples and tests use general-purpose controls and local fixtures.
 - [ ] Implement the public API with explicit ownership and failure behavior.
 - [ ] Verify native behavior, consumer build integration and browser interactions.
 - [ ] Record limits and artifact/memory measurements separately from correctness.
+
+The next priority is reusable components. Existing scoped templates can be
+composed in Zig; template-level invocation is still pending.
