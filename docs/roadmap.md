@@ -21,6 +21,9 @@ Application integration and product acceptance belong to consumers.
 - [x] Semantic list slots and explicit list-parent row fragments; see
   [request 004](requests/004-list-fragments.md).
 
+- [x] Table-section slots and explicit row-fragment contexts; see
+  [request 005](requests/005-table-fragments.md).
+
 ## Capability extensions
 
 - [x] Reusable template invocation with typed inputs, stable instance namespaces

@@ -294,7 +294,7 @@ projection pass. The callback receives the same typed projection or adapter as
 its parent. Use its ordinary text, attribute, visibility and structural methods;
 there is no raw-HTML binding or runtime template loader.
 
-Slots require an empty `div`, `section`, `ul` or `ol`, may retain their subtree through
+Slots require an empty `div`, `section`, `ul`, `ol`, `thead`, `tbody` or `tfoot`, may retain their subtree through
 `:visible`, and cannot also own text, a condition or a loop. Slots inside loops
 or conditional subtrees are currently rejected. Consumer callbacks are responsible
 for valid child markup, disjoint descendant IDs, structural introduction/removal,
@@ -356,3 +356,19 @@ Place such fragments inside a matching `ul`/`ol` slot. Callers own matching the
 actual parent to the declared context, supplying valid children, row membership
 and disjoint namespaces. Projection does not inspect DOM ancestry. A list slot
 has the same capacity, ownership and failure rules as a `div` slot.
+
+
+## Table-section row fragments
+
+Use `.fragment_context = .thead`, `.tbody` or `.tfoot` with `addTemplate` or
+`generateTemplate` to compile standalone `tr` roots. The CLI equivalents are
+`--context=thead`, `--context=tbody` and `--context=tfoot`. Cells still require
+explicit rows; non-whitespace text at section level is rejected before browser
+repair. Default flow fragments continue to reject orphan rows and cells.
+
+A complete table may contain an empty `<tbody :ref="rows" :slot="$rows"></tbody>`
+(or `thead`/`tfoot`) under its explicit `table`. The consumer supplies valid row
+fragments, disjoint namespaces and composed snapshot capacity. Slots cannot
+have competing text/children, loops or conditional ownership. No table/cell
+fragment context or direct table/row slot is provided. Context is a compilation
+contract; it does not insert wrappers or inspect live DOM ancestry.

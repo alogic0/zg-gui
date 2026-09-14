@@ -13,7 +13,8 @@ test('an independent Zig package compiles and imports its own HTML template', as
     await writeFile(join(directory, 'build.zig.zon'),
       '.{ .name = .gui_consumer, .version = "0.0.0", .fingerprint = 0x3d0af40a357f117c,\n' +
       '.dependencies = .{ .zg_gui = .{ .path = ' + JSON.stringify(relative(directory, root)) + ' } },\n' +
-      '.paths = .{ "build.zig", "build.zig.zon", "main.zig", "view.gui.html", "field.gui.html" } }\n');
+      '.paths = .{ "build.zig", "build.zig.zon", "main.zig", "view.gui.html", "field.gui.html", "row.gui.html" } }\n');
+    await writeFile(join(directory, 'row.gui.html'), '<tr><td :text="$label"></td></tr>');
     await writeFile(join(directory, 'view.gui.html'), '<template :component="field" :view="$first" :ref="first"></template><template :component="field" :view="$second" :ref="second"></template>');
     await writeFile(join(directory, 'field.gui.html'), '<output :ref="value" :text="$count"></output>');
     await writeFile(join(directory, 'build.zig'), [
@@ -26,6 +27,7 @@ test('an independent Zig package compiles and imports its own HTML template', as
       '.root_source_file = b.path("main.zig"), .target = target,',
       '.imports = &.{.{ .name = "zg_gui", .module = gui }} }) });',
       '@import("zg_gui").addTemplate(b, .{ .dependency = dep, .owner = tests.root_module, .name = "view", .source = b.path("view.gui.html"), .components = &.{.{ .name = "field", .source = b.path("field.gui.html") }} });',
+      '@import("zg_gui").addTemplate(b, .{ .dependency = dep, .owner = tests.root_module, .name = "row", .source = b.path("row.gui.html"), .fragment_context = .tbody });',
       'b.getInstallStep().dependOn(&b.addRunArtifact(tests).step);',
       '}',
     ].join('\n'));
@@ -41,6 +43,11 @@ test('an independent Zig package compiles and imports its own HTML template', as
       'var p = P{ .html = &html, .next = &snapshot };',
       'template.project(&p, .{ .first = .{ .count = @as(u32, 42) }, .second = .{ .count = @as(u32, 7) } });',
       'try std.testing.expect(!html.failed);',
+      'html.len = 0; snapshot = .{};',
+      '@import("row").project(&p, .{ .label = "cell" });',
+      'try std.testing.expect(std.mem.indexOf(u8, html.slice(), ">cell</td>") != null);',
+      'html.len = 0; snapshot = .{};',
+      'template.project(&p, .{ .first = .{ .count = @as(u32, 42) }, .second = .{ .count = @as(u32, 7) } });',
       'try std.testing.expectEqual(@as(usize, 2), template.snapshot_capacity);',
       'try std.testing.expect(template.nodes.@"first.value" != template.nodes.@"second.value");',
       'try std.testing.expect(std.mem.indexOf(u8, html.slice(), ">7</output>") != null);',

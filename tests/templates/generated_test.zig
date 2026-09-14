@@ -299,3 +299,40 @@ test "list fragments retain owner and row controls across text patches" {
     try std.testing.expectEqual(@as(usize, 0), html.len);
     try std.testing.expectEqual(@as(usize, 0), next.len);
 }
+
+test "table fragments retain owner and row controls across text patches" {
+    const list = @import("table").Scoped(.{ .first = 100, .count = 10 });
+    const row = @import("table_row");
+    const Rows = struct {
+        label: []const u8,
+        pub fn project(value: @This(), p: anytype, owner: struct { node: u32 }) void {
+            std.debug.assert(owner.node == list.nodes.list);
+            row.projectAt(p, .{ .label = value.label, .action = Action.increment }, .{ .first = 200, .count = 10 });
+        }
+    };
+    const ListP = gui.Projection(list.snapshot_capacity + row.snapshot_capacity);
+    var bytes: [2048]u8 = undefined;
+    var commands: [2048]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var output = gui.html.Writer{ .buffer = &commands };
+    var writer = gui.patch.Writer{ .output = &output };
+    var before = ListP.Snapshot{};
+    var p = ListP{ .html = &html, .next = &before };
+    list.project(&p, .{ .rows = Rows{ .label = "One & <two>" } });
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "One &amp; &lt;two&gt;") != null);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "<tr") != null);
+    var next = ListP.Snapshot{};
+    p = .{ .html = &html, .next = &next, .previous = &before, .patches = &writer, .writing = false };
+    list.project(&p, .{ .rows = Rows{ .label = "Updated" } });
+    const refs = try row.nodesAt(.{ .first = 200, .count = 10 });
+    try std.testing.expectEqualStrings(std.fmt.comptimePrint("T\t{d}\t\"Updated\"\n", .{201}), output.slice());
+    try std.testing.expectEqual(@as(u32, 201), refs.label);
+    html = .{ .buffer = &bytes };
+    next = .{};
+    p = .{ .html = &html, .next = &next };
+    row.projectAt(&p, .{ .label = "Rejected", .action = Action.increment }, .{ .first = 200, .count = 1 });
+    try std.testing.expect(html.failed);
+    try std.testing.expectEqual(@as(usize, 0), html.len);
+    try std.testing.expectEqual(@as(usize, 0), next.len);
+}

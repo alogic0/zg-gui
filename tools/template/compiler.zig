@@ -9,7 +9,7 @@ const Error = error{ OutOfMemory, InvalidTemplate };
 pub const max_source_bytes = composition.max_source_bytes;
 pub const Diagnostic = composition.Diagnostic;
 pub const Component = composition.Component;
-pub const FragmentContext = enum { flow, ul, ol };
+pub const FragmentContext = enum { flow, ul, ol, thead, tbody, tfoot };
 pub const Input = struct {
     source: []const u8,
     name: []const u8,
@@ -169,8 +169,8 @@ const Compiler = struct {
             },
             .text => |span| {
                 const parent = if (stack.items.len > 0) c.name(stack.items[stack.items.len - 1]) else @tagName(c.input.fragment_context);
-                if (oneOf(parent, "ul ol") and std.mem.trim(u8, span.slice(c.input.source), " \t\r\n").len != 0)
-                    return c.reject(span.start, "list containers require li children, not bare text");
+                if (oneOf(parent, "ul ol thead tbody tfoot") and std.mem.trim(u8, span.slice(c.input.source), " \t\r\n").len != 0)
+                    return c.reject(span.start, "structural containers require elements, not bare text");
             },
             else => {},
         };
@@ -256,9 +256,9 @@ const Compiler = struct {
             }
         }
         if (c.attr(.{ .idx = input.idx, .name = ":slot" })) |a| {
-            if (!oneOf(tag_name, "div section ul ol") or has_text or has_value or has_if or has_loop or
+            if (!oneOf(tag_name, "div section ul ol thead tbody tfoot") or has_text or has_value or has_if or has_loop or
                 std.mem.trim(u8, c.input.source[node.tag.span.end..node.close_start], " \t\r\n").len != 0)
-                return c.reject(a.name.start, ":slot requires an empty div, section, ul or ol with no other content owner");
+                return c.reject(a.name.start, ":slot requires an empty flow, list or table-section container with no other content owner");
         }
         if (oneOf(tag_name, "ul ol dl table colgroup thead tbody tfoot tr select optgroup")) {
             if (has_text) return c.reject(node.tag.span.start, "this container requires structural children, not text");
@@ -714,5 +714,23 @@ test "list slots and explicit list fragments preserve structural validation" {
     }
     for ([_][]const u8{ "<li>orphan</li>", "<ul :slot=\"$rows\"><li>conflict</li></ul>", "<ul :slot=\"$rows\" :text=\"$label\"></ul>", "<ul>bare</ul>", "<ul :text=\"$label\"></ul>" }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "list", .diagnostic = &diagnostic }));
+    }
+}
+
+test "table section fragments and slots reject implicit repair" {
+    var d = Diagnostic{};
+    for ([_]FragmentContext{ .thead, .tbody, .tfoot }) |context| {
+        const code = try compile(std.testing.allocator, .{ .source = "<tr><th :text=\"$label\"></th><td>value</td></tr>", .name = "row", .diagnostic = &d, .fragment_context = context });
+        std.testing.allocator.free(code);
+        for ([_][]const u8{ "<td>orphan</td>", "<div>wrong</div>", "bare<tr><td>x</td></tr>", "<tr>bare</tr>", "<tr><div>x</div></tr>", "<tbody></tbody>" }) |source| {
+            try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "row", .diagnostic = &d, .fragment_context = context }));
+        }
+        var bytes: [160]u8 = undefined;
+        const source = try std.fmt.bufPrint(&bytes, "<table><{s} :ref=\"rows\" :slot=\"$rows\"></{s}></table>", .{ @tagName(context), @tagName(context) });
+        const table = try compile(std.testing.allocator, .{ .source = source, .name = "table", .diagnostic = &d });
+        std.testing.allocator.free(table);
+    }
+    for ([_][]const u8{ "<tr><td>orphan</td></tr>", "<tbody :slot=\"$rows\"></tbody>", "<table><tbody :slot=\"$rows\"><tr><td>x</td></tr></tbody></table>", "<table><tbody :slot=\"$rows\" :text=\"$label\"></tbody></table>", "<table :slot=\"$rows\"></table>" }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "table", .diagnostic = &d }));
     }
 }

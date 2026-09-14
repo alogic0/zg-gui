@@ -51,3 +51,5 @@ tune to an unstated budget.
 - [002: description lists](requests/002-description-lists.md)
 
 - [003: projection composition](requests/003-projection-composition.md)
+
+- [005: table fragments](requests/005-table-fragments.md)

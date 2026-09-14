@@ -49,3 +49,26 @@ test('DOM host retains controls and validates typed patch commands', async () =>
     assert.deepEqual(result, { retained: true, moved: true, focused: true, dateFormatted: true, checked: true, rejected: 7 });
   } finally { await browser?.close(); await server.close(); }
 });
+
+test('table section patches retain table header row controls and focus', async () => {
+  const server=await serve({directory:new URL('../web',import.meta.url).pathname});
+  let browser;
+  try {
+    browser=await chromium.launch({headless:true});const page=await browser.newPage();
+    await page.goto(server.url+'/dom.js');
+    const result=await page.evaluate(async()=>{
+      const {createDomHost}=await import('/dom.js');
+      const root=document.createElement('main');document.body.append(root);
+      const dom=createDomHost({root});
+      dom.initialize('<button data-node-id="1">Refresh</button><table data-node-id="2"><thead data-node-id="3"><tr><th>Label</th><th>Draft</th></tr></thead><tbody data-node-id="4"><tr data-node-id="5"><td data-node-id="6">One</td><td><input data-node-id="7" value="keep"></td></tr></tbody></table>');
+      const table=root.querySelector('table'),head=table.tHead,body=table.tBodies[0],row=body.rows[0],input=root.querySelector('input'),button=root.querySelector('button');
+      input.focus();dom.applyPatchStream('T\t6\t"Changed"\n');
+      const scalar=body.rows[0]===row&&input===document.activeElement&&input.value==='keep';
+      button.focus();dom.applyPatchStream('H\t4\t'+JSON.stringify('<tr data-node-id="8"><td data-node-id="9">Two</td><td>Read only</td></tr>')+'\n');
+      const structure=table===root.querySelector('table')&&head===table.tHead&&body===table.tBodies[0]&&body.rows.length===1&&body.rows[0].cells.length===2&&button===document.activeElement&&!row.isConnected;
+      const ids=[...root.querySelectorAll('[data-node-id]')].map(n=>n.dataset.nodeId);
+      return {scalar,structure,unique:new Set(ids).size===ids.length};
+    });
+    assert.deepEqual(result,{scalar:true,structure:true,unique:true});
+  } finally {await browser?.close();await server.close();}
+});

@@ -85,3 +85,23 @@ test('list fragment CLI context is explicit and rejection preserves output', asy
     await rmdir(directory);
   }
 });
+
+test('table row contexts preserve output after invalid structure or context', async () => {
+  const directory=await mkdtemp(join(tmpdir(),'zg-gui-table-'));
+  const source=join(directory,'row.gui.html'),generated=join(directory,'row.zig');
+  try {
+    await writeFile(source,'<tr><td :text="$label"></td></tr>');
+    for(const context of ['thead','tbody','tfoot']) {
+      const result=spawnSync(compiler,[source,generated,`--context=${context}`],{encoding:'utf8'});
+      assert.equal(result.status,0,result.stderr);
+    }
+    const accepted=await readFile(generated,'utf8');
+    for(const args of [[],['--context=ul'],['--context=table'],['--context=tbody','--context=tfoot']]) {
+      assert.notEqual(spawnSync(compiler,[source,generated,...args]).status,0);
+      assert.equal(await readFile(generated,'utf8'),accepted);
+    }
+    await writeFile(source,'text<tr><td>value</td></tr>');
+    assert.notEqual(spawnSync(compiler,[source,generated,'--context=tbody']).status,0);
+    assert.equal(await readFile(generated,'utf8'),accepted);
+  } finally {for(const file of await readdir(directory))await unlink(join(directory,file));await rmdir(directory);}
+});
