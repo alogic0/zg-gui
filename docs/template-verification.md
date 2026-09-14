@@ -1,4 +1,4 @@
-# Template compiler and demo verification
+# Initial template compiler and demo verification
 
 September 14, 2026; compiler pinned by `.zigversion`.
 
@@ -36,7 +36,32 @@ adapters, more identified leaves and generic keyed-row validation. This is a
 functional extraction, not a performance improvement claim. Peak stack/heap
 use and large application performance remain unprofiled.
 
-Current limitations are explicit in the template guide: an HTML fragment subset,
+Initial limitations were explicit in the template guide: an HTML fragment subset,
 field-path expressions, one generated root namespace, no nested loops, component
 composition, raw HTML injection, or full Scripty evaluation. The compiler rejects
 unsupported syntax instead of silently falling back to an interpreted renderer.
+
+## Composed application controls follow-up
+
+Generated `Scoped` projections coexist in
+one root with explicit ID ranges, including keyed descendants. Compiler tests
+also reject overlapping and invalid range assignments.
+
+The next slice adds explicit table/select structure and SVG semantics. The demo
+composes the main template and two instances of `controls.gui.html`. Native tests
+cover malformed browser-repaired structures, select leaf-only patches, unsafe
+initial SVG references, lossy option/control values, namespace overflow and
+optional reference removal. The browser exercises controlled selection, option
+removal/restoration, retained table drafts/focus, SVG namespace and insertion,
+sprite changes, unique IDs, recovery, teardown and memory growth.
+
+`npm test` and `npm run test:browser` pass; the latter runs four browser tests.
+Desktop/mobile screenshots were inspected, including the composed panels; no
+mobile horizontal overflow was detected. The current composed demo is 51,651
+WASM bytes with two initial pages, including its 64 KiB stack. Scratch/output
+buffers are 16 KiB each and the maximum admitted state passes full recovery.
+These measurements include additional example behavior and are not a frontend
+performance guarantee.
+
+See the [framework roadmap](roadmap.md) for planned capabilities. Nested loops,
+template invocation syntax and large-application profiling remain deferred.

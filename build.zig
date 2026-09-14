@@ -89,6 +89,7 @@ pub fn build(b: *std.Build) void {
     b.installDirectory(.{ .source_dir = b.path("web"), .install_dir = .prefix, .install_subdir = "web" });
 
     const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding });
+    const controls_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("examples/controls.gui.html") });
     const demo_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("examples/demo.gui.html") });
     const wasm_gui = b.createModule(.{ .root_source_file = b.path("src/root.zig"), .target = wasm_target, .optimize = .safe });
     const demo = b.addExecutable(.{
@@ -100,6 +101,12 @@ pub fn build(b: *std.Build) void {
             .strip = true,
             .imports = &.{
                 .{ .name = "zg_gui", .module = wasm_gui },
+                .{ .name = "controls_template", .module = b.createModule(.{
+                    .root_source_file = controls_source,
+                    .target = wasm_target,
+                    .optimize = .safe,
+                    .imports = &.{.{ .name = "zg_gui", .module = wasm_gui }},
+                }) },
                 .{ .name = "demo_template", .module = b.createModule(.{
                     .root_source_file = demo_source,
                     .target = wasm_target,
@@ -122,6 +129,12 @@ pub fn build(b: *std.Build) void {
             .optimize = .debug,
             .imports = &.{
                 .{ .name = "zg_gui", .module = test_gui },
+                .{ .name = "controls_template", .module = b.createModule(.{
+                    .root_source_file = controls_source,
+                    .target = b.graph.host,
+                    .optimize = .safe,
+                    .imports = &.{.{ .name = "zg_gui", .module = test_gui }},
+                }) },
                 .{ .name = "demo_template", .module = b.createModule(.{
                     .root_source_file = demo_source,
                     .target = b.graph.host,

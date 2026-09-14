@@ -1,12 +1,19 @@
 //! State and view values for the HTML-template demo. No runtime parser.
 const std = @import("std");
 const gui = @import("zg_gui");
-const template = @import("demo_template");
-const P = gui.Projection(template.snapshot_capacity);
+const template = @import("demo_template").Scoped(.{ .first = 1, .count = 999 });
+const controls = @import("controls_template");
+const primary = controls.Scoped(.{ .first = 1000, .count = 1000 });
+const secondary = controls.Scoped(.{ .first = 3000, .count = 1000 });
+comptime {
+    gui.template.validateNamespaces(&.{ .{ .first = 1, .count = 999 }, .{ .first = 1000, .count = 1000 }, .{ .first = 3000, .count = 1000 } });
+}
+const P = gui.Projection(template.snapshot_capacity + primary.snapshot_capacity + secondary.snapshot_capacity);
 const Row = struct { id: u32, label: []const u8, input_label: []const u8 };
-const InputKind = enum(u32) { name = 1, theme = 2 };
+const InputKind = enum(u32) { name = 1, theme = 2, channel = 3 };
 const State = struct {
     count: u32 = 0,
+    email: bool = true,
     dark: bool = false,
     details: bool = false,
     reversed: bool = false,
@@ -19,9 +26,9 @@ var state = State{};
 var snapshot = P.Snapshot{};
 var exchange: [128]u8 = undefined;
 // Admit the formatted template, generated IDs, all three rows and the full
-// 128-byte draft after HTML escaping; native tests exercise that full resync.
-var scratch: [8192]u8 = undefined;
-var output: [8192]u8 = undefined;
+// 128-byte draft plus two independent panels; native tests exercise full resync.
+var scratch: [16384]u8 = undefined;
+var output: [16384]u8 = undefined;
 var output_len: usize = 0;
 var render_mode: gui.patch.RenderMode = .full;
 
@@ -56,6 +63,34 @@ fn render(input: struct { next_state: State, mode: gui.patch.RenderMode }) u32 {
         .actions = .{ .increment = Action.increment, .details = Action.details, .reverse = Action.reverse, .extra = Action.extra },
         .inputs = .{ .name = InputKind.name, .theme = InputKind.theme },
     });
+    const Option = struct { id: u32, value: []const u8, label: []const u8 };
+    const options = [_]Option{ .{ .id = 1, .value = "sms", .label = "SMS" }, .{ .id = 2, .value = "email", .label = "Email" } };
+    const Marker = struct { id: u32, x: u32 };
+    const markers = [_]Marker{ .{ .id = 1, .x = 8 }, .{ .id = 2, .x = 20 }, .{ .id = 3, .x = 32 } };
+    const shared: struct {
+        title: []const u8,
+        control_id: []const u8,
+        selected: []const u8,
+        icon: []const u8,
+        inputs: struct { channel: InputKind },
+        options: []const Option,
+        rows: []const Row,
+        markers: []const Marker,
+    } = .{
+        .title = @as([]const u8, "Primary integration"),
+        .control_id = @as([]const u8, "primary-channel"),
+        .selected = @as([]const u8, if (s.email) "email" else "sms"),
+        .icon = @as([]const u8, if (s.dark) "icons.svg#link-active" else "icons.svg#link"),
+        .inputs = .{ .channel = InputKind.channel },
+        .options = options[0..if (s.extra) @as(usize, 1) else 2],
+        .rows = rows[0..if (s.extra) @as(usize, 3) else 2],
+        .markers = markers[0..if (s.extra) @as(usize, 3) else 2],
+    };
+    primary.project(&p, shared);
+    var other = shared;
+    other.title = "Secondary integration";
+    other.control_id = "secondary-channel";
+    secondary.project(&p, other);
     if (html.failed or stream.failed) {
         // No partial stream, candidate state or snapshot is published.
         output_len = 0;
@@ -103,6 +138,10 @@ fn acceptInput(input: struct { kind: u32, length: u32 }) u32 {
             .name => if (std.unicode.utf8ValidateSlice(value)) {
                 @memcpy(next.name[0..value.len], value);
                 next.name_len = value.len;
+            },
+            .channel => {
+                if (std.mem.eql(u8, value, "email")) next.email = true;
+                if (std.mem.eql(u8, value, "sms")) next.email = false;
             },
             .theme => {
                 if (std.mem.eql(u8, value, "true")) next.dark = true;
@@ -159,4 +198,17 @@ test "maximum admitted escaped input also fits a full recovery projection" {
     try std.testing.expect(resync() > 0);
     try std.testing.expectEqual(gui.patch.RenderMode.full, render_mode);
     try std.testing.expectEqual(@as(usize, 128), state.name_len);
+}
+
+test "controlled select updates patch both values without replacing either panel" {
+    _ = init();
+    @memcpy(exchange[0..3], "sms");
+    _ = setInput(3, 3);
+    const stream = output[0..output_len];
+    try std.testing.expect(std.mem.indexOf(u8, stream, "H\t") == null);
+    try std.testing.expect(std.mem.indexOf(u8, stream, "J\t") == null);
+    var expected: [128]u8 = undefined;
+    for ([_]u32{ primary.nodes.channel, secondary.nodes.channel }) |node| {
+        try std.testing.expect(std.mem.indexOf(u8, stream, try std.fmt.bufPrint(&expected, "V\t{d}\t\"sms\"", .{node})) != null);
+    }
 }

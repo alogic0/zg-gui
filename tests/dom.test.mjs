@@ -16,6 +16,15 @@ test('DOM host retains controls and validates typed patch commands', async () =>
       document.body.append(root);
       const dom = createDomHost({ root });
       dom.initialize('<section data-node-id="1"><input data-node-id="2" value="draft"><span data-node-id="3">one</span><input data-node-id="4" type="checkbox"></section><ul data-node-id="5"><li data-node-id="6"><input data-node-id="7" value="row"></li><li data-node-id="8">other</li></ul>');
+      const selectRoot = document.createElement('div'); document.body.append(selectRoot);
+      const selects = createDomHost({ root: selectRoot });
+      selects.initialize('<select data-node-id="1" data-select-value="b"><option data-node-id="2" value="a">b</option><option data-node-id="3" value="b">B</option></select>');
+      const controlled = selectRoot.querySelector('select');
+      selects.applyPatchStream('A\t2\tvalue\tb\nD\t3\n');
+      if (controlled.value !== 'b') throw new Error('option value update lost controlled selection');
+      selects.applyPatchStream('R\t2\tvalue\n');
+      if (controlled.value !== 'b') throw new Error('option fallback text lost controlled selection');
+      selectRoot.remove();
       const owner = root.firstElementChild;
       const input = root.querySelector('[data-node-id="2"]');
       input.focus(); input.setSelectionRange(1, 3);

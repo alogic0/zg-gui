@@ -6,7 +6,8 @@ available for handwritten renderers and generated code uses the same lifecycle.
 
 ## Importing the package
 
-Use the pinned compiler in `.zigversion`. Add a path dependency to your own
+Use the pinned compiler in `.zigversion`. For composing generated panels, see
+[template namespaces](templates.md#composing-independently-compiled-panels). Add a path dependency to your own
 `build.zig.zon` (adjust the relative path):
 
 ```zig

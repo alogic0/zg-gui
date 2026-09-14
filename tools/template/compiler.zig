@@ -121,17 +121,18 @@ const Compiler = struct {
                         stack.items.len -= 1;
                     },
                     .start, .start_self => {
-                        if (!oneOf(tag_name, "main header footer section article aside nav div p span h1 h2 h3 h4 h5 h6 a strong em small b i code pre br hr form fieldset legend label input textarea button output ul ol li img details summary")) {
+                        if (!oneOf(tag_name, "main header footer section article aside nav div p span h1 h2 h3 h4 h5 h6 a strong em small b i code pre br hr form fieldset legend label input textarea button output ul ol li img details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs symbol path circle ellipse rect line polyline polygon use title")) {
                             return c.reject(tag.name.start, "unsupported element; use the documented HTML fragment subset");
                         }
-                        if (tag.kind == .start_self and !tag.isVoid(c.input.source, .html)) return c.reject(tag.span.start, "non-void HTML elements require an explicit closing tag");
+                        if (tag.kind == .start_self and !tag.isVoid(c.input.source, .html) and !isSvg(tag_name)) return c.reject(tag.span.start, "non-void HTML elements require an explicit closing tag");
+                        const parent_name = if (stack.items.len > 0) c.name(stack.items[stack.items.len - 1]) else "";
                         for (stack.items) |parent| {
                             const ancestor = c.name(parent);
-                            if (oneOf(ancestor, "p h1 h2 h3 h4 h5 h6") and !isPhrasing(tag_name)) return c.reject(tag.name.start, "block content would implicitly close a phrasing-only ancestor");
+                            if (!isSvg(parent_name) and oneOf(ancestor, "p h1 h2 h3 h4 h5 h6") and !isPhrasing(tag_name)) return c.reject(tag.name.start, "block content would implicitly close a phrasing-only ancestor");
                             if (oneOf(tag_name, "a button form") and std.mem.eql(u8, tag_name, ancestor)) return c.reject(tag.name.start, "nested interactive element would be repaired by the browser");
-                            if (std.mem.eql(u8, ancestor, "button") and oneOf(tag_name, "a input textarea button")) return c.reject(tag.name.start, "interactive content is not allowed inside a button");
+                            if (std.mem.eql(u8, ancestor, "button") and oneOf(tag_name, "a input textarea button select")) return c.reject(tag.name.start, "interactive content is not allowed inside a button");
                         }
-                        const parent_name = if (stack.items.len > 0) c.name(stack.items[stack.items.len - 1]) else "";
+                        if (structureError(.{ .parent = parent_name, .child = tag_name })) |message| return c.reject(tag.name.start, message);
                         if (oneOf(parent_name, "ul ol") and !std.mem.eql(u8, tag_name, "li")) return c.reject(tag.name.start, "list containers require direct li children");
                         if (std.mem.eql(u8, tag_name, "li") and !oneOf(parent_name, "ul ol")) return c.reject(tag.name.start, "li requires a ul or ol parent");
                         if (stack.items.len == 64 or c.nodes.items.len == 4096) return c.reject(tag.span.start, "template exceeds depth 64 or 4096 elements");
@@ -144,7 +145,7 @@ const Compiler = struct {
                             .slot = @intCast(idx + 1),
                         });
                         if (stack.items.len > 0) try c.nodes.items[stack.items[stack.items.len - 1]].children.append(c.a, idx) else try c.roots.append(c.a, idx);
-                        if (!tag.isVoid(c.input.source, .html)) try stack.append(c.a, idx);
+                        if (!tag.isVoid(c.input.source, .html) and tag.kind != .start_self) try stack.append(c.a, idx);
                         if (std.mem.eql(u8, tag_name, "textarea")) tokenizer.gotoRcData("textarea");
                     },
                 }
@@ -207,29 +208,39 @@ const Compiler = struct {
                     else => return c.reject(a.name.start, "this SuperHTML directive is not supported by GUI templates"),
                 } else if (std.mem.eql(u8, n, ":value")) {
                     has_value = true;
-                    if (!oneOf(tag_name, "input textarea")) return c.reject(a.name.start, ":value requires input or textarea");
+                    if (!oneOf(tag_name, "input textarea select")) return c.reject(a.name.start, ":value requires input, textarea or select");
                 } else if (std.mem.eql(u8, n, ":visible")) {
                     has_visible = true;
                 } else if (std.mem.eql(u8, n, ":checked")) {
                     const type_attr = c.attr(.{ .idx = input.idx, .name = "type" }) orelse return c.reject(a.name.start, ":checked requires a static checkbox or radio type");
                     if (!std.mem.eql(u8, tag_name, "input") or !oneOf(try c.value(type_attr), "checkbox radio")) return c.reject(a.name.start, ":checked requires a checkbox or radio");
                 } else if (std.mem.eql(u8, n, ":input")) {
-                    if (!oneOf(tag_name, "input textarea")) return c.reject(a.name.start, ":input requires input or textarea");
+                    if (!oneOf(tag_name, "input textarea select")) return c.reject(a.name.start, ":input requires input, textarea or select");
                 } else if (!std.mem.eql(u8, n, ":on-click")) {
                     return c.reject(a.name.start, "unknown GUI directive");
                 }
                 try c.binding(.{ .attr = a, .in_loop = input.in_loop });
             } else {
-                if (!attributeName(n) or std.mem.startsWith(u8, n, "on") or oneOf(n, "data-node-id data-event data-input-kind")) return c.reject(a.name.start, "reserved or unsupported attribute name");
+                if (!(attributeName(n) or (isSvg(tag_name) and oneOf(n, "viewBox preserveAspectRatio"))) or std.mem.startsWith(u8, n, "on") or oneOf(n, "data-node-id data-event data-input-kind data-select-value")) return c.reject(a.name.start, "reserved or unsupported attribute name");
                 if (a.value) |v| if (std.mem.startsWith(u8, v.span.slice(c.input.source), "$")) {
-                    if (!dynamicAttribute(n)) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
+                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (std.mem.eql(u8, tag_name, "use") and std.mem.eql(u8, n, "href")) or (std.mem.eql(u8, tag_name, "option") and std.mem.eql(u8, n, "value")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
                     try c.binding(.{ .attr = a, .in_loop = input.in_loop });
                 };
             }
         }
+        if (oneOf(tag_name, "table colgroup thead tbody tfoot tr select optgroup")) {
+            if (has_text) return c.reject(node.tag.span.start, "this container requires structural children, not text");
+            var previous: usize = node.tag.span.end;
+            for (node.children.items) |child| {
+                if (std.mem.trim(u8, c.input.source[previous..c.nodes.items[child].tag.span.start], " \t\r\n").len != 0) return c.reject(previous, "only whitespace is allowed between structural children");
+                previous = c.nodes.items[child].end;
+            }
+            if (std.mem.trim(u8, c.input.source[previous..node.close_start], " \t\r\n").len != 0) return c.reject(previous, "only whitespace is allowed between structural children");
+        }
+        if (std.mem.eql(u8, tag_name, "select") and c.attr(.{ .idx = input.idx, .name = "multiple" }) != null) return c.reject(node.tag.span.start, "multiple selection requires a dedicated value model");
         if (has_text and (is_void or has_value or has_if or has_loop or std.mem.eql(u8, tag_name, "textarea"))) return c.reject(node.tag.span.start, ":text conflicts with this element or its content owner");
         if ((has_text or (has_value and std.mem.eql(u8, tag_name, "textarea"))) and std.mem.trim(u8, c.input.source[node.tag.span.end..node.close_start], " \t\r\n").len > 0) return c.reject(node.tag.span.start, "text/value bindings require empty content");
-        if ((has_if and (is_void or has_visible or has_value)) or (has_loop and (is_void or has_value))) return c.reject(node.tag.span.start, "conflicting structural or visibility directives");
+        if ((has_if and (is_void or has_visible or has_value)) or (has_loop and (is_void or (has_value and !std.mem.eql(u8, tag_name, "select"))))) return c.reject(node.tag.span.start, "conflicting structural or visibility directives");
         if (has_value and c.attr(.{ .idx = input.idx, .name = "value" }) != null) return c.reject(node.tag.span.start, ":value conflicts with value");
         if (has_value) if (c.attr(.{ .idx = input.idx, .name = "type" })) |a| {
             if (a.value != null and std.mem.eql(u8, a.value.?.span.slice(c.input.source), "file")) return c.reject(a.name.start, "file input values cannot be controlled by a template");
@@ -325,7 +336,7 @@ const Compiler = struct {
             const n = a.name.slice(c.input.source);
             if (oneOf(n, ":ref :key :limit :loop :text :if")) continue;
             if (std.mem.eql(u8, n, ":value")) {
-                if (std.mem.eql(u8, tag_name, "textarea")) continue;
+                if (oneOf(tag_name, "textarea select")) continue;
                 c.entries += input.factor;
                 try c.code.add("p.formValue(.{ .node = node, .text_value = ");
                 try c.expression(a);
@@ -354,6 +365,12 @@ const Compiler = struct {
                 if (oneOf(try c.value(t), "checkbox radio")) try c.literal(" data-value-format=\"checked\"");
             }
         }
+        if (value_attr != null and std.mem.eql(u8, tag_name, "select")) {
+            c.entries += input.factor;
+            try c.code.add("binding.attribute(p, \"data-select-value\", .{ .node = node, .value = ");
+            try c.expression(value_attr.?);
+            try c.code.add(" });\n");
+        }
         if (if_attr) |a| {
             c.entries += 2 * input.factor; // Visibility and structural membership.
             try c.code.add("const shown: bool = ");
@@ -376,6 +393,12 @@ const Compiler = struct {
             try c.expression(value_attr.?);
             try c.code.add(" });\n");
         } else try c.children(input);
+        if (value_attr != null and std.mem.eql(u8, tag_name, "select")) {
+            c.entries += input.factor;
+            try c.code.add("p.selectedValue(.{ .node = node, .value = ");
+            try c.expression(value_attr.?);
+            try c.code.add(" });\n");
+        }
         if (!node.tag.isVoid(c.input.source, .html)) try c.literal(try std.fmt.allocPrint(c.a, "</{s}>", .{tag_name}));
         try c.code.add("}\n");
     }
@@ -421,9 +444,9 @@ fn attributeName(value: []const u8) bool {
     return true;
 }
 fn dynamicAttribute(name: []const u8) bool {
-    return oneOf(name, "class lang disabled readonly autofocus inert role title placeholder alt aria-label") or
+    return oneOf(name, "class lang disabled readonly autofocus inert role title placeholder alt id for aria-label") or
         (std.mem.startsWith(u8, name, "aria-") and dashedName(name[5..])) or
-        (std.mem.startsWith(u8, name, "data-") and dashedName(name[5..]) and !oneOf(name, "data-node-id data-event data-input-kind data-value-format data-text-format data-style-vars"));
+        (std.mem.startsWith(u8, name, "data-") and dashedName(name[5..]) and !oneOf(name, "data-node-id data-event data-input-kind data-value-format data-text-format data-style-vars data-select-value"));
 }
 fn dashedName(value: []const u8) bool {
     var it = std.mem.splitScalar(u8, value, '-');
@@ -434,7 +457,7 @@ fn dashedName(value: []const u8) bool {
     return true;
 }
 fn isPhrasing(name: []const u8) bool {
-    return oneOf(name, "span a strong em small b i code br label input textarea button output img");
+    return oneOf(name, "span a strong em small b i code br label input textarea button output img select svg");
 }
 
 test "compiler preserves literal whitespace and entities and emits leaf bindings" {
@@ -469,4 +492,48 @@ fn allocationProbe(a: Allocator) !void {
 }
 test "compiler releases all allocations on failure" {
     try std.testing.checkAllAllocationFailures(std.testing.allocator, allocationProbe, .{});
+}
+
+fn isSvg(name: []const u8) bool {
+    return oneOf(name, "svg g defs symbol path circle ellipse rect line polyline polygon use title");
+}
+fn structureError(input: struct { parent: []const u8, child: []const u8 }) ?[]const u8 {
+    const p = input.parent;
+    const n = input.child;
+    if (isSvg(p)) {
+        if (!isSvg(n) or !oneOf(p, "svg g defs symbol")) return "invalid SVG child structure";
+    } else if (isSvg(n) and !std.mem.eql(u8, n, "svg")) return "SVG elements require an SVG container";
+    const valid = if (std.mem.eql(u8, p, "table")) oneOf(n, "caption colgroup thead tbody tfoot") else if (oneOf(p, "thead tbody tfoot")) std.mem.eql(u8, n, "tr") else if (std.mem.eql(u8, p, "tr")) oneOf(n, "th td") else if (std.mem.eql(u8, p, "colgroup")) std.mem.eql(u8, n, "col") else if (std.mem.eql(u8, p, "select")) oneOf(n, "option optgroup") else if (std.mem.eql(u8, p, "optgroup")) std.mem.eql(u8, n, "option") else !std.mem.eql(u8, p, "option");
+    if (!valid) return "invalid table or select child structure; use explicit section elements";
+    if (oneOf(n, "caption colgroup thead tbody tfoot") and !std.mem.eql(u8, p, "table")) return "table section requires a table parent";
+    if (std.mem.eql(u8, n, "tr") and !oneOf(p, "thead tbody tfoot")) return "tr requires an explicit table section";
+    if (oneOf(n, "th td") and !std.mem.eql(u8, p, "tr")) return "table cell requires a tr parent";
+    if (std.mem.eql(u8, n, "col") and !std.mem.eql(u8, p, "colgroup")) return "col requires a colgroup parent";
+    if (std.mem.eql(u8, n, "option") and !oneOf(p, "select optgroup")) return "option requires a select or optgroup parent";
+    if (std.mem.eql(u8, n, "optgroup") and !std.mem.eql(u8, p, "select")) return "optgroup requires a select parent";
+    return null;
+}
+
+test "table select and SVG structures are validated before browser repair" {
+    for ([_][]const u8{
+        "<table><tr><td>x</td></tr></table>",
+        "<table>text<tbody></tbody></table>",
+        "<tbody><div></div></tbody>",
+        "<div><td>x</td></div>",
+        "<select><div>x</div></select>",
+        "<select :text=\"$label\"></select>",
+        "<select multiple></select>",
+        "<select><option><span>x</span></option></select>",
+        "<svg><foreignObject></foreignObject></svg>",
+        "<svg><path><circle /></path></svg>",
+        "<div><path /></div>",
+        "<div data-select-value=\"x\"></div>",
+    }) |source| {
+        var d = Diagnostic{};
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad-controls.gui.html", .diagnostic = &d }));
+    }
+    var d = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{ .source = "<section><h2><svg><path d=\"M0 0h1\" /></svg></h2><svg viewBox=\"0 0 24 24\"><path d=\"M0 0h1\" /></svg><table><tbody><tr><td>x</td></tr></tbody></table><select :value=\"$selected\" :input=\"$input\"><option value=\"a\">A</option></select></section>", .name = "controls.gui.html", .diagnostic = &d });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "p.selectedValue") != null);
 }

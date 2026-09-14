@@ -18,7 +18,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
   // Attribute names Zig is allowed to set through the A/R operations. Names
   // are Zig literals, so this is defense in depth: an unexpected name fails
   // the stream (and resyncs) instead of reaching setAttribute.
-  const attributePattern = /^(?:class|lang|hidden|disabled|readonly|datetime|draggable|inert|role|title|href|src|alt|type|name|placeholder|autofocus|autocomplete|min|max|step|minlength|maxlength|aria-[a-z]+(?:-[a-z]+)*|data-[a-z]+(?:-[a-z]+)*)$/;
+  const attributePattern = /^(?:viewBox|d|fill|stroke|stroke-width|x|y|x1|x2|y1|y2|cx|cy|r|rx|ry|width|height|points|transform|id|for|class|lang|hidden|disabled|readonly|datetime|draggable|inert|role|title|href|src|alt|type|name|placeholder|autofocus|autocomplete|min|max|step|minlength|maxlength|aria-[a-z]+(?:-[a-z]+)*|data-[a-z]+(?:-[a-z]+)*)$/;
 
   function scrollPosition(value, target) {
     if (!(target instanceof window.HTMLElement) || !/^(0|[1-9][0-9]*)$/.test(value) || Number(value) > 16777216) {
@@ -50,10 +50,19 @@ export function createDomHost({ root, onStructure = () => {} }) {
     for (const node of scrollers) node.scrollTop = scrollPosition(node.getAttribute('data-scroll-top'), node);
   }
 
+  // Zig declares the controlled value; structural option changes must restore it.
+  function applySelectValues(scope) {
+    const nodes = scope.matches?.('select[data-select-value]') ? [scope] : [];
+    nodes.push(...scope.querySelectorAll('select[data-select-value]'));
+    const parent = scope.closest?.('select[data-select-value]');
+    if (parent && !nodes.includes(parent)) nodes.push(parent);
+    for (const select of nodes) select.value = select.dataset.selectValue;
+  }
   function applyDeclaredProviders(scope) { onStructure(scope); }
 
   function initialize(html) {
     root.innerHTML = html;
+    applySelectValues(root);
     applyDeclaredStyles(root);
     applyInitialTimeFormats(root);
     onStructure(root);
@@ -87,7 +96,9 @@ export function createDomHost({ root, onStructure = () => {} }) {
       }
       if (operation === "D" && fields.length === 2) {
         if (target === root || !target.parentElement) throw new Error("Zig remove patch needs an owned child subtree");
+        const parent = target.parentElement;
         target.remove();
+        applySelectValues(parent);
         continue;
       }
       if (operation === "C" && fields.length === 3) {
@@ -118,9 +129,10 @@ export function createDomHost({ root, onStructure = () => {} }) {
           continue;
         }
         if (operation === "J") {
-          if (!(target instanceof window.HTMLElement)) throw new Error("Zig append patch needs an HTML element");
+          if (!(target instanceof window.HTMLElement) && !(target instanceof window.SVGElement)) throw new Error("Zig append patch needs an HTML or SVG element");
           const last = target.lastElementChild;
           target.insertAdjacentHTML("beforeend", fragment);
+          applySelectValues(target);
           for (let child = last ? last.nextElementSibling : target.firstElementChild; child; child = child.nextElementSibling) {
             applyDeclaredStyles(child);
             applyDeclaredProviders(child);
@@ -137,6 +149,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
         const selectionStart = activeIsTextControl ? active.selectionStart : null;
         const selectionEnd = activeIsTextControl ? active.selectionEnd : null;
         target.innerHTML = fragment;
+        applySelectValues(target);
         applyDeclaredStyles(target);
         applyDeclaredProviders(target);
         applyInitialTimeFormats(target);
@@ -171,16 +184,17 @@ export function createDomHost({ root, onStructure = () => {} }) {
         const focused = active instanceof window.HTMLElement && target.contains(active) ? active : null;
         if (fields[3] === "after") sibling.after(target);
         else sibling.before(target);
+        applySelectValues(target.parentElement);
         if (focused && focused.isConnected) focused.focus({ preventScroll: true });
         continue;
       }
       const attribute = fields[2] || "";
       if (!attribute) throw new Error("Zig patch omitted an attribute name");
       if (attribute === "value") {
-        if (operation !== "A" || !(target instanceof window.HTMLMeterElement)
+        if (!(target instanceof window.HTMLOptionElement) && (operation !== "A" || !(target instanceof window.HTMLMeterElement)
           || !/^[0-9]+(?:\.[0-9]+)?$/.test(fields[3])
           || !Number.isFinite(Number(fields[3]))
-          || Number(fields[3]) < target.min || Number(fields[3]) > target.max) {
+          || Number(fields[3]) < target.min || Number(fields[3]) > target.max)) {
           throw new Error("Zig meter value patch requires a finite value within its declared range");
         }
       } else if (attribute === "tabindex") {
@@ -211,9 +225,11 @@ export function createDomHost({ root, onStructure = () => {} }) {
           }
         }
         target.setAttribute(attribute, fields[3]);
+        if (attribute === "data-select-value" || (attribute === "value" && target instanceof window.HTMLOptionElement)) applySelectValues(target);
         if (attribute === "data-style-vars") applyDeclaredStyles(target);
       } else if (operation === "R" && fields.length === 3) {
         target.removeAttribute(attribute);
+        if (attribute === "value" && target instanceof window.HTMLOptionElement) applySelectValues(target);
       } else {
         throw new Error(`Unknown or malformed Zig patch operation: ${line}`);
       }

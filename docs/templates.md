@@ -35,7 +35,7 @@ literal dollar sign in a static attribute can be written as `&#36;`.
 | `:text="$value"` | Escaped text leaf; string, integer, bool or enum |
 | `title="$value"`, `aria-expanded="$open"`, `data-theme="$theme"` | Named attribute update; optional values remove the attribute |
 | `disabled="$busy"` | Boolean attribute presence; requires bool or optional bool |
-| `:value="$draft"` | String value property on input or textarea; textarea content must be empty |
+| `:value="$draft"` | String value property on input, textarea or single select; textarea content must be empty |
 | `:checked="$enabled"` | Boolean checked property on a static checkbox/radio input |
 | `:visible="$open"` | Boolean visibility; retain the element and all descendants |
 | `:if="$show"` | Retain the element as a structural owner; hide it and remove its children when false |
@@ -108,20 +108,40 @@ cache. Generated code should not be hand-edited or checked in.
 ## Current language boundary
 
 This is a GUI-specific subset, not the complete SuperHTML/Scripty language.
-There is no raw HTML injection, `:else`, nested loop, component invocation,
+There is no raw HTML injection, `:else`, nested loop, template include/component invocation,
 runtime expression evaluation, or implicit persistence. `:if` owns children;
 use `:visible` when hidden descendants must retain drafts and focus identity.
 Refs inside loops are rejected because their IDs depend on the current key.
 
-Supported lowercase tags are: main, header, footer, section, article, aside,
-nav, div, p, span, h1–h6, a, strong, em, small, b, i, code, pre, br, hr, form,
-fieldset, legend, label, input, textarea, button, output, ul, ol, li, img,
-details and summary. Closing tags must match explicitly; non-void self-closing
-tags are rejected. Tables, select/options, SVG, scripts, styles and full document
-markup need dedicated semantics and are rejected by this first compiler.
+Supported HTML tags include the original fragment elements plus `table`, `caption`,
+`colgroup`, `col`, `thead`, `tbody`, `tfoot`, `tr`, `th`, `td`, `select`, `optgroup`
+and `option`. Tables require explicit sections: put rows inside `tbody`, `thead`
+or `tfoot`. Invalid table/select nesting and non-whitespace text between their
+structural children are rejected before the browser can repair the tree.
+Multiple-select controls require a separate value model and remain unsupported.
 
-Dynamic attributes are restricted to class, lang, disabled, readonly, autofocus,
-inert, role, title, placeholder, alt, and supported aria/data names. Internal
+SVG supports `svg`, `g`, `defs`, `symbol`, `path`, `circle`, `ellipse`, `rect`,
+`line`, `polyline`, `polygon`, `use` and `title`. SVG-only children require an SVG
+container; HTML inside SVG and `foreignObject` are rejected. Self-closing SVG
+shapes are accepted. HTML non-void tags still require explicit closing tags.
+Static `viewBox` and `preserveAspectRatio` preserve their required case.
+Dynamic SVG geometry and paint attributes are admitted explicitly; `use href`
+accepts local sprite references such as `icons.svg#copy`, `/icons.svg#copy`, or
+`#copy`, rejecting URL protocols and protocol-relative references before emission.
+
+A controlled select's `:value` declares its value through `data-select-value` and
+ordinary value patches. The host restores that declared value after option-list
+changes, including initial render and recovery. If no option matches, the control
+has no selection; reinserting a matching option restores it without changing Zig
+state. The attribute is reserved for generated code. Options can bind `value` and
+`:text`; keyed option lists keep retained options in place. `:input` on select
+forwards change events. Update Zig state from the supplied value as for text input.
+Dynamic option and selected values must be single-line: tab, CR and LF reject
+the projection rather than being normalized by the attribute patch protocol.
+
+Dynamic HTML attributes include class, lang, disabled, readonly, autofocus,
+inert, role, title, placeholder, alt, id, for, and supported aria/data names.
+Bind id/for from the composing view to keep label associations unique. Internal
 node/event/input IDs and dynamic host formatting directives are reserved.
 Inline event-handler attributes are rejected; page styling belongs in CSS.
 Literal text, comments, whitespace, entities and quoted static attributes are

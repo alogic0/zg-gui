@@ -30,6 +30,8 @@ test('template diagnostics preserve output and typed bindings fail at compile ti
     assert.match(result.stderr, /view\.gui\.html:2:7: expected \$field\.path/);
     assert.equal(await readFile(generated, 'utf8'), 'previous successful artifact');
     const cases = [
+      { html: '<p></p>', view: '.{}', setup: 'comptime { gui.template.validateNamespaces(&.{ .{ .first=1, .count=10 }, .{ .first=10, .count=2 } }); }\n', message: /overlapping template namespaces/ },
+      { html: '<p></p>', view: '.{}', setup: 'comptime { (gui.template.Namespace{ .first=0, .count=1 }).validate(); }\n', message: /invalid template namespace range/ },
       { html: '<p :text="$missing"></p>', view: '.{}', message: /view\.gui\.html:1:4: unknown binding field 'missing'/ },
       { html: '<button :on-click="$action">Go</button>', view: '.{ .action = @as(u32, 1) }', message: /actions and input kinds must be enum values/ },
       { html: '<button disabled="$disabled">Go</button>', view: '.{ .disabled = "false" }', message: /Boolean HTML attributes require bool/ },
@@ -39,7 +41,7 @@ test('template diagnostics preserve output and typed bindings fail at compile ti
       result = spawnSync(compiler, [source, generated], { encoding: 'utf8' });
       assert.equal(result.status, 0, result.stderr);
       await writeFile(wrapper,
-        'const gui = @import("zg_gui");\nconst fixture = @import("fixture");\n' +
+        'const gui = @import("zg_gui");\nconst fixture = @import("fixture");\n' + (example.setup || '') +
         'test "typecheck the generated application" {\n' +
         'var bytes: [1024]u8 = undefined;\nvar html = gui.html.Writer{ .buffer = &bytes };\n' +
         'const P = gui.Projection(fixture.snapshot_capacity);\nvar next = P.Snapshot{};\n' +

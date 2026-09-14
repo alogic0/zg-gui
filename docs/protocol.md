@@ -21,7 +21,11 @@ Attribute values replace tab/newline/carriage return with spaces, matching the
 source protocol. Use `V` for exact form values and `T` for exact text.
 ARIA states, classes, data attributes, visibility and common form attributes
 are allowed. Arbitrary styles, event handler attributes and unsupported URL
-schemes are rejected. `value` as an attribute is restricted to bounded meters.
+schemes are rejected. `value` as an attribute is restricted to options and bounded meters.
+Explicit SVG geometry/paint attributes and HTML id/for associations are allowed.
+Append operations use the target element's parsing context for table and SVG children.
+Controlled selects declare `data-select-value`; the host restores that declared
+value after option insertion/removal/reordering and child replacement.
 
 The host supports numeric `data-style-vars` custom properties and bounded
 `data-scroll-top`. `data-value-format="instant-local"` and `data-text-format`

@@ -53,6 +53,18 @@ pub fn attribute(p: anytype, comptime name: []const u8, input: anytype) void {
         if (input.value) |value| attribute(p, name, .{ .node = input.node, .value = value }) else p.attr(.{ .node = input.node, .name = name, .value = null });
         return;
     }
+    if (comptime std.mem.eql(u8, name, "href")) {
+        const value: []const u8 = input.value;
+        if (std.mem.indexOfScalar(u8, value, '#') == null or std.mem.startsWith(u8, value, "//")) {
+            p.html.failed = true;
+            return;
+        }
+        for (value) |byte| if (!(std.ascii.isAlphanumeric(byte) or std.mem.indexOfScalar(u8, "/._-#", byte) != null)) {
+            p.html.failed = true;
+            return;
+        };
+    }
+
     if (comptime std.mem.eql(u8, name, "disabled") or std.mem.eql(u8, name, "readonly") or
         std.mem.eql(u8, name, "inert") or std.mem.eql(u8, name, "autofocus"))
     {
@@ -65,6 +77,12 @@ pub fn attribute(p: anytype, comptime name: []const u8, input: anytype) void {
         p.html.failed = true;
         return;
     };
+    if (comptime std.mem.eql(u8, name, "value") or std.mem.eql(u8, name, "data-select-value")) {
+        if (std.mem.indexOfAny(u8, value, "\t\r\n") != null) {
+            p.html.failed = true;
+            return;
+        }
+    }
     p.attr(.{ .node = input.node, .name = name, .value = value });
 }
 
@@ -131,4 +149,36 @@ test "template namespace bounds reject overflow and preserve disjoint ranges" {
     try std.testing.expectError(error.NamespaceOverflow, space.node(11));
     try std.testing.expectError(error.NamespaceOverflow, space.node(0));
     try std.testing.expectError(error.NamespaceOverflow, (Namespace{ .first = std.math.maxInt(u32) }).node(2));
+}
+
+test "dynamic SVG references reject protocols before publishing initial markup" {
+    const gui = @import("root.zig");
+    const P = gui.Projection(1);
+    var bytes: [256]u8 = undefined;
+    for ([_][]const u8{ "javascript:alert(1)#x", "//outside.test/icons.svg#x", "data:text/html,x#y" }) |value| {
+        var html = gui.html.Writer{ .buffer = &bytes };
+        var snapshot = P.Snapshot{};
+        var p = P{ .html = &html, .next = &snapshot };
+        attribute(&p, "href", .{ .node = 1, .value = value });
+        try std.testing.expect(html.failed);
+        try std.testing.expectEqual(@as(usize, 0), html.len);
+    }
+}
+
+test "select values reject lossy attribute control characters and optional icons can clear" {
+    const gui = @import("root.zig");
+    const P = gui.Projection(1);
+    var bytes: [256]u8 = undefined;
+    inline for (.{ "value", "data-select-value" }) |name| {
+        var html = gui.html.Writer{ .buffer = &bytes };
+        var snapshot = P.Snapshot{};
+        var p = P{ .html = &html, .next = &snapshot };
+        attribute(&p, name, .{ .node = 1, .value = "line\nbreak" });
+        try std.testing.expect(html.failed and html.len == 0);
+    }
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var snapshot = P.Snapshot{};
+    var p = P{ .html = &html, .next = &snapshot };
+    attribute(&p, "href", .{ .node = 1, .value = @as(?[]const u8, null) });
+    try std.testing.expect(!html.failed);
 }

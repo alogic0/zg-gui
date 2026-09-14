@@ -105,3 +105,50 @@ test('runtime resynchronizes an invalid patch and can remount after disposal', a
     console.log(`Demo initial memory: ${result.pages - 1} WASM pages; after test growth: ${result.pages}`);
   } finally { await browser?.close(); await server.close(); }
 });
+
+test('composed templates retain table rows, SVG namespaces and controlled select values', async () => {
+  const server = await serve({ directory: new URL('../zig-out/web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    const failures = [];
+    page.on('pageerror', error => failures.push(error.message));
+    await page.goto(server.url);
+    await page.waitForFunction(() => window.demo);
+    const first = page.getByRole('region', { name: 'Primary integration', exact: true });
+    const second = page.getByRole('region', { name: 'Secondary integration', exact: true });
+    assert.equal(await first.getByRole('combobox').inputValue(), 'email');
+    assert.equal(await second.getByRole('combobox').inputValue(), 'email');
+    await first.getByRole('combobox').selectOption('sms');
+    assert.equal(await second.getByRole('combobox').inputValue(), 'sms');
+    await first.getByRole('combobox').selectOption('email');
+    await first.getByRole('textbox', { name: 'First row', exact: true }).fill('retained mapping draft');
+    const result = await page.evaluate(() => {
+      const panel = document.querySelector('[aria-label="Primary integration"]');
+      const row = panel.querySelector('tbody tr');
+      const input = row.querySelector('input'); input.focus();
+      const select = panel.querySelector('select');
+      const markers = panel.querySelector('g');
+      const initialCircle = markers.firstElementChild;
+      window.demo.dispatch({ action: 3 });
+      window.demo.dispatch({ action: 4 });
+      const removedSelection = select.value === '';
+      const appendedCircle = markers.lastElementChild;
+      const svgCorrect = initialCircle.isConnected && markers.children.length === 3
+        && appendedCircle.namespaceURI === 'http://www.w3.org/2000/svg'
+        && appendedCircle.cx.baseVal.value === 32;
+      const rowsCorrect = row.isConnected && input.value === 'retained mapping draft'
+        && document.activeElement === input && panel.querySelectorAll('tbody tr').length === 3;
+      window.demo.dispatch({ action: 4 });
+      const restored = select.value === 'email';
+      window.demo.setInput({ kind: 2, value: 'true' });
+      const ids = [...document.querySelectorAll('[data-node-id]')].map(n => n.dataset.nodeId);
+      return { removedSelection, restored, svgCorrect, rowsCorrect, unique: new Set(ids).size === ids.length,
+        icon: panel.querySelector('use').getAttribute('href'), selectRetained: select === panel.querySelector('select') };
+    });
+    assert.deepEqual(result, { removedSelection: true, restored: true, svgCorrect: true, rowsCorrect: true,
+      unique: true, icon: 'icons.svg#link-active', selectRetained: true });
+    assert.deepEqual(failures, []);
+  } finally { await browser?.close(); await server.close(); }
+});
