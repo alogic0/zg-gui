@@ -18,6 +18,9 @@ Application integration and product acceptance belong to consumers.
 - [x] Typed child-projection slots and checked runtime fragment placement; see
   [request 003](requests/003-projection-composition.md).
 
+- [x] Semantic list slots and explicit list-parent row fragments; see
+  [request 004](requests/004-list-fragments.md).
+
 ## Capability extensions
 
 - [x] Reusable template invocation with typed inputs, stable instance namespaces

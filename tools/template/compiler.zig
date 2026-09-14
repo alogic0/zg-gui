@@ -9,11 +9,13 @@ const Error = error{ OutOfMemory, InvalidTemplate };
 pub const max_source_bytes = composition.max_source_bytes;
 pub const Diagnostic = composition.Diagnostic;
 pub const Component = composition.Component;
+pub const FragmentContext = enum { flow, ul, ol };
 pub const Input = struct {
     source: []const u8,
     name: []const u8,
     diagnostic: *Diagnostic,
     components: []const Component = &.{},
+    fragment_context: FragmentContext = .flow,
 };
 
 const Node = struct {
@@ -134,7 +136,7 @@ const Compiler = struct {
                             return c.reject(tag.name.start, "unsupported element; use the documented HTML fragment subset");
                         }
                         if (tag.kind == .start_self and !tag.isVoid(c.input.source, .html) and !isSvg(tag_name)) return c.reject(tag.span.start, "non-void HTML elements require an explicit closing tag");
-                        const parent_name = if (stack.items.len > 0) c.name(stack.items[stack.items.len - 1]) else "";
+                        const parent_name = if (stack.items.len > 0) c.name(stack.items[stack.items.len - 1]) else if (c.input.fragment_context == .flow) "" else @tagName(c.input.fragment_context);
                         for (stack.items) |parent| {
                             const ancestor = c.name(parent);
                             if (!isSvg(parent_name) and oneOf(ancestor, "p h1 h2 h3 h4 h5 h6") and !isPhrasing(tag_name)) return c.reject(tag.name.start, "block content would implicitly close a phrasing-only ancestor");
@@ -164,6 +166,11 @@ const Compiler = struct {
                     },
                 }
                 attrs.clearRetainingCapacity();
+            },
+            .text => |span| {
+                const parent = if (stack.items.len > 0) c.name(stack.items[stack.items.len - 1]) else @tagName(c.input.fragment_context);
+                if (oneOf(parent, "ul ol") and std.mem.trim(u8, span.slice(c.input.source), " \t\r\n").len != 0)
+                    return c.reject(span.start, "list containers require li children, not bare text");
             },
             else => {},
         };
@@ -249,11 +256,11 @@ const Compiler = struct {
             }
         }
         if (c.attr(.{ .idx = input.idx, .name = ":slot" })) |a| {
-            if (!oneOf(tag_name, "div section") or has_text or has_value or has_if or has_loop or
+            if (!oneOf(tag_name, "div section ul ol") or has_text or has_value or has_if or has_loop or
                 std.mem.trim(u8, c.input.source[node.tag.span.end..node.close_start], " \t\r\n").len != 0)
-                return c.reject(a.name.start, ":slot requires an empty div or section with no other content owner");
+                return c.reject(a.name.start, ":slot requires an empty div, section, ul or ol with no other content owner");
         }
-        if (oneOf(tag_name, "dl table colgroup thead tbody tfoot tr select optgroup")) {
+        if (oneOf(tag_name, "ul ol dl table colgroup thead tbody tfoot tr select optgroup")) {
             if (has_text) return c.reject(node.tag.span.start, "this container requires structural children, not text");
             var previous: usize = node.tag.span.end;
             for (node.children.items) |child| {
@@ -689,5 +696,23 @@ test "typed projection slots reject competing owners and ambiguous placement" {
         "<input :slot=\"$children\">",
     }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad-slot.gui.html", .diagnostic = &d }));
+    }
+}
+
+test "list slots and explicit list fragments preserve structural validation" {
+    var diagnostic = Diagnostic{};
+    for ([_]FragmentContext{ .ul, .ol }) |context| {
+        const code = try compile(std.testing.allocator, .{ .source = "<li :ref=\"row\"><span :text=\"$label\"></span></li>\n<li>two</li>", .name = "row", .diagnostic = &diagnostic, .fragment_context = context });
+        std.testing.allocator.free(code);
+        for ([_][]const u8{ "<div>wrong root</div>", "text<li>row</li>", "<li><li>nested</li></li>", "<li><div><li>orphan</li></div></li>" }) |source| {
+            try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "row", .diagnostic = &diagnostic, .fragment_context = context }));
+        }
+    }
+    for ([_][]const u8{ "<ul :slot=\"$rows\"></ul>", "<ol :visible=\"$visible\" :slot=\"$rows\"></ol>" }) |source| {
+        const code = try compile(std.testing.allocator, .{ .source = source, .name = "list", .diagnostic = &diagnostic });
+        std.testing.allocator.free(code);
+    }
+    for ([_][]const u8{ "<li>orphan</li>", "<ul :slot=\"$rows\"><li>conflict</li></ul>", "<ul :slot=\"$rows\" :text=\"$label\"></ul>", "<ul>bare</ul>", "<ul :text=\"$label\"></ul>" }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "list", .diagnostic = &diagnostic }));
     }
 }

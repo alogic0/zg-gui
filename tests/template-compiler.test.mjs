@@ -64,3 +64,24 @@ test('template diagnostics preserve output and typed bindings fail at compile ti
     await rmdir(directory);
   }
 });
+
+
+test('list fragment CLI context is explicit and rejection preserves output', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'zg-gui-list-'));
+  const source = join(directory, 'row.gui.html'), generated = join(directory, 'row.zig');
+  try {
+    await writeFile(source, '<li :text="$label"></li>');
+    for (const context of ['ul', 'ol']) {
+      const result = spawnSync(compiler, [source, generated, `--context=${context}`], {encoding:'utf8'});
+      assert.equal(result.status, 0, result.stderr);
+    }
+    const accepted = await readFile(generated, 'utf8');
+    for (const args of [[], ['--context=div'], ['--context=ul', '--context=ol']]) {
+      assert.notEqual(spawnSync(compiler, [source, generated, ...args]).status, 0);
+      assert.equal(await readFile(generated, 'utf8'), accepted);
+    }
+  } finally {
+    for (const file of await readdir(directory)) await unlink(join(directory, file));
+    await rmdir(directory);
+  }
+});

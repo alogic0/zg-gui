@@ -57,6 +57,8 @@ pub fn build(b: *std.Build) void {
         .{ .name = "field", .source = b.path("tests/templates/field.gui.html") },
         .{ .name = "wrapped", .source = b.path("tests/templates/wrapped-field.gui.html") },
     } });
+    const list_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/list.gui.html") });
+    const row_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/list_row.gui.html"), .fragment_context = .ul });
     const test_gui = b.createModule(.{ .root_source_file = b.path("src/root.zig"), .target = b.graph.host, .optimize = .debug });
     const generated_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -65,6 +67,8 @@ pub fn build(b: *std.Build) void {
             .optimize = .debug,
             .imports = &.{
                 .{ .name = "zg_gui", .module = test_gui },
+                .{ .name = "list", .module = b.createModule(.{ .root_source_file = list_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
+                .{ .name = "list_row", .module = b.createModule(.{ .root_source_file = row_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "components", .module = b.createModule(.{
                     .root_source_file = component_source,
                     .target = b.graph.host,
@@ -157,12 +161,15 @@ pub fn build(b: *std.Build) void {
     b.top_level_steps.get("test").?.step.dependOn(&b.addRunArtifact(demo_tests).step);
 }
 
+pub const FragmentContext = enum { flow, ul, ol };
+
 pub const TemplateComponent = struct { name: []const u8, source: std.Build.LazyPath };
 
-pub fn generateTemplate(b: *std.Build, input: struct { compiler: *std.Build.Step.Compile, source: std.Build.LazyPath, components: []const TemplateComponent = &.{} }) std.Build.LazyPath {
+pub fn generateTemplate(b: *std.Build, input: struct { compiler: *std.Build.Step.Compile, source: std.Build.LazyPath, components: []const TemplateComponent = &.{}, fragment_context: FragmentContext = .flow }) std.Build.LazyPath {
     const run = b.addRunArtifact(input.compiler);
     run.addFileArg(input.source);
     const output = run.addOutputFileArg("template.zig");
+    run.addArg(b.fmt("--context={s}", .{@tagName(input.fragment_context)}));
     for (input.components) |component| {
         run.addArg(component.name);
         run.addFileArg(component.source);
@@ -179,12 +186,14 @@ pub fn addTemplate(b: *std.Build, input: struct {
     name: []const u8,
     source: std.Build.LazyPath,
     components: []const TemplateComponent = &.{},
+    fragment_context: FragmentContext = .flow,
 }) void {
     const gui = input.dependency.module("zg_gui");
     const source = generateTemplate(b, .{
         .compiler = input.dependency.artifact("zg-template"),
         .source = input.source,
         .components = input.components,
+        .fragment_context = input.fragment_context,
     });
     input.owner.addImport(input.name, b.createModule(.{
         .root_source_file = source,

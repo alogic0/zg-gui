@@ -294,7 +294,7 @@ projection pass. The callback receives the same typed projection or adapter as
 its parent. Use its ordinary text, attribute, visibility and structural methods;
 there is no raw-HTML binding or runtime template loader.
 
-Slots require an empty `div` or `section`, may retain their subtree through
+Slots require an empty `div`, `section`, `ul` or `ol`, may retain their subtree through
 `:visible`, and cannot also own text, a condition or a loop. Slots inside loops
 or conditional subtrees are currently rejected. Consumer callbacks are responsible
 for valid child markup, disjoint descendant IDs, structural introduction/removal,
@@ -326,3 +326,33 @@ collision checks and must discard a failed candidate stream.
 compatible. Placement reserves node IDs, not storage. The demo composes its two
 control panels through a typed slot and runtime placement; browser tests retain
 the slot, controls, sibling drafts and focus through independent updates.
+
+
+### List fragments
+
+Declare a list parent when compiling independent `li` rows:
+
+```zig
+addTemplate(b, .{
+    .dependency = gui_dep, .owner = app, .name = "row",
+    .source = b.path("row.gui.html"), .fragment_context = .ul,
+});
+```
+
+Both `addTemplate` and `generateTemplate` accept `fragment_context`, an enum
+with `.flow` (default), `.ul` and `.ol`. The compiler CLI accepts the equivalent
+option after its output path and before any component name/path pairs:
+
+```sh
+zig-out/bin/zg-template row.gui.html generated.zig --context=ul
+```
+
+List contexts require `li` roots with whitespace-only text between them and
+retain ordinary nested HTML validation. They generate only the row markup, with
+no parent wrapper. The default flow context continues to reject orphan `li`
+elements. Unknown contexts and invalid markup fail before opening output.
+
+Place such fragments inside a matching `ul`/`ol` slot. Callers own matching the
+actual parent to the declared context, supplying valid children, row membership
+and disjoint namespaces. Projection does not inspect DOM ancestry. A list slot
+has the same capacity, ownership and failure rules as a `div` slot.
