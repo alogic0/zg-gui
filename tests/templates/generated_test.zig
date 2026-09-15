@@ -571,3 +571,42 @@ test "description slot child updates retain semantic owners and retry failed out
     template.project(&p, .{ .children = Children{ .text = "Retry" } });
     try std.testing.expectEqualStrings("T\t300\t\"Retry\"\n", html.slice());
 }
+
+test "compiled option group projects leaves with bounded failure and retry" {
+    const select = @import("select_slot").Scoped(.{ .first = 100, .count = 10 });
+    const group = @import("option_group").Scoped(.{ .first = 120, .count = 10 });
+    const option = @import("option").Scoped(.{ .first = 140, .count = 1 });
+    const Options = struct {
+        label: []const u8,
+        pub fn project(self: @This(), p: anytype, _: struct { node: u32 }) void {
+            option.project(p, .{ .value = "a", .label = self.label, .disabled = false });
+        }
+    };
+    const Group = struct {
+        label: []const u8,
+        pub fn project(self: @This(), p: anytype, _: struct { node: u32 }) void {
+            group.project(p, .{ .options = Options{ .label = self.label } });
+        }
+    };
+    const SP = gui.Projection(select.snapshot_capacity + group.snapshot_capacity + option.snapshot_capacity);
+    var bytes: [4096]u8 = undefined;
+    var commands: [4096]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var output = gui.html.Writer{ .buffer = &commands };
+    var writer = gui.patch.Writer{ .output = &output };
+    var previous = SP.Snapshot{};
+    var next = SP.Snapshot{};
+    var p = SP{ .html = &html, .next = &previous };
+    select.project(&p, .{ .selected = "a", .options = Group{ .label = "One & two" } });
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "One &amp; two") != null);
+    p = .{ .html = &html, .next = &next, .previous = &previous, .patches = &writer, .writing = false };
+    output = .{ .buffer = commands[0..1] };
+    select.project(&p, .{ .selected = "a", .options = Group{ .label = "Changed" } });
+    try std.testing.expect(output.failed);
+    next = .{};
+    output = .{ .buffer = &commands };
+    select.project(&p, .{ .selected = "a", .options = Group{ .label = "Changed" } });
+    try std.testing.expect(!output.failed and !html.failed);
+    try std.testing.expectEqualStrings("T\t140\t\"Changed\"\n", output.slice());
+}

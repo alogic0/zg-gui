@@ -9,7 +9,7 @@ const Error = error{ OutOfMemory, InvalidTemplate };
 pub const max_source_bytes = composition.max_source_bytes;
 pub const Diagnostic = composition.Diagnostic;
 pub const Component = composition.Component;
-pub const FragmentContext = enum { flow, ul, ol, thead, tbody, tfoot };
+pub const FragmentContext = enum { flow, ul, ol, thead, tbody, tfoot, select, optgroup };
 pub const Input = struct {
     source: []const u8,
     name: []const u8,
@@ -169,7 +169,7 @@ const Compiler = struct {
             },
             .text => |span| {
                 const parent = if (stack.items.len > 0) c.name(stack.items[stack.items.len - 1]) else @tagName(c.input.fragment_context);
-                if (oneOf(parent, "ul ol thead tbody tfoot") and std.mem.trim(u8, span.slice(c.input.source), " \t\r\n").len != 0)
+                if (oneOf(parent, "ul ol thead tbody tfoot select optgroup") and std.mem.trim(u8, span.slice(c.input.source), " \t\r\n").len != 0)
                     return c.reject(span.start, "structural containers require elements, not bare text");
             },
             else => {},
@@ -256,7 +256,7 @@ const Compiler = struct {
             }
         }
         if (c.attr(.{ .idx = input.idx, .name = ":slot" })) |a| {
-            if (!oneOf(tag_name, "div section dd ul ol thead tbody tfoot select") or has_text or (has_value and !std.mem.eql(u8, tag_name, "select")) or has_if or has_loop or
+            if (!oneOf(tag_name, "div section dd ul ol thead tbody tfoot select optgroup") or has_text or (has_value and !std.mem.eql(u8, tag_name, "select")) or has_if or has_loop or
                 std.mem.trim(u8, c.input.source[node.tag.span.end..node.close_start], " \t\r\n").len != 0)
                 return c.reject(a.name.start, ":slot requires an empty flow, list, table-section or select container with no other child owner");
         }
@@ -831,4 +831,21 @@ test "description value slots preserve list validation and single child ownershi
         "<dl><dt>Value</dt><dd :slot=\"$children\" :text=\"$text\"></dd></dl>",
         "<dl><dt>Value</dt><dd :slot=\"$children\" :if=\"$shown\"></dd></dl>",
     }) |source| try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "invalid.gui.html", .diagnostic = &diagnostic }));
+}
+
+test "explicit select fragments preserve option and group parent requirements" {
+    var diagnostic = Diagnostic{};
+    for ([_]FragmentContext{ .select, .optgroup }) |context| {
+        const code = try compile(std.testing.allocator, .{ .source = "<option value=\"$value\" disabled=\"$disabled\" :text=\"$label\"></option>", .name = "option.gui.html", .fragment_context = context, .diagnostic = &diagnostic });
+        defer std.testing.allocator.free(code);
+        try std.testing.expect(std.mem.indexOf(u8, code, "binding.attribute(p, \"value\"") != null);
+        for ([_][]const u8{ "text", "<div></div>", "<select></select>" }) |source| {
+            try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "invalid.gui.html", .fragment_context = context, .diagnostic = &diagnostic }));
+        }
+    }
+    const group = try compile(std.testing.allocator, .{ .source = "<optgroup label=\"Choices\" :slot=\"$options\"></optgroup>", .name = "group.gui.html", .fragment_context = .select, .diagnostic = &diagnostic });
+    defer std.testing.allocator.free(group);
+    for ([_][]const u8{ "<optgroup label=\"Nested\"></optgroup>", "<optgroup :slot=\"$options\"><option>Competing</option></optgroup>" }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "invalid.gui.html", .fragment_context = .optgroup, .diagnostic = &diagnostic }));
+    }
 }

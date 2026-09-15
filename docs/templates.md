@@ -413,3 +413,12 @@ controls, backslashes and other schemes are rejected. Dynamic sources on other
 elements remain unsupported. Consumers own URL provenance and must retain
 `data-external-image="true"` when external image patches are permitted; existing
 host origin checks remain in force. No image load, cache or retry policy is added.
+
+### Select and option-group fragments
+
+Use `.fragment_context = .select` for a group or option fragment and `.optgroup`
+for option fragments inside a group. An empty `optgroup :slot="$options"` may
+project its children without replacing the group. The callback owns membership,
+namespace bounds and child snapshot capacity. The enclosing `select :value`
+owns live selection; options use ordinary value, disabled and text bindings.
+Bare text and invalid child elements are rejected in these structural contexts.

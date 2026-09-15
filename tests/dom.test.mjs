@@ -199,3 +199,25 @@ test('description value child updates retain semantic owners and sibling focus',
     }), true);
   } finally { await browser?.close(); await server.close(); }
 });
+
+test('option group leaf and membership changes preserve focused select', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    assert.equal(await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const host = createDomHost({ root });
+      host.initialize('<select data-node-id="1" data-select-value="b"><optgroup data-node-id="2" label="Choices"><option data-node-id="3" value="b">Before</option></optgroup></select><input>');
+      const select = root.firstElementChild, group = select.firstElementChild, option = group.firstElementChild, peer = root.lastElementChild;
+      select.focus();
+      host.applyPatchStream('T\t3\t"After"\nA\t3\tdisabled\t\n');
+      if (group.firstElementChild !== option || select.value !== 'b') return false;
+      host.applyPatchStream('H\t2\t' + JSON.stringify('<option value="a">A</option><option value="b">B</option>') + '\n');
+      return root.firstElementChild === select && select.firstElementChild === group && root.lastElementChild === peer && select.value === 'b' && document.activeElement === select;
+    }), true);
+  } finally { await browser?.close(); await server.close(); }
+});
