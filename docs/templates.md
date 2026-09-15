@@ -157,9 +157,12 @@ Dynamic option and selected values must be single-line: tab, CR and LF reject
 the projection rather than being normalized by the attribute patch protocol.
 
 Dynamic HTML attributes include class, lang, disabled, readonly, autofocus,
-inert, role, title, placeholder, alt, id, for, datetime, and supported aria/data names.
+inert, role, title, placeholder, alt, id, for, datetime, draggable, and supported aria/data names.
 Bind id/for from the composing view to keep label associations unique. Internal
 node/event/input IDs and dynamic host formatting directives are reserved.
+For `draggable`, supply enumerated strings (`true`, `false`, `auto`) or an
+optional null to remove the attribute; `false` is not absence. Drag policy and
+ordering remain consumer responsibilities. See [request 009](requests/009-draggable-attributes.md).
 Inline event-handler attributes are rejected; page styling belongs in CSS.
 Literal text, comments, whitespace, entities and quoted static attributes are
 preserved. Applications must not put untrusted values in raw template source.

@@ -418,3 +418,34 @@ test "radio values retain generated checked ownership and reject truncated comma
     radio.project(&p, .{ .input = Input.checked, .one = false, .all = true });
     try std.testing.expect(output.failed);
 }
+
+test "generated drag eligibility preserves enumerated values and leaf ownership" {
+    const drag = @import("drag_fixture");
+    const Projection = gui.Projection(drag.snapshot_capacity);
+    var previous = Projection.Snapshot{};
+    var next = Projection.Snapshot{};
+    var html_bytes: [1024]u8 = undefined;
+    var output_bytes: [256]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &html_bytes };
+    var output = gui.html.Writer{ .buffer = &output_bytes };
+    var writer = gui.patch.Writer{ .output = &output };
+    var p = Projection{ .html = &html, .next = &previous };
+    drag.project(&p, .{ .drag = @as(?[]const u8, "true") });
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "draggable=\"true\"") != null);
+    try std.testing.expectEqual(drag.snapshot_capacity, previous.len);
+    for ([_]?[]const u8{ "false", "auto", null }) |value| {
+        next = .{};
+        output.len = 0;
+        p = .{ .html = &html, .patches = &writer, .previous = &previous, .next = &next, .writing = false };
+        drag.project(&p, .{ .drag = value });
+        var expected: [128]u8 = undefined;
+        const command = if (value) |v| try std.fmt.bufPrint(&expected, "A\t{d}\tdraggable\t{s}\n", .{ drag.nodes.handle, v }) else try std.fmt.bufPrint(&expected, "R\t{d}\tdraggable\n", .{drag.nodes.handle});
+        try std.testing.expectEqualStrings(command, output.slice());
+        previous = next;
+    }
+    output = .{ .buffer = output_bytes[0..1] };
+    next = .{};
+    drag.project(&p, .{ .drag = @as(?[]const u8, "true") });
+    try std.testing.expect(output.failed);
+}

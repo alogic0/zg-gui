@@ -61,6 +61,7 @@ pub fn build(b: *std.Build) void {
     const row_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/list_row.gui.html"), .fragment_context = .ul });
     const radio_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/radio.gui.html") });
     const time_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/time.gui.html") });
+    const drag_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/drag.gui.html") });
     const select_slot_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/select_slot.gui.html") });
     const table_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/table.gui.html") });
     const table_row_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/table_row.gui.html"), .fragment_context = .tbody });
@@ -74,6 +75,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "zg_gui", .module = test_gui },
                 .{ .name = "radio_fixture", .module = b.createModule(.{ .root_source_file = radio_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "time_fixture", .module = b.createModule(.{ .root_source_file = time_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
+                .{ .name = "drag_fixture", .module = b.createModule(.{ .root_source_file = drag_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "select_slot", .module = b.createModule(.{ .root_source_file = select_slot_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "table", .module = b.createModule(.{ .root_source_file = table_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "table_row", .module = b.createModule(.{ .root_source_file = table_row_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },

@@ -30,6 +30,13 @@ test('DOM host retains controls and validates typed patch commands', async () =>
       input.focus(); input.setSelectionRange(1, 3);
       dom.applyPatchStream('T\t3\t"two\\n🧭"\nA\t3\taria-label\tlabel\nC\t4\ttrue\n');
       const retained = owner === root.firstElementChild && input.isConnected && document.activeElement === input && input.selectionStart === 1 && input.selectionEnd === 3;
+      dom.applyPatchStream('A\t3\tdraggable\ttrue\n');
+      const dragHandle = root.querySelector('[data-node-id="3"]');
+      if (!dragHandle.draggable) throw new Error('drag eligibility was not applied');
+      dom.applyPatchStream('A\t3\tdraggable\tfalse\n');
+      if (dragHandle.draggable || dragHandle.getAttribute('draggable') !== 'false') throw new Error('false drag value was not retained');
+      dom.applyPatchStream('R\t3\tdraggable\n');
+      if (dragHandle.hasAttribute('draggable') || dragHandle !== root.querySelector('[data-node-id="3"]') || input !== document.activeElement || owner !== root.firstElementChild) throw new Error('drag update changed controls or focus');
       const row = root.querySelector('[data-node-id="6"]');
       const rowInput = row.firstElementChild; rowInput.focus();
       dom.applyPatchStream('J\t5\t"<li data-node-id=\\"9\\">new</li>"\nM\t6\t8\tafter\nD\t9\n');
