@@ -194,6 +194,36 @@ pub fn progressValue(p: anytype, input: anytype) void {
     p.attr(.{ .node = input.node, .name = "value", .value = text_value });
 }
 
+/// A coherent runtime range; validate both attributes before emitting either.
+pub fn progressRange(p: anytype, input: anytype) void {
+    const max = progressNumber(input.max);
+    const value = progressNumber(input.value);
+    if (!std.math.isFinite(max) or max <= 0 or !std.math.isFinite(value) or value < 0 or value > max) {
+        p.html.failed = true;
+        return;
+    }
+    var max_bytes: [512]u8 = undefined;
+    var value_bytes: [512]u8 = undefined;
+    const max_text = std.fmt.bufPrint(&max_bytes, "{d}", .{max}) catch {
+        p.html.failed = true;
+        return;
+    };
+    const value_text = std.fmt.bufPrint(&value_bytes, "{d}", .{if (value == 0) @as(f64, 0) else value}) catch {
+        p.html.failed = true;
+        return;
+    };
+    p.attr(.{ .node = input.node, .name = "max", .value = max_text });
+    p.attr(.{ .node = input.node, .name = "value", .value = value_text });
+}
+
+fn progressNumber(value: anytype) f64 {
+    return switch (@typeInfo(@TypeOf(value))) {
+        .float, .comptime_float => @floatCast(value),
+        .int, .comptime_int => @floatFromInt(value),
+        else => @compileError("progress values must be numbers"),
+    };
+}
+
 pub fn event(p: anytype, comptime name: []const u8, input: anytype) void {
     if (@typeInfo(@TypeOf(input.value)) != .@"enum") @compileError("template actions and input kinds must be enum values");
     const value = std.math.cast(u32, @backingInt(input.value)) orelse {

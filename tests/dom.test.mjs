@@ -309,7 +309,9 @@ test('fractional progress changes retain a focused sibling and reject out-of-ran
       for (const value of ['-1', '101', 'NaN', 'Infinity']) {
         try { host.applyPatchStream('A\t1\tvalue\t' + value + '\n'); } catch { rejected++; }
       }
-      return rejected === 4 && meter.value === 99.75 && root.firstElementChild === panel && panel.firstElementChild === meter && document.activeElement === peer && peer.selectionStart === 1 && peer.selectionEnd === 3;
+      host.applyPatchStream('A\t1\tmax\t250.5\nA\t1\tvalue\t200.25\n');
+      host.applyPatchStream('A\t1\tmax\t0.75\nA\t1\tvalue\t0.5\n');
+      return rejected === 4 && meter.value === 0.5 && meter.max === 0.75 && root.firstElementChild === panel && panel.firstElementChild === meter && document.activeElement === peer && peer.selectionStart === 1 && peer.selectionEnd === 3;
     }), true);
   } finally { await browser?.close(); await server.close(); }
 });

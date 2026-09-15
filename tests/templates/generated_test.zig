@@ -883,27 +883,38 @@ test "progress bounds reject invalid candidates and retry only the level leaf" {
     var before = MP.Snapshot{};
     var next = MP.Snapshot{};
     var p = MP{ .html = &html, .next = &before };
-    meter.project(&p, .{ .level = @as(f64, 0.25) });
+    meter.project(&p, .{ .maximum = @as(f64, 100), .level = @as(f64, 0.25) });
     try std.testing.expect(!html.failed);
-    try std.testing.expectEqual(@as(usize, 1), before.len);
+    try std.testing.expectEqual(@as(usize, 2), before.len);
     p = .{ .html = &html, .next = &next, .previous = &before, .patches = &writer, .writing = false };
     for ([_]f64{ -1, 100.01, std.math.nan(f64), std.math.inf(f64) }) |invalid| {
         html.failed = false;
         next = .{};
-        meter.project(&p, .{ .level = invalid });
+        meter.project(&p, .{ .maximum = @as(f64, 100), .level = invalid });
+        try std.testing.expect(html.failed);
+        try std.testing.expectEqual(@as(usize, 0), output.len);
+    }
+    for ([_]f64{ 0, -1, std.math.nan(f64), std.math.inf(f64), 0.1 }) |invalid| {
+        html.failed = false;
+        next = .{};
+        meter.project(&p, .{ .maximum = invalid, .level = @as(f64, 0.25) });
         try std.testing.expect(html.failed);
         try std.testing.expectEqual(@as(usize, 0), output.len);
     }
     html.failed = false;
     next = .{};
     output = .{ .buffer = commands[0..1] };
-    meter.project(&p, .{ .level = @as(f64, 99.75) });
+    meter.project(&p, .{ .maximum = @as(f64, 100), .level = @as(f64, 99.75) });
     try std.testing.expect(output.failed);
     next = .{};
     output = .{ .buffer = &commands };
-    meter.project(&p, .{ .level = @as(f64, 99.75) });
+    meter.project(&p, .{ .maximum = @as(f64, 100), .level = @as(f64, 99.75) });
     try std.testing.expect(!html.failed and !output.failed);
     try std.testing.expectEqualStrings("A\t201\tvalue\t99.75\n", output.slice());
+    next = .{};
+    output.len = 0;
+    meter.project(&p, .{ .maximum = @as(f64, 250.5), .level = @as(f64, 200.25) });
+    try std.testing.expectEqualStrings("A\t201\tmax\t250.5\nA\t201\tvalue\t200.25\n", output.slice());
 }
 
 test "list item child updates retain semantic owners and retry failed output" {

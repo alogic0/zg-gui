@@ -474,11 +474,14 @@ children. Grouped term/value fragments require this explicit parent context.
 
 `<progress max="100" value="$level"></progress>` accepts finite integer or
 floating-point levels between zero and its static positive integer maximum.
-The compiler rejects missing/dynamic maxima, missing values, invalid static
+The compiler rejects missing or invalid static maxima, missing values, invalid static
 values, block children and nested progress. Runtime bindings reject nonfinite
 or out-of-range values before recording the leaf; they never clamp task state.
 The host validates and applies the ordinary value attribute while retaining DOM
-identity. Indeterminate progress and dynamic maxima are not supported.
+identity. Indeterminate progress is not supported. A dynamic `max="$maximum"` accepts a
+finite positive numeric maximum, including fractions. The generated projection
+validates maximum and value together before emitting either attribute; invalid
+pairs invalidate the candidate output. Changes patch only max/value leaves.
 
 Typed `p` and `span` slots require phrasing-only callback output. They support
 escaped text composition without a joined-string allocation. Callback output

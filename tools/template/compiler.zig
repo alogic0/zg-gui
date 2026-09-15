@@ -276,7 +276,7 @@ const Compiler = struct {
             } else {
                 if (!(attributeName(n) or (isSvg(tag_name) and oneOf(n, "viewBox preserveAspectRatio"))) or std.mem.startsWith(u8, n, "on") or oneOf(n, "data-node-id data-event data-input-kind data-select-value")) return c.reject(a.name.start, "reserved or unsupported attribute name");
                 if (a.value) |v| if (std.mem.startsWith(u8, v.span.slice(c.input.source), "$")) {
-                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (oneOf(tag_name, "img iframe") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter progress") and std.mem.eql(u8, n, "value")) or (oneOf(tag_name, "input select textarea") and std.mem.eql(u8, n, "required")) or (std.mem.eql(u8, tag_name, "input") and oneOf(n, "min max step")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
+                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (oneOf(tag_name, "img iframe") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter progress") and std.mem.eql(u8, n, "value")) or (std.mem.eql(u8, tag_name, "progress") and std.mem.eql(u8, n, "max")) or (oneOf(tag_name, "input select textarea") and std.mem.eql(u8, n, "required")) or (std.mem.eql(u8, tag_name, "input") and oneOf(n, "min max step")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
                     try c.binding(.{ .attr = a, .in_loop = input.in_loop });
                 };
             }
@@ -291,13 +291,15 @@ const Compiler = struct {
             }
         }
         if (std.mem.eql(u8, tag_name, "progress")) {
-            const max = try c.progressMaximum(input.idx);
+            const maximum = c.attr(.{ .idx = input.idx, .name = "max" }) orelse return c.reject(node.tag.span.start, "progress requires an explicit maximum");
+            const dynamic = std.mem.startsWith(u8, try c.value(maximum), "$");
+            const max: f64 = if (dynamic) std.math.inf(f64) else @floatFromInt(try c.progressMaximum(input.idx));
             if (c.attr(.{ .idx = input.idx, .name = "min" }) != null) return c.reject(node.tag.span.start, "progress has a fixed zero minimum");
             const a = c.attr(.{ .idx = input.idx, .name = "value" }) orelse return c.reject(node.tag.span.start, "determinate progress requires an explicit value");
             const source = try c.value(a);
             if (!std.mem.startsWith(u8, source, "$")) {
                 const level = std.fmt.parseFloat(f64, source) catch return c.reject(a.name.start, "progress value must be finite and within range");
-                if (!std.math.isFinite(level) or level < 0 or level > @as(f64, @floatFromInt(max))) return c.reject(a.name.start, "progress value exceeds its declared range");
+                if (!std.math.isFinite(level) or level < 0 or level > max) return c.reject(a.name.start, "progress value exceeds its declared range");
             }
         }
         if (c.attr(.{ .idx = input.idx, .name = ":slot" })) |a| {
@@ -419,8 +421,26 @@ const Compiler = struct {
         const text_attr = c.attr(.{ .idx = input.idx, .name = ":text" });
         const value_attr = c.attr(.{ .idx = input.idx, .name = ":value" });
         const if_attr = c.attr(.{ .idx = input.idx, .name = ":if" });
+        const dynamic_max = if (std.mem.eql(u8, tag_name, "progress")) blk: {
+            const maximum = c.attr(.{ .idx = input.idx, .name = "max" }).?;
+            break :blk if (std.mem.startsWith(u8, try c.value(maximum), "$")) maximum else null;
+        } else null;
+        if (dynamic_max) |maximum| {
+            c.entries += 2 * input.factor;
+            try c.code.add("binding.progressRange(p, .{ .node = node, .max = ");
+            try c.expression(maximum);
+            try c.code.add(", .value = ");
+            const level = c.attr(.{ .idx = input.idx, .name = "value" }).?;
+            if (std.mem.startsWith(u8, try c.value(level), "$")) {
+                try c.expression(level);
+            } else {
+                try c.code.print("@as(f64, {d})", .{std.fmt.parseFloat(f64, try c.value(level)) catch unreachable});
+            }
+            try c.code.add(" });\n");
+        }
         for (node.attrs) |a| {
             const n = a.name.slice(c.input.source);
+            if (dynamic_max != null and oneOf(n, "max value")) continue;
             if (oneOf(n, ":ref :key :limit :loop :text :if :slot")) continue;
             if (std.mem.eql(u8, n, ":value")) {
                 if (oneOf(tag_name, "textarea select")) continue;
@@ -965,7 +985,7 @@ test "progress binds fractions and rejects invalid static contracts" {
     for ([_][]const u8{
         "<progress value=\"0\"></progress>",
         "<progress max=\"0\" value=\"0\"></progress>",
-        "<progress max=\"$maximum\" value=\"1\"></progress>",
+        "<progress max=\"$maximum\" value=\"-1\"></progress>",
         "<progress max=\"100\"></progress>",
         "<progress max=\"100\" min=\"1\" value=\"2\"></progress>",
         "<progress max=\"100\" value=\"101\"></progress>",
@@ -1040,4 +1060,13 @@ test "cell fragments and row slots require semantic children and a single owner"
     defer std.testing.allocator.free(code);
     for ([_][]const u8{ "<tr :slot=\"$cells\"><td>Conflicting</td></tr>", "<tr :slot=\"$cells\" :text=\"$label\"></tr>", "<tr :slot=\"$cells\" :if=\"$shown\"></tr>" }) |source| try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "row", .fragment_context = .tbody, .diagnostic = &d }));
     try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = "<td>Orphan</td>", .name = "flow", .diagnostic = &d }));
+}
+
+test "dynamic progress maxima bind a coherent numeric pair" {
+    var diagnostic = Diagnostic{};
+    for ([_][]const u8{ "<progress max=\"$maximum\" value=\"$level\"></progress>", "<progress value=\"0.5\" max=\"$maximum\"></progress>" }) |source| {
+        const code = try compile(std.testing.allocator, .{ .source = source, .name = "progress.gui.html", .diagnostic = &diagnostic });
+        defer std.testing.allocator.free(code);
+        try std.testing.expect(std.mem.indexOf(u8, code, "binding.progressRange") != null);
+    }
 }

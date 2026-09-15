@@ -166,3 +166,21 @@ test('cell context rejects invalid roots without replacing generated output', as
     await rmdir(directory);
   }
 });
+
+test('dynamic progress rejection preserves accepted compiler output', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'zg-gui-progress-'));
+  const source = join(directory, 'progress.gui.html'), generated = join(directory, 'progress.zig');
+  try {
+    await writeFile(source, '<progress max="$maximum" value="$level"></progress>');
+    assert.equal(spawnSync(compiler, [source, generated]).status, 0);
+    const accepted = await readFile(generated, 'utf8');
+    for (const html of ['<progress max="$maximum"></progress>', '<progress max="$maximum" value="-1"></progress>', '<progress max="$maximum" value="NaN"></progress>']) {
+      await writeFile(source, html);
+      assert.notEqual(spawnSync(compiler, [source, generated]).status, 0);
+      assert.equal(await readFile(generated, 'utf8'), accepted);
+    }
+  } finally {
+    for (const file of await readdir(directory)) await unlink(join(directory, file));
+    await rmdir(directory);
+  }
+});

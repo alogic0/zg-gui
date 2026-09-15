@@ -53,3 +53,5 @@ tune to an unstated budget.
 - [003: projection composition](requests/003-projection-composition.md)
 
 - [005: table fragments](requests/005-table-fragments.md)
+
+- [030: dynamic determinate progress bounds](requests/030-dynamic-progress-bounds.md)
