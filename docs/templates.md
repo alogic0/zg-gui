@@ -400,7 +400,9 @@ The compiler reserves one snapshot entry; the public `template.styleVariables`
 binding emits a complete `data-style-vars` attribute before publication. Names
 must match `--[a-z][a-z0-9-]*`, fit 64 bytes, and number 1–16. Values must be
 integers representable as i64 or `template.StyleValue` values; overflow fails the projection. The schema is fixed
-for an element across updates: supply every property each time. `template.StyleValue{ .value = -12, .unit = .px }` emits `-12px`; the closed
+for an element across updates: supply every property each time. An optional
+struct may be null to remove the entire style group; individual fields remain
+required. `template.StyleValue{ .value = -12, .unit = .px }` emits `-12px`; the closed
 unit enum also supports `.number` (default) and `.percent`. Values remain signed
 i64 integers; consumers own range constraints such as positive dimensions.
 Optional schemas/fields, floats, strings and runtime names are unsupported. CSS can also convert

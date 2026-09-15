@@ -346,6 +346,10 @@ pub const StyleValue = struct {
 /// Fixed numeric custom properties, serialized completely before publication.
 pub fn styleVariables(p: anytype, input: anytype) void {
     const T = @TypeOf(input.value);
+    if (@typeInfo(T) == .optional) {
+        if (input.value) |value| styleVariables(p, .{ .node = input.node, .value = value }) else p.attr(.{ .node = input.node, .name = "data-style-vars", .value = null });
+        return;
+    }
     if (@typeInfo(T) != .@"struct") @compileError("style variables require a struct of named integers");
     const fields = @typeInfo(T).@"struct".field_names;
     if (fields.len == 0 or fields.len > 16) @compileError("style variables require 1 to 16 fields");
@@ -388,4 +392,35 @@ fn validImageSource(value: []const u8) bool {
         .raw => |v| v.len > 0,
         .percent_encoded => |v| v.len > 0,
     } and uri.user == null and uri.password == null;
+}
+
+test "optional style groups clear only their attribute and retry failed output" {
+    const gui = @import("root.zig");
+    const P = gui.Projection(1);
+    const Style = struct { @"--offset": StyleValue };
+    var bytes: [256]u8 = undefined;
+    var output = gui.html.Writer{ .buffer = &bytes };
+    var scratch_bytes: [256]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &scratch_bytes };
+    var before = P.Snapshot{};
+    var initial = P{ .html = &html, .next = &before };
+    styleVariables(&initial, .{ .node = @as(u32, 20), .value = @as(?Style, .{ .@"--offset" = .{ .value = -12, .unit = .px } }) });
+    try std.testing.expect(!html.failed);
+    var after = P.Snapshot{};
+    var writer = gui.patch.Writer{ .output = &output };
+    var p = P{ .html = &html, .patches = &writer, .previous = &before, .next = &after, .writing = false };
+    styleVariables(&p, .{ .node = @as(u32, 20), .value = @as(?Style, null) });
+    try std.testing.expectEqualStrings("R\t20\tdata-style-vars\n", output.slice());
+    var tiny: [1]u8 = undefined;
+    var failed = gui.html.Writer{ .buffer = &tiny };
+    var failed_writer = gui.patch.Writer{ .output = &failed };
+    var retry = P.Snapshot{};
+    var retry_p = P{ .html = &html, .patches = &failed_writer, .previous = &after, .next = &retry, .writing = false };
+    styleVariables(&retry_p, .{ .node = @as(u32, 20), .value = @as(?Style, .{ .@"--offset" = .{ .value = 8, .unit = .percent } }) });
+    try std.testing.expect(failed.failed);
+    output.len = 0;
+    retry = .{};
+    retry_p.patches = &writer;
+    styleVariables(&retry_p, .{ .node = @as(u32, 20), .value = @as(?Style, .{ .@"--offset" = .{ .value = 8, .unit = .percent } }) });
+    try std.testing.expectEqualStrings("A\t20\tdata-style-vars\t--offset:8%\n", output.slice());
 }
