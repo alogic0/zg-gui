@@ -269,3 +269,24 @@ test('navigation leaves retain the nav, focused button and sibling selection', a
     }), true);
   } finally { await browser?.close(); await server.close(); }
 });
+
+
+test('roving tab index leaves retain both controls and current focus', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    assert.equal(await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const dom = createDomHost({ root });
+      dom.initialize('<div data-node-id="1"><button data-node-id="2" tabindex="0">First</button><button data-node-id="3" tabindex="-1">Second</button></div>');
+      const parent = root.firstChild, first = parent.firstChild, second = parent.lastChild;
+      first.focus();
+      dom.applyPatchStream('A\t2\ttabindex\t-1\nA\t3\ttabindex\t0\n');
+      return parent === root.firstChild && first === parent.firstChild && second === parent.lastChild && first === document.activeElement && first.tabIndex === -1 && second.tabIndex === 0;
+    }), true);
+  } finally { await browser?.close(); await server.close(); }
+});

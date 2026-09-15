@@ -79,3 +79,6 @@ separate requests; invocation within keyed loops is not yet supported. Follow th
 Typed integer pixel and percentage style values are delivered under
 [request 020](requests/020-style-units.md), with fixed-schema admission and
 leaf/retry verification.
+
+Dynamic tab order is delivered under [request 021](requests/021-tabindex.md).
+Consumers retain keyboard and focus policy.

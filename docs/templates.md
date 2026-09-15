@@ -33,7 +33,7 @@ literal dollar sign in a static attribute can be written as `&#36;`.
 | Syntax | Type and generated behavior |
 | --- | --- |
 | `:text="$value"` | Escaped text leaf; string, integer, bool or enum |
-| `title="$value"`, `aria-expanded="$open"`, `data-theme="$theme"` | Named attribute update; optional values remove the attribute |
+| `title="$value"`, `aria-expanded="$open"`, `data-theme="$theme"`, `tabindex="$index"` | Named attribute update; optional values remove the attribute |
 | `disabled="$busy"` | Boolean attribute presence; requires bool or optional bool |
 | `:value="$draft"` | String value property on input, textarea or single select; textarea content must be empty |
 | `:checked="$enabled"` | Boolean checked property on a static checkbox/radio input |

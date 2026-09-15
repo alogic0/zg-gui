@@ -545,7 +545,7 @@ fn attributeName(value: []const u8) bool {
     return true;
 }
 fn dynamicAttribute(name: []const u8) bool {
-    return oneOf(name, "class lang disabled readonly autofocus inert role title placeholder alt id for datetime draggable aria-label") or
+    return oneOf(name, "class lang disabled readonly autofocus inert role title placeholder alt id for datetime draggable tabindex aria-label") or
         (std.mem.startsWith(u8, name, "aria-") and dashedName(name[5..])) or
         (std.mem.startsWith(u8, name, "data-") and dashedName(name[5..]) and !oneOf(name, "data-node-id data-event data-input-kind data-value-format data-text-format data-style-vars data-select-value"));
 }

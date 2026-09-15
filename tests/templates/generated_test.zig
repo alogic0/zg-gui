@@ -852,3 +852,22 @@ test "dimensional style variables retain owners through changes and retry" {
     try std.testing.expect(std.mem.startsWith(u8, html.slice(), "A\t"));
     try std.testing.expect(std.mem.indexOf(u8, html.slice(), "H\t") == null);
 }
+
+test "tab order changes retain composite controls and support attribute removal" {
+    const template = @import("tab_order");
+    const Projection = gui.Projection(template.snapshot_capacity);
+    var bytes: [4096]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var first = Projection.Snapshot{};
+    var p = Projection{ .html = &html, .next = &first };
+    template.project(&p, .{ .first = @as(?i16, 0), .second = @as(i16, -1) });
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "tabindex=\"-1\"") != null);
+    var next = Projection.Snapshot{};
+    html.len = 0;
+    var writer = gui.patch.Writer{ .output = &html };
+    p = .{ .html = &html, .next = &next, .previous = &first, .patches = &writer, .writing = false };
+    template.project(&p, .{ .first = @as(?i16, null), .second = @as(i16, 0) });
+    var expected: [256]u8 = undefined;
+    try std.testing.expectEqualStrings(try std.fmt.bufPrint(&expected, "R\t{d}\ttabindex\nA\t{d}\ttabindex\t0\n", .{ template.nodes.first, template.nodes.second }), html.slice());
+}
