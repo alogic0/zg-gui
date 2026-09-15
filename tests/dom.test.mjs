@@ -96,3 +96,30 @@ test('select option replacement retains owner focus and controlled selection', a
     }), true);
   } finally { await browser?.close(); await server.close(); }
 });
+
+test('explicit radio values retain choice payload, identity and focus', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    const result = await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const { declaredInputValue } = await import('/local-datetime.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const dom = createDomHost({ root });
+      dom.initialize('<fieldset data-node-id="1"><input type="radio" name="range" value="one" data-input-kind="2" data-value-format="value" data-node-id="2" checked><input type="radio" name="range" value="all" data-input-kind="2" data-value-format="value" data-node-id="3"><input type="checkbox" data-value-format="checked" data-node-id="4"></fieldset>');
+      const owner = root.firstElementChild, one = root.querySelector('[value="one"]'), all = root.querySelector('[value="all"]');
+      const values = [];
+      root.addEventListener('change', event => values.push(declaredInputValue(event.target)));
+      all.focus(); all.click();
+      dom.applyPatchStream('C\t2\tfalse\nC\t3\ttrue\n');
+      const retained = all === root.querySelector('[value="all"]') && all.isConnected && all === document.activeElement && owner === root.firstElementChild;
+      one.click();
+      root.querySelector('[type="checkbox"]').click();
+      return { values, retained, oneChecked: one.checked, allChecked: all.checked };
+    });
+    assert.deepEqual(result, { values: ['all', 'one', 'true'], retained: true, oneChecked: true, allChecked: false });
+  } finally { await browser?.close(); await server.close(); }
+});

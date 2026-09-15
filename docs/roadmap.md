@@ -29,6 +29,9 @@ Application integration and product acceptance belong to consumers.
 Semantic time elements are implemented and verified in
 [request 007](requests/007-time-elements.md).
 
+Explicit radio choice values are implemented and verified in
+[request 008](requests/008-radio-values.md).
+
 ## Capability extensions
 
 - [x] Reusable template invocation with typed inputs, stable instance namespaces

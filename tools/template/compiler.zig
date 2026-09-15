@@ -281,7 +281,12 @@ const Compiler = struct {
         if ((has_visible or has_if) and c.attr(.{ .idx = input.idx, .name = "hidden" }) != null) return c.reject(node.tag.span.start, "visibility binding conflicts with hidden");
         if (c.attr(.{ .idx = input.idx, .name = ":input" }) != null) {
             if (c.attr(.{ .idx = input.idx, .name = "type" })) |a| {
-                if (a.value != null and oneOf(a.value.?.span.slice(c.input.source), "checkbox radio") and c.attr(.{ .idx = input.idx, .name = "data-value-format" }) != null) return c.reject(a.name.start, "checkbox/radio input format is generated automatically");
+                if (a.value != null and oneOf(a.value.?.span.slice(c.input.source), "checkbox radio")) {
+                    if (c.attr(.{ .idx = input.idx, .name = "data-value-format" })) |format| {
+                        if (!std.mem.eql(u8, try c.value(a), "radio") or !std.mem.eql(u8, try c.value(format), "value"))
+                            return c.reject(format.name.start, "radio input permits only an explicit value format; checkbox format is generated automatically");
+                    }
+                }
             }
         }
         if (has_loop) {
@@ -398,7 +403,7 @@ const Compiler = struct {
         }
         if (c.attr(.{ .idx = input.idx, .name = ":input" }) != null) {
             if (c.attr(.{ .idx = input.idx, .name = "type" })) |t| {
-                if (oneOf(try c.value(t), "checkbox radio")) try c.literal(" data-value-format=\"checked\"");
+                if (oneOf(try c.value(t), "checkbox radio") and c.attr(.{ .idx = input.idx, .name = "data-value-format" }) == null) try c.literal(" data-value-format=\"checked\"");
             }
         }
         if (value_attr != null and std.mem.eql(u8, tag_name, "select")) {
@@ -765,4 +770,24 @@ test "semantic time supports phrasing and table cells without implicit repair" {
     }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "time", .diagnostic = &d }));
     }
+}
+
+test "radio input value mode is explicit and checked remains the default" {
+    var d = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{ .source = "<input type=\"radio\" value=\"one\" data-value-format=\"value\" :input=\"$input\">", .name = "radio", .diagnostic = &d });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "checked") == null);
+    for ([_][]const u8{ "checkbox", "radio" }) |kind| {
+        const source = try std.fmt.allocPrint(std.testing.allocator, "<input type=\"{s}\" :input=\"$input\">", .{kind});
+        defer std.testing.allocator.free(source);
+        const checked = try compile(std.testing.allocator, .{ .source = source, .name = "checked", .diagnostic = &d });
+        defer std.testing.allocator.free(checked);
+        try std.testing.expect(std.mem.indexOf(u8, checked, "checked") != null);
+    }
+    for ([_][]const u8{
+        "<input type=\"checkbox\" data-value-format=\"value\" :input=\"$input\">",
+        "<input type=\"radio\" data-value-format=\"checked\" :input=\"$input\">",
+        "<input type=\"radio\" data-value-format=\"unknown\" :input=\"$input\">",
+        "<input type=\"radio\" data-value-format=\"$mode\" :input=\"$input\">",
+    }) |source| try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "invalid-radio", .diagnostic = &d }));
 }

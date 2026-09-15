@@ -59,6 +59,7 @@ pub fn build(b: *std.Build) void {
     } });
     const list_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/list.gui.html") });
     const row_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/list_row.gui.html"), .fragment_context = .ul });
+    const radio_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/radio.gui.html") });
     const time_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/time.gui.html") });
     const select_slot_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/select_slot.gui.html") });
     const table_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/table.gui.html") });
@@ -71,6 +72,7 @@ pub fn build(b: *std.Build) void {
             .optimize = .debug,
             .imports = &.{
                 .{ .name = "zg_gui", .module = test_gui },
+                .{ .name = "radio_fixture", .module = b.createModule(.{ .root_source_file = radio_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "time_fixture", .module = b.createModule(.{ .root_source_file = time_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "select_slot", .module = b.createModule(.{ .root_source_file = select_slot_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "table", .module = b.createModule(.{ .root_source_file = table_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },

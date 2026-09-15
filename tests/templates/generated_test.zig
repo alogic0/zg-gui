@@ -393,3 +393,28 @@ test "generated time updates only text and optional datetime with bounded output
     time.project(&p, .{ .instant = @as(?[]const u8, "2030-10-02"), .label = "Later" });
     try std.testing.expect(output.failed);
 }
+
+test "radio values retain generated checked ownership and reject truncated commands" {
+    const radio = @import("radio_fixture");
+    const Projection = gui.Projection(radio.snapshot_capacity);
+    var previous = Projection.Snapshot{};
+    var next = Projection.Snapshot{};
+    var html_bytes: [2048]u8 = undefined;
+    var output_bytes: [256]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &html_bytes };
+    var output = gui.html.Writer{ .buffer = &output_bytes };
+    var writer = gui.patch.Writer{ .output = &output };
+    var p = Projection{ .html = &html, .next = &previous };
+    radio.project(&p, .{ .input = Input.checked, .one = true, .all = false });
+    try std.testing.expect(!html.failed);
+    try std.testing.expectEqual(radio.snapshot_capacity, previous.len);
+    try std.testing.expectEqual(@as(usize, 2), std.mem.count(u8, html.slice(), "data-value-format=\"value\""));
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "data-value-format=\"checked\"") == null);
+    p = .{ .html = &html, .patches = &writer, .previous = &previous, .next = &next, .writing = false };
+    radio.project(&p, .{ .input = Input.checked, .one = false, .all = true });
+    try std.testing.expectEqualStrings(std.fmt.comptimePrint("C\t{d}\tfalse\nC\t{d}\ttrue\n", .{ radio.nodes.one, radio.nodes.all }), output.slice());
+    next = .{};
+    output = .{ .buffer = output_bytes[0..1] };
+    radio.project(&p, .{ .input = Input.checked, .one = false, .all = true });
+    try std.testing.expect(output.failed);
+}

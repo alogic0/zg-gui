@@ -46,7 +46,11 @@ literal dollar sign in a static attribute can be written as `&#36;`.
 
 `actions` and `inputs` are ordinary view fields containing enum values. No
 particular enum or struct names are imposed. Checkbox/radio input directives
-automatically declare the host's checked-value format. Form drafts must still
+automatically declare the host's checked-value format by default. A static radio
+can opt into its selected choice value with `data-value-format="value"`; use
+one input kind for the group and distinct `value` attributes. Keep selection in
+consumer state through `:checked`. Checkbox overrides, other radio formats and
+dynamic formatting modes remain rejected. Form drafts must still
 be copied into application-owned state when inputs arrive.
 
 Text bindings require empty, non-void elements. A loop directive belongs on
