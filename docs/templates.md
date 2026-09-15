@@ -422,3 +422,14 @@ project its children without replacing the group. The callback owns membership,
 namespace bounds and child snapshot capacity. The enclosing `select :value`
 owns live selection; options use ordinary value, disabled and text bindings.
 Bare text and invalid child elements are rejected in these structural contexts.
+
+### Bounded integer meters
+
+`<meter min="0" max="100" value="$level"></meter>` uses explicit static u32
+bounds and a bound integer. `min < max` and inclusive range membership are
+required. Literal values are checked during compilation; bound values are
+checked during projection without clamping. Invalid values mark the candidate
+HTML failed. Floats, absent bounds and nested meters are unsupported. A valid
+change emits one value attribute patch, leaving controls and focus intact.
+The public `template.meterValue(p, .{ .node, .min, .max, .value })` binding uses
+the same checks; callers supply named integer fields and valid u32 bounds.

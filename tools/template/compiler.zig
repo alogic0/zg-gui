@@ -132,15 +132,15 @@ const Compiler = struct {
                         stack.items.len -= 1;
                     },
                     .start, .start_self => {
-                        if (!oneOf(tag_name, "main header footer section article aside nav div p span h1 h2 h3 h4 h5 h6 a strong em small time b i code pre br hr form fieldset legend label input textarea button output ul ol li dl dt dd img details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs symbol path circle ellipse rect line polyline polygon use title")) {
+                        if (!oneOf(tag_name, "main header footer section article aside nav div p span h1 h2 h3 h4 h5 h6 a strong em small time b i code pre br hr form fieldset legend label input textarea button output meter ul ol li dl dt dd img details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs symbol path circle ellipse rect line polyline polygon use title")) {
                             return c.reject(tag.name.start, "unsupported element; use the documented HTML fragment subset");
                         }
                         if (tag.kind == .start_self and !tag.isVoid(c.input.source, .html) and !isSvg(tag_name)) return c.reject(tag.span.start, "non-void HTML elements require an explicit closing tag");
                         const parent_name = if (stack.items.len > 0) c.name(stack.items[stack.items.len - 1]) else if (c.input.fragment_context == .flow) "" else @tagName(c.input.fragment_context);
                         for (stack.items) |parent| {
                             const ancestor = c.name(parent);
-                            if (!isSvg(parent_name) and oneOf(ancestor, "p h1 h2 h3 h4 h5 h6") and !isPhrasing(tag_name)) return c.reject(tag.name.start, "block content would implicitly close a phrasing-only ancestor");
-                            if (oneOf(tag_name, "a button form") and std.mem.eql(u8, tag_name, ancestor)) return c.reject(tag.name.start, "nested interactive element would be repaired by the browser");
+                            if (!isSvg(parent_name) and oneOf(ancestor, "p h1 h2 h3 h4 h5 h6 meter") and !isPhrasing(tag_name)) return c.reject(tag.name.start, "block content would implicitly close a phrasing-only ancestor");
+                            if (oneOf(tag_name, "a button form meter") and std.mem.eql(u8, tag_name, ancestor)) return c.reject(tag.name.start, "nested interactive element would be repaired by the browser");
                             if (std.mem.eql(u8, ancestor, "button") and oneOf(tag_name, "a input textarea button select")) return c.reject(tag.name.start, "interactive content is not allowed inside a button");
                         }
                         const grouped = std.mem.eql(u8, parent_name, "div") and stack.items.len >= 2 and std.mem.eql(u8, c.name(stack.items[stack.items.len - 2]), "dl");
@@ -176,6 +176,15 @@ const Compiler = struct {
         };
         if (stack.items.len > 0) return c.reject(c.nodes.items[stack.items[stack.items.len - 1]].tag.span.start, "unclosed element");
         if (c.roots.items.len == 0) return c.reject(0, "template must contain an element");
+    }
+
+    fn meterBounds(c: *Compiler, idx: usize) Error!struct { min: u32, max: u32 } {
+        const min_attr = c.attr(.{ .idx = idx, .name = "min" }) orelse return c.reject(c.nodes.items[idx].tag.span.start, "meter requires explicit min and max bounds");
+        const max_attr = c.attr(.{ .idx = idx, .name = "max" }) orelse return c.reject(c.nodes.items[idx].tag.span.start, "meter requires explicit min and max bounds");
+        const min = std.fmt.parseInt(u32, try c.value(min_attr), 10) catch return c.reject(min_attr.name.start, "meter bounds must be static nonnegative integers");
+        const max = std.fmt.parseInt(u32, try c.value(max_attr), 10) catch return c.reject(max_attr.name.start, "meter bounds must be static nonnegative integers");
+        if (min >= max) return c.reject(max_attr.name.start, "meter maximum must exceed minimum");
+        return .{ .min = min, .max = max };
     }
 
     fn binding(c: *Compiler, input: struct { attr: Attr, in_loop: bool }) Error!void {
@@ -250,9 +259,18 @@ const Compiler = struct {
             } else {
                 if (!(attributeName(n) or (isSvg(tag_name) and oneOf(n, "viewBox preserveAspectRatio"))) or std.mem.startsWith(u8, n, "on") or oneOf(n, "data-node-id data-event data-input-kind data-select-value")) return c.reject(a.name.start, "reserved or unsupported attribute name");
                 if (a.value) |v| if (std.mem.startsWith(u8, v.span.slice(c.input.source), "$")) {
-                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (std.mem.eql(u8, tag_name, "use") and std.mem.eql(u8, n, "href")) or (std.mem.eql(u8, tag_name, "img") and std.mem.eql(u8, n, "src")) or (std.mem.eql(u8, tag_name, "option") and std.mem.eql(u8, n, "value")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
+                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (std.mem.eql(u8, tag_name, "use") and std.mem.eql(u8, n, "href")) or (std.mem.eql(u8, tag_name, "img") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter") and std.mem.eql(u8, n, "value")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
                     try c.binding(.{ .attr = a, .in_loop = input.in_loop });
                 };
+            }
+        }
+        if (std.mem.eql(u8, tag_name, "meter")) {
+            const bounds = try c.meterBounds(input.idx);
+            const a = c.attr(.{ .idx = input.idx, .name = "value" }) orelse return c.reject(node.tag.span.start, "meter requires an explicit value");
+            const level_source = try c.value(a);
+            if (!std.mem.startsWith(u8, level_source, "$")) {
+                const level = std.fmt.parseInt(u32, level_source, 10) catch return c.reject(a.name.start, "meter value must be a bounded nonnegative integer");
+                if (level < bounds.min or level > bounds.max) return c.reject(a.name.start, "meter value exceeds its declared range");
             }
         }
         if (c.attr(.{ .idx = input.idx, .name = ":slot" })) |a| {
@@ -400,11 +418,18 @@ const Compiler = struct {
                 try c.code.add(" });\n");
             } else if (a.value != null and std.mem.startsWith(u8, a.value.?.span.slice(c.input.source), "$")) {
                 c.entries += input.factor;
-                try c.code.add("binding.attribute(p, ");
-                try c.code.string(n);
-                try c.code.add(", .{ .node = node, .value = ");
-                try c.expression(a);
-                try c.code.add(" });\n");
+                if (std.mem.eql(u8, tag_name, "meter") and std.mem.eql(u8, n, "value")) {
+                    const bounds = try c.meterBounds(input.idx);
+                    try c.code.print("binding.meterValue(p, .{{ .node = node, .min = {d}, .max = {d}, .value = ", .{ bounds.min, bounds.max });
+                    try c.expression(a);
+                    try c.code.add(" });\n");
+                } else {
+                    try c.code.add("binding.attribute(p, ");
+                    try c.code.string(n);
+                    try c.code.add(", .{ .node = node, .value = ");
+                    try c.expression(a);
+                    try c.code.add(" });\n");
+                }
             } else try c.literal(try std.fmt.allocPrint(c.a, " {s}", .{a.span().slice(c.input.source)}));
         }
         if (c.attr(.{ .idx = input.idx, .name = ":input" }) != null) {
@@ -529,7 +554,7 @@ fn dashedName(value: []const u8) bool {
     return true;
 }
 fn isPhrasing(name: []const u8) bool {
-    return oneOf(name, "span a strong em small time b i code br label input textarea button output img select svg");
+    return oneOf(name, "span a strong em small time b i code br label input textarea button output meter img select svg");
 }
 
 test "compiler preserves literal whitespace and entities and emits leaf bindings" {
@@ -848,4 +873,21 @@ test "explicit select fragments preserve option and group parent requirements" {
     for ([_][]const u8{ "<optgroup label=\"Nested\"></optgroup>", "<optgroup :slot=\"$options\"><option>Competing</option></optgroup>" }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "invalid.gui.html", .fragment_context = .optgroup, .diagnostic = &diagnostic }));
     }
+}
+
+test "meters require explicit integer bounds and reject invalid values" {
+    var diagnostic = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{ .source = "<meter min=\"0\" max=\"100\" value=\"$level\"></meter>", .name = "meter.gui.html", .diagnostic = &diagnostic });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "binding.meterValue") != null);
+    for ([_][]const u8{
+        "<meter value=\"1\"></meter>",
+        "<meter min=\"0\" max=\"0\" value=\"0\"></meter>",
+        "<meter min=\"-1\" max=\"2\" value=\"0\"></meter>",
+        "<meter min=\"0\" max=\"100\" value=\"101\"></meter>",
+        "<meter min=\"0\" max=\"100\" value=\"1.5\"></meter>",
+        "<meter min=\"0\" max=\"$maximum\" value=\"1\"></meter>",
+        "<meter min=\"0\" max=\"100\"></meter>",
+        "<meter min=\"0\" max=\"100\" value=\"0\"><meter min=\"0\" max=\"1\" value=\"0\"></meter></meter>",
+    }) |source| try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "invalid.gui.html", .diagnostic = &diagnostic }));
 }

@@ -93,6 +93,31 @@ pub fn attribute(p: anytype, comptime name: []const u8, input: anytype) void {
     p.attr(.{ .node = input.node, .name = name, .value = value });
 }
 
+/// Bounded whole-number meter state; failure invalidates the candidate output.
+pub fn meterValue(p: anytype, input: anytype) void {
+    switch (@typeInfo(@TypeOf(input.value))) {
+        .int, .comptime_int => {},
+        else => @compileError("meter values must be integers"),
+    }
+    const value = std.math.cast(u32, input.value) orelse {
+        p.html.failed = true;
+        return;
+    };
+    const min = std.math.cast(u32, input.min) orelse {
+        p.html.failed = true;
+        return;
+    };
+    const max = std.math.cast(u32, input.max) orelse {
+        p.html.failed = true;
+        return;
+    };
+    if (min >= max or value < min or value > max) {
+        p.html.failed = true;
+        return;
+    }
+    attribute(p, "value", .{ .node = input.node, .value = value });
+}
+
 pub fn event(p: anytype, comptime name: []const u8, input: anytype) void {
     if (@typeInfo(@TypeOf(input.value)) != .@"enum") @compileError("template actions and input kinds must be enum values");
     const value = std.math.cast(u32, @backingInt(input.value)) orelse {

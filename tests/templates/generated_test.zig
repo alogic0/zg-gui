@@ -610,3 +610,37 @@ test "compiled option group projects leaves with bounded failure and retry" {
     try std.testing.expect(!output.failed and !html.failed);
     try std.testing.expectEqualStrings("T\t140\t\"Changed\"\n", output.slice());
 }
+
+test "meter bounds reject invalid candidates and retry only the level leaf" {
+    const meter = @import("meter").Scoped(.{ .first = 200, .count = 4 });
+    const MP = gui.Projection(meter.snapshot_capacity);
+    var bytes: [1024]u8 = undefined;
+    var commands: [1024]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var output = gui.html.Writer{ .buffer = &commands };
+    var writer = gui.patch.Writer{ .output = &output };
+    var before = MP.Snapshot{};
+    var next = MP.Snapshot{};
+    var p = MP{ .html = &html, .next = &before };
+    meter.project(&p, .{ .level = @as(u8, 0) });
+    try std.testing.expect(!html.failed);
+    try std.testing.expectEqual(@as(usize, 1), before.len);
+    p = .{ .html = &html, .next = &next, .previous = &before, .patches = &writer, .writing = false };
+    for ([_]i64{ -1, 101, 4294967296 }) |invalid| {
+        html.failed = false;
+        next = .{};
+        meter.project(&p, .{ .level = invalid });
+        try std.testing.expect(html.failed);
+        try std.testing.expectEqual(@as(usize, 0), output.len);
+    }
+    html.failed = false;
+    next = .{};
+    output = .{ .buffer = commands[0..1] };
+    meter.project(&p, .{ .level = @as(u8, 100) });
+    try std.testing.expect(output.failed);
+    next = .{};
+    output = .{ .buffer = &commands };
+    meter.project(&p, .{ .level = @as(u8, 100) });
+    try std.testing.expect(!html.failed and !output.failed);
+    try std.testing.expectEqualStrings("A\t201\tvalue\t100\n", output.slice());
+}
