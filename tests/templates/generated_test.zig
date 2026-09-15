@@ -1171,3 +1171,27 @@ test "resource admission uses the same explicit scheme policy as bindings" {
     try std.testing.expect(gui.template.validExternalLink(.{ .value = "http://example.test", .allow_http = true }));
     try std.testing.expect(!gui.template.validExternalLink(.{ .value = "http://u:p@example.test", .allow_http = true }));
 }
+
+test "typed input kind changes only the control attribute and retries output" {
+    const template = @import("input_type").Scoped(.{ .first = 600, .count = 8 });
+    const Projection = gui.Projection(template.snapshot_capacity);
+    var bytes: [2048]u8 = undefined;
+    var scratch_bytes: [1]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var scratch = gui.html.Writer{ .buffer = &scratch_bytes };
+    var before = Projection.Snapshot{};
+    var next = Projection.Snapshot{};
+    var p = Projection{ .html = &html, .next = &before };
+    template.project(&p, .{ .kind = gui.template.InputType.password, .value = "draft" });
+    try std.testing.expect(!html.failed);
+    var writer = gui.patch.Writer{ .output = &html };
+    p = .{ .html = &scratch, .next = &next, .previous = &before, .patches = &writer, .writing = false };
+    html = .{ .buffer = bytes[0..1] };
+    template.project(&p, .{ .kind = gui.template.InputType.text, .value = "draft" });
+    try std.testing.expect(html.failed);
+    html = .{ .buffer = &bytes };
+    next = .{};
+    template.project(&p, .{ .kind = gui.template.InputType.text, .value = "draft" });
+    try std.testing.expect(!html.failed and !scratch.failed);
+    try std.testing.expectEqualStrings("A\t601\ttype\ttext\n", html.slice());
+}

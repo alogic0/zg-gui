@@ -57,3 +57,6 @@ tune to an unstated budget.
 - [030: dynamic determinate progress bounds](requests/030-dynamic-progress-bounds.md)
 
 - [031: fragment anchors and explicit HTTP links](requests/031-fragment-and-http-links.md)
+
+Dynamic input kinds use the finite `template.InputType` contract (request 032).
+Keep file and checked-input ownership separate from form-value controls.

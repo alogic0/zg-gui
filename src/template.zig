@@ -230,6 +230,13 @@ fn progressNumber(value: anytype) f64 {
     };
 }
 
+/// Kinds whose values are owned through the existing form-value binding.
+/// File inputs, checkboxes, radios and submit controls have separate contracts.
+pub const InputType = enum { text, password, email, tel, url, search, number, date, time, @"datetime-local", month, week };
+pub fn inputType(p: anytype, input: struct { node: u32, value: InputType }) void {
+    attribute(p, "type", .{ .node = input.node, .value = @tagName(input.value) });
+}
+
 pub fn event(p: anytype, comptime name: []const u8, input: anytype) void {
     if (@typeInfo(@TypeOf(input.value)) != .@"enum") @compileError("template actions and input kinds must be enum values");
     const value = std.math.cast(u32, @backingInt(input.value)) orelse {

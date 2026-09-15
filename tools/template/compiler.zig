@@ -276,7 +276,7 @@ const Compiler = struct {
             } else {
                 if (!(attributeName(n) or (isSvg(tag_name) and oneOf(n, "viewBox preserveAspectRatio"))) or std.mem.startsWith(u8, n, "on") or oneOf(n, "data-node-id data-event data-input-kind data-select-value")) return c.reject(a.name.start, "reserved or unsupported attribute name");
                 if (a.value) |v| if (std.mem.startsWith(u8, v.span.slice(c.input.source), "$")) {
-                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (oneOf(tag_name, "img iframe") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter progress") and std.mem.eql(u8, n, "value")) or (std.mem.eql(u8, tag_name, "progress") and std.mem.eql(u8, n, "max")) or (oneOf(tag_name, "input select textarea") and std.mem.eql(u8, n, "required")) or (std.mem.eql(u8, tag_name, "input") and oneOf(n, "min max step")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
+                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (oneOf(tag_name, "img iframe") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter progress") and std.mem.eql(u8, n, "value")) or (std.mem.eql(u8, tag_name, "progress") and std.mem.eql(u8, n, "max")) or (oneOf(tag_name, "input select textarea") and std.mem.eql(u8, n, "required")) or (std.mem.eql(u8, tag_name, "input") and oneOf(n, "min max step type")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
                     try c.binding(.{ .attr = a, .in_loop = input.in_loop });
                 };
             }
@@ -473,6 +473,10 @@ const Compiler = struct {
                         const marker = c.attr(.{ .idx = input.idx, .name = "data-external-link" }).?;
                         if (std.mem.eql(u8, try c.value(marker), "http")) try c.code.add(", .allow_http = true");
                     }
+                    try c.code.add(" });\n");
+                } else if (std.mem.eql(u8, tag_name, "input") and std.mem.eql(u8, n, "type")) {
+                    try c.code.add("binding.inputType(p, .{ .node = node, .value = ");
+                    try c.expression(a);
                     try c.code.add(" });\n");
                 } else if (std.mem.eql(u8, tag_name, "iframe") and std.mem.eql(u8, n, "src")) {
                     try c.code.add("binding.frameSource(p, .{ .node = node, .value = ");
@@ -1072,5 +1076,15 @@ test "dynamic progress maxima bind a coherent numeric pair" {
         const code = try compile(std.testing.allocator, .{ .source = source, .name = "progress.gui.html", .diagnostic = &diagnostic });
         defer std.testing.allocator.free(code);
         try std.testing.expect(std.mem.indexOf(u8, code, "binding.progressRange") != null);
+    }
+}
+
+test "dynamic input types compile through the finite kind binding" {
+    var diagnostic = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{ .source = "<input type=\"$kind\" :value=\"$value\">", .name = "input", .diagnostic = &diagnostic });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "binding.inputType") != null);
+    for ([_][]const u8{ "<button type=\"$kind\"></button>", "<input type=\"$kind\" :checked=\"$checked\">" }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad-input", .diagnostic = &diagnostic }));
     }
 }

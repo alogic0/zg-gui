@@ -408,3 +408,31 @@ test('cell updates retain row, sibling control, focus and valid table structure'
     }), true);
   } finally { await browser?.close(); await server.close(); }
 });
+
+test('input kind patches retain the input, value, sibling and focus', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const dom = createDomHost({ root });
+      dom.initialize('<div data-node-id="601"><input data-node-id="602" type="password" value="draft"><input data-node-id="603" value="sibling"></div>');
+      const control = root.querySelector('[data-node-id="602"]');
+      const sibling = control.nextElementSibling;
+      const parent = control.parentElement;
+      control.focus(); control.setSelectionRange(1, 3);
+      for (const type of ['text', 'password']) {
+        dom.applyPatchStream(`A\t602\ttype\t${type}\n`);
+        if (control !== document.activeElement || control.parentElement !== parent ||
+            control.nextElementSibling !== sibling || control.value !== 'draft' ||
+            control.type !== type || control.selectionStart !== 1 || control.selectionEnd !== 3) {
+          throw new Error('kind update lost a retained control, selection or value');
+        }
+      }
+    });
+  } finally { if (browser) await browser.close(); await server.close(); }
+});

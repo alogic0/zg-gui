@@ -535,3 +535,9 @@ publishing an href. Consumers remain responsible for destination authorization.
 
 Use `template.validExternalLink(.{ .value = url, .allow_http = true })` to
 admit an optional resource before projecting it. Its default remains HTTPS-only.
+
+Dynamic input `type="$kind"` uses `template.InputType`, a finite enum for text,
+password, email, tel, url, search, number, date, time, datetime-local, month and
+week. Pair it with the usual `:value` binding. The consumer selects a compatible
+kind and owns normalization; changing kind alone patches the existing attribute.
+File, checkbox, radio and submission controls retain separate static contracts.
