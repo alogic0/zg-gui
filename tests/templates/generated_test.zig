@@ -1082,3 +1082,35 @@ test "explicit external links escape, reject unsafe destinations and remove href
         try std.testing.expect(html.failed);
     }
 }
+
+test "row cell composition retains parents and retries rejected output" {
+    const row = @import("table_slot_row").Scoped(.{ .first = 100, .count = 10 });
+    const cells = @import("table_cells").Scoped(.{ .first = 200, .count = 10 });
+    const Children = struct {
+        label: []const u8,
+        pub fn project(value: @This(), p: anytype, owner: struct { node: u32 }) void {
+            std.debug.assert(owner.node == row.nodes.row);
+            cells.project(p, .{ .label = value.label, .draft = "keep" });
+        }
+    };
+    const CellP = gui.Projection(row.snapshot_capacity + cells.snapshot_capacity);
+    var bytes: [2048]u8 = undefined;
+    var commands: [2048]u8 = undefined;
+    var tiny: [1]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var output = gui.html.Writer{ .buffer = &tiny };
+    var writer = gui.patch.Writer{ .output = &output };
+    var before = CellP.Snapshot{};
+    var p = CellP{ .html = &html, .next = &before };
+    row.project(&p, .{ .cells = Children{ .label = "One & <two>" } });
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "One &amp; &lt;two&gt;") != null);
+    var next = CellP.Snapshot{};
+    p = .{ .html = &html, .next = &next, .previous = &before, .patches = &writer, .writing = false };
+    row.project(&p, .{ .cells = Children{ .label = "Updated" } });
+    try std.testing.expect(output.failed);
+    output = .{ .buffer = &commands };
+    next = .{};
+    row.project(&p, .{ .cells = Children{ .label = "Updated" } });
+    try std.testing.expectEqualStrings("T\t200\t\"Updated\"\n", output.slice());
+}

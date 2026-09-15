@@ -147,3 +147,22 @@ test('aside slot rejection preserves successful generated output', async () => {
     await rmdir(directory);
   }
 });
+
+test('cell context rejects invalid roots without replacing generated output', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'zg-gui-cells-'));
+  const source = join(directory, 'cells.gui.html'), generated = join(directory, 'cells.zig');
+  try {
+    await writeFile(source, '<th :text="$label"></th><td><input :value="$draft"></td>');
+    const result = spawnSync(compiler, [source, generated, '--context=tr'], { encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    const accepted = await readFile(generated, 'utf8');
+    for (const html of ['<tr><td>Nested</td></tr>', 'bare<td>Value</td>', '<div>Invalid</div>']) {
+      await writeFile(source, html);
+      assert.notEqual(spawnSync(compiler, [source, generated, '--context=tr']).status, 0);
+      assert.equal(await readFile(generated, 'utf8'), accepted);
+    }
+  } finally {
+    for (const file of await readdir(directory)) await unlink(join(directory, file));
+    await rmdir(directory);
+  }
+});

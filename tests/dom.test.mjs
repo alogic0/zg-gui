@@ -379,3 +379,26 @@ test('external link updates retain the link and focused sibling', async () => {
     }), true);
   } finally { await browser?.close(); await server.close(); }
 });
+
+test('cell updates retain row, sibling control, focus and valid table structure', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    assert.equal(await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const dom = createDomHost({ root });
+      dom.initialize('<table data-node-id="1"><tbody data-node-id="2"><tr data-node-id="3"><th data-node-id="4">Label</th><td data-node-id="5"><input data-node-id="6" value="draft"></td></tr></tbody></table>');
+      const table = root.querySelector('table'), row = table.rows[0], input = root.querySelector('input');
+      input.focus(); input.setSelectionRange(1, 3);
+      dom.applyPatchStream('T\t4\t"Changed"\n');
+      return table === root.querySelector('table') && row === table.rows[0]
+        && row.cells.length === 2 && input === document.activeElement
+        && input.isConnected && input.value === 'draft'
+        && input.selectionStart === 1 && input.selectionEnd === 3;
+    }), true);
+  } finally { await browser?.close(); await server.close(); }
+});

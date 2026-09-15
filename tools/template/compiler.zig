@@ -9,7 +9,7 @@ const Error = error{ OutOfMemory, InvalidTemplate };
 pub const max_source_bytes = composition.max_source_bytes;
 pub const Diagnostic = composition.Diagnostic;
 pub const Component = composition.Component;
-pub const FragmentContext = enum { flow, dl, ul, ol, thead, tbody, tfoot, select, optgroup };
+pub const FragmentContext = enum { flow, dl, ul, ol, thead, tbody, tfoot, tr, select, optgroup };
 pub const Input = struct {
     source: []const u8,
     name: []const u8,
@@ -169,7 +169,7 @@ const Compiler = struct {
             },
             .text => |span| {
                 const parent = if (stack.items.len > 0) c.name(stack.items[stack.items.len - 1]) else @tagName(c.input.fragment_context);
-                if (oneOf(parent, "ul ol thead tbody tfoot select optgroup") and std.mem.trim(u8, span.slice(c.input.source), " \t\r\n").len != 0)
+                if (oneOf(parent, "ul ol thead tbody tfoot tr select optgroup") and std.mem.trim(u8, span.slice(c.input.source), " \t\r\n").len != 0)
                     return c.reject(span.start, "structural containers require elements, not bare text");
             },
             else => {},
@@ -301,7 +301,7 @@ const Compiler = struct {
             }
         }
         if (c.attr(.{ .idx = input.idx, .name = ":slot" })) |a| {
-            if (!oneOf(tag_name, "div section aside nav dl dd ul ol li p span option thead tbody tfoot select optgroup") or has_text or (has_value and !std.mem.eql(u8, tag_name, "select")) or has_if or has_loop or
+            if (!oneOf(tag_name, "div section aside nav dl dd ul ol li p span option thead tbody tfoot tr select optgroup") or has_text or (has_value and !std.mem.eql(u8, tag_name, "select")) or has_if or has_loop or
                 std.mem.trim(u8, c.input.source[node.tag.span.end..node.close_start], " \t\r\n").len != 0)
                 return c.reject(a.name.start, ":slot requires an empty flow, list, table-section or select container with no other child owner");
         }
@@ -1027,4 +1027,17 @@ test "native constraints bind only to form controls" {
     for ([_][]const u8{ "<div required=\"$required\"></div>", "<select min=\"$min\"></select>" }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(a, .{ .source = source, .name = "invalid-constraints", .diagnostic = &diagnostic }));
     }
+}
+
+test "cell fragments and row slots require semantic children and a single owner" {
+    var d: Diagnostic = .{};
+    for ([_][]const u8{ "<th :text=\"$label\"></th><td><input :value=\"$value\"></td>", "<td>Value</td>" }) |source| {
+        const code = try compile(std.testing.allocator, .{ .source = source, .name = "cells", .fragment_context = .tr, .diagnostic = &d });
+        std.testing.allocator.free(code);
+    }
+    for ([_][]const u8{ "<div>Invalid</div>", "<tr><td>Nested</td></tr>", "bare<td>Cell</td>" }) |source| try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "cells", .fragment_context = .tr, .diagnostic = &d }));
+    const code = try compile(std.testing.allocator, .{ .source = "<tr :ref=\"row\" :slot=\"$cells\"></tr>", .name = "row", .fragment_context = .tbody, .diagnostic = &d });
+    defer std.testing.allocator.free(code);
+    for ([_][]const u8{ "<tr :slot=\"$cells\"><td>Conflicting</td></tr>", "<tr :slot=\"$cells\" :text=\"$label\"></tr>", "<tr :slot=\"$cells\" :if=\"$shown\"></tr>" }) |source| try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "row", .fragment_context = .tbody, .diagnostic = &d }));
+    try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = "<td>Orphan</td>", .name = "flow", .diagnostic = &d }));
 }

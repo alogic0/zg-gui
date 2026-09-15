@@ -82,6 +82,8 @@ pub fn build(b: *std.Build) void {
     const select_slot_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/select_slot.gui.html") });
     const table_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/table.gui.html") });
     const table_row_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/table_row.gui.html"), .fragment_context = .tbody });
+    const table_cells_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/table_cells.gui.html"), .fragment_context = .tr });
+    const table_slot_row_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/table_slot_row.gui.html"), .fragment_context = .tbody });
     const test_gui = b.createModule(.{ .root_source_file = b.path("src/root.zig"), .target = b.graph.host, .optimize = .debug });
     const generated_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -90,6 +92,8 @@ pub fn build(b: *std.Build) void {
             .optimize = .debug,
             .imports = &.{
                 .{ .name = "zg_gui", .module = test_gui },
+                .{ .name = "table_cells", .module = b.createModule(.{ .root_source_file = table_cells_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
+                .{ .name = "table_slot_row", .module = b.createModule(.{ .root_source_file = table_slot_row_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "radio_fixture", .module = b.createModule(.{ .root_source_file = radio_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "time_fixture", .module = b.createModule(.{ .root_source_file = time_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "link_fixture", .module = b.createModule(.{ .root_source_file = link_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
@@ -207,7 +211,7 @@ pub fn build(b: *std.Build) void {
     b.top_level_steps.get("test").?.step.dependOn(&b.addRunArtifact(demo_tests).step);
 }
 
-pub const FragmentContext = enum { flow, dl, ul, ol, thead, tbody, tfoot, select, optgroup };
+pub const FragmentContext = enum { flow, dl, ul, ol, thead, tbody, tfoot, tr, select, optgroup };
 
 pub const TemplateComponent = struct { name: []const u8, source: std.Build.LazyPath };
 

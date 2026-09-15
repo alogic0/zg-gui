@@ -388,8 +388,9 @@ repair. Default flow fragments continue to reject orphan rows and cells.
 A complete table may contain an empty `<tbody :ref="rows" :slot="$rows"></tbody>`
 (or `thead`/`tfoot`) under its explicit `table`. The consumer supplies valid row
 fragments, disjoint namespaces and composed snapshot capacity. Slots cannot
-have competing text/children, loops or conditional ownership. No table/cell
-fragment context or direct table/row slot is provided. Context is a compilation
+have competing text/children, loops or conditional ownership. An empty `tr` supports `:slot` for composed cells. Compile standalone `th`/`td`
+roots with `.fragment_context = .tr` (`--context=tr` in the CLI). Bare text and
+non-cell roots are rejected. No direct table slot is provided. Context is a compilation
 contract; it does not insert wrappers or inspect live DOM ancestry.
 
 ### Numeric layout variables
