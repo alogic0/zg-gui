@@ -511,3 +511,11 @@ remain outside the template renderer.
 on input. Null removes the attribute. Input types stay static and application
 validation owns admissible values; these bindings only project native constraints.
 All updates retain the control and its value. See request 027.
+
+### Explicit HTTPS links
+
+`<a data-external-link="true" href="$destination">Open</a>` opts into
+`template.externalLinkHref`, accepting a caller-approved HTTPS string or null
+to remove the destination. Credentials, control characters, backslashes and
+non-HTTPS schemes are rejected before publishing output. The marker is static;
+ordinary dynamic anchor hrefs still require rooted local paths. See request 028.

@@ -1050,3 +1050,28 @@ test "native field constraints retain the control and retry failed output" {
     try std.testing.expect(std.mem.indexOf(u8, output.slice(), "\trequired\t\n") != null);
     try std.testing.expect(std.mem.indexOf(u8, output.slice(), "\tmax\n") != null);
 }
+
+test "explicit external links escape, reject unsafe destinations and remove href" {
+    const template = @import("external_link");
+    const Projection = gui.Projection(template.snapshot_capacity);
+    var bytes: [2048]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var before = Projection.Snapshot{};
+    var after = Projection.Snapshot{};
+    var p = Projection{ .html = &html, .next = &before };
+    template.project(&p, .{ .href = "https://example.test/?a=1&b=2" });
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "?a=1&amp;b=2") != null);
+    html.len = 0;
+    var writer = gui.patch.Writer{ .output = &html };
+    p = .{ .html = &html, .next = &after, .previous = &before, .patches = &writer, .writing = false };
+    template.project(&p, .{ .href = @as(?[]const u8, null) });
+    try std.testing.expectEqualStrings(std.fmt.comptimePrint("R\t{d}\thref\n", .{template.nodes.link}), html.slice());
+    for ([_][]const u8{ "", "http://example.test", "//example.test", "javascript:alert(1)", "https://u:p@example.test", "https://example.test/\n" }) |value| {
+        html = .{ .buffer = &bytes };
+        before = .{};
+        p = .{ .html = &html, .next = &before };
+        template.project(&p, .{ .href = value });
+        try std.testing.expect(html.failed);
+    }
+}

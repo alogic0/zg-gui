@@ -109,6 +109,20 @@ pub fn attribute(p: anytype, comptime name: []const u8, input: anytype) void {
 }
 
 /// Checked same-origin route URL; encode characters outside this ASCII subset.
+/// HTTPS destinations require explicit template opt-in and caller approval.
+pub fn externalLinkHref(p: anytype, input: anytype) void {
+    if (@typeInfo(@TypeOf(input.value)) == .optional) {
+        if (input.value) |value| externalLinkHref(p, .{ .node = input.node, .value = value }) else p.attr(.{ .node = input.node, .name = "href", .value = null });
+        return;
+    }
+    const value: []const u8 = input.value;
+    if (!std.mem.startsWith(u8, value, "https://") or !validImageSource(value)) {
+        p.html.failed = true;
+        return;
+    }
+    p.attr(.{ .node = input.node, .name = "href", .value = value });
+}
+
 pub fn linkHref(p: anytype, input: anytype) void {
     const value: []const u8 = input.value;
     if (value.len == 0 or value[0] != '/' or std.mem.startsWith(u8, value, "//")) {

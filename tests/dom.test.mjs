@@ -359,3 +359,23 @@ test('native constraints preserve a focused input and its draft', async () => {
     }), true);
   } finally { await browser?.close(); await server.close(); }
 });
+
+test('external link updates retain the link and focused sibling', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage(); await page.goto(server.url + '/dom.js');
+    assert.equal(await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const dom = createDomHost({ root });
+      dom.initialize('<a data-node-id="1" data-external-link="true">Open</a><input value="draft">');
+      const link = root.firstChild, input = root.lastChild; input.focus();
+      dom.applyPatchStream('A\t1\thref\thttps://example.test/?a=1&b=2\n');
+      if (link.getAttribute('href') !== 'https://example.test/?a=1&b=2') return false;
+      dom.applyPatchStream('R\t1\thref\n');
+      return link === root.firstChild && !link.hasAttribute('href') && input === document.activeElement && input.value === 'draft';
+    }), true);
+  } finally { await browser?.close(); await server.close(); }
+});
