@@ -274,7 +274,7 @@ const Compiler = struct {
             }
         }
         if (c.attr(.{ .idx = input.idx, .name = ":slot" })) |a| {
-            if (!oneOf(tag_name, "div section nav dl dd ul ol thead tbody tfoot select optgroup") or has_text or (has_value and !std.mem.eql(u8, tag_name, "select")) or has_if or has_loop or
+            if (!oneOf(tag_name, "div section aside nav dl dd ul ol thead tbody tfoot select optgroup") or has_text or (has_value and !std.mem.eql(u8, tag_name, "select")) or has_if or has_loop or
                 std.mem.trim(u8, c.input.source[node.tag.span.end..node.close_start], " \t\r\n").len != 0)
                 return c.reject(a.name.start, ":slot requires an empty flow, list, table-section or select container with no other child owner");
         }

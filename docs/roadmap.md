@@ -73,3 +73,5 @@ separate requests; invocation within keyed loops is not yet supported. Follow th
 - Delivered [local link bindings](requests/017-local-link-bindings.md).
 
 - Delivered [description-list slots](requests/018-description-list-slots.md).
+
+- [Aside child slots](requests/019-aside-slots.md): provider verified; consumer adoption remains separate.
