@@ -385,3 +385,20 @@ fragments, disjoint namespaces and composed snapshot capacity. Slots cannot
 have competing text/children, loops or conditional ownership. No table/cell
 fragment context or direct table/row slot is provided. Context is a compilation
 contract; it does not insert wrappers or inspect live DOM ancestry.
+
+### Integer layout variables
+
+Use `<div :style-vars="$layout"></div>` with a fixed struct such as
+`.{ .@"--row-gap" = @as(u32, 24), .@"--offset" = @as(i32, -2) }`.
+The compiler reserves one snapshot entry; the public `template.styleVariables`
+binding emits a complete `data-style-vars` attribute before publication. Names
+must match `--[a-z][a-z0-9-]*`, fit 64 bytes, and number 1–16. Values must be
+integers representable as i64; overflow fails the projection. The schema is fixed
+for an element across updates: supply every property each time. Optional removal,
+units, floats, strings and runtime names are unsupported. CSS can convert these
+unitless values to lengths with `calc(var(--row-gap) * 1px)`.
+
+Raw dynamic `data-style-vars` stays reserved and cannot coexist with this
+directive. Ordinary `data-scroll-top` binding already supplies scroll positions;
+consumers must admit nonnegative integer pixels up to 16,777,216, as required by
+the host. Windowing and focus policy remain consumer-owned.

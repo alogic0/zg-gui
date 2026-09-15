@@ -449,3 +449,40 @@ test "generated drag eligibility preserves enumerated values and leaf ownership"
     drag.project(&p, .{ .drag = @as(?[]const u8, "true") });
     try std.testing.expect(output.failed);
 }
+
+test "integer layout variables update leaves and reject overflow or short output" {
+    const template = @import("style_fixture");
+    const LayoutProjection = gui.Projection(template.snapshot_capacity);
+    var bytes: [2048]u8 = undefined;
+    var scratch_bytes: [2048]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var scratch = gui.html.Writer{ .buffer = &scratch_bytes };
+    var before = LayoutProjection.Snapshot{};
+    var p = LayoutProjection{ .html = &html, .next = &before };
+    template.project(&p, .{ .layout = .{ .@"--gap" = @as(i64, -12), .@"--extent" = @as(u64, 200) } });
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "data-style-vars=\"--gap:-12;--extent:200\"") != null);
+    try std.testing.expectEqual(template.snapshot_capacity, before.len);
+    var after = LayoutProjection.Snapshot{};
+    html.len = 0;
+    var writer = gui.patch.Writer{ .output = &html };
+    p = .{ .html = &scratch, .patches = &writer, .previous = &before, .next = &after, .writing = false };
+    template.project(&p, .{ .layout = .{ .@"--gap" = @as(i64, 0), .@"--extent" = @as(u64, 400) } });
+    var expected: [128]u8 = undefined;
+    try std.testing.expectEqualStrings(try std.fmt.bufPrint(&expected, "A\t{d}\tdata-style-vars\t--gap:0;--extent:400\n", .{template.nodes.spacer}), html.slice());
+    var tiny: [1]u8 = undefined;
+    var limited = gui.html.Writer{ .buffer = &tiny };
+    var limited_writer = gui.patch.Writer{ .output = &limited };
+    p.patches = &limited_writer;
+    after = .{};
+    template.project(&p, .{ .layout = .{ .@"--gap" = @as(i64, 0), .@"--extent" = @as(u64, 400) } });
+    try std.testing.expect(limited.failed);
+    html.len = 0;
+    p.patches = &writer;
+    after = .{};
+    template.project(&p, .{ .layout = .{ .@"--gap" = @as(i64, 0), .@"--extent" = @as(u64, 400) } });
+    try std.testing.expectEqualStrings(try std.fmt.bufPrint(&expected, "A\t{d}\tdata-style-vars\t--gap:0;--extent:400\n", .{template.nodes.spacer}), html.slice());
+    html.len = 0;
+    template.project(&p, .{ .layout = .{ .@"--gap" = @as(i64, 0), .@"--extent" = std.math.maxInt(u64) } });
+    try std.testing.expect(scratch.failed and html.len == 0);
+}

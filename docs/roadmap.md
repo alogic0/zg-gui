@@ -56,3 +56,6 @@ Reusable components are implemented and verified in
 [request 001](requests/001-template-components.md). Further extensions remain
 separate requests; invocation within keyed loops is not yet supported. Follow the
 [provider workflow](contributing.md) for new capabilities.
+
+- [x] [Integer style-variable bindings](requests/010-integer-style-variables.md):
+  provider-verified; consumer layout and scroll policy remain separate.

@@ -32,6 +32,10 @@ test('template diagnostics preserve output and typed bindings fail at compile ti
     assert.equal(await readFile(generated, 'utf8'), 'previous successful artifact');
     const invocation = '<template :component="field" :view="$field" :ref="field"></template>';
     const cases = [
+      { html: '<div :style-vars="$layout"></div>', view: '.{ .layout = .{} }', message: /style variables require 1 to 16 fields/ },
+      { html: '<div :style-vars="$layout"></div>', view: '.{ .layout = .{ .@"--gap" = "1px" } }', message: /style variable values must be integers/ },
+      { html: '<div :style-vars="$layout"></div>', view: '.{ .layout = .{ .@"--bad;name" = @as(u32, 1) } }', message: /invalid style variable name/ },
+      { html: '<div :style-vars="$layout"></div>', view: '.{ .layout = .{ .gap = @as(u32, 1) } }', message: /style variable names must match/ },
       { html: invocation, component: '<span></span>', view: '.{}', message: /unknown binding field 'field'/ },
       { html: invocation, component: '<span></span>', view: '.{ .field = @as(u32, 1) }', message: /component input requires a struct/ },
       { html: invocation, component: '<span :text="$missing"></span>', view: '.{ .field = .{} }', message: /field\.gui\.html:1:7: unknown binding field 'missing'/ },

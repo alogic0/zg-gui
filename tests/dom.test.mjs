@@ -130,3 +130,26 @@ test('explicit radio values retain choice payload, identity and focus', async ()
     assert.deepEqual(result, { values: ['all', 'one', 'true'], retained: true, oneChecked: true, allChecked: false });
   } finally { await browser?.close(); await server.close(); }
 });
+
+test('numeric style and scroll leaves retain scroller and focused sibling', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    assert.equal(await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const css = document.createElement('style');
+      css.textContent = '.viewport{height:100px;overflow:auto}.spacer{height:calc(var(--extent)*1px)}';
+      document.head.append(css);
+      const dom = createDomHost({ root });
+      dom.initialize('<input data-node-id="1" value="draft"><div class="viewport" data-node-id="2" data-scroll-top="0"><div class="spacer" data-node-id="3" data-style-vars="--extent:400"></div></div>');
+      const input = root.firstChild, viewport = root.lastChild, spacer = viewport.firstChild;
+      input.focus();
+      dom.applyPatchStream('A\t3\tdata-style-vars\t--extent:800\nA\t2\tdata-scroll-top\t500\n');
+      return input === document.activeElement && input.value === 'draft' && viewport === root.lastChild && spacer === viewport.firstChild && spacer.getBoundingClientRect().height === 800 && viewport.scrollTop === 500;
+    }), true);
+  } finally { await browser?.close(); await server.close(); }
+});

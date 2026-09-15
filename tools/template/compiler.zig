@@ -243,7 +243,7 @@ const Compiler = struct {
                     if (!std.mem.eql(u8, tag_name, "input") or !oneOf(try c.value(type_attr), "checkbox radio")) return c.reject(a.name.start, ":checked requires a checkbox or radio");
                 } else if (std.mem.eql(u8, n, ":input")) {
                     if (!oneOf(tag_name, "input textarea select")) return c.reject(a.name.start, ":input requires input, textarea or select");
-                } else if (!std.mem.eql(u8, n, ":on-click")) {
+                } else if (!oneOf(n, ":on-click :style-vars")) {
                     return c.reject(a.name.start, "unknown GUI directive");
                 }
                 try c.binding(.{ .attr = a, .in_loop = input.in_loop });
@@ -273,6 +273,7 @@ const Compiler = struct {
         if (has_text and (is_void or has_value or has_if or has_loop or std.mem.eql(u8, tag_name, "textarea"))) return c.reject(node.tag.span.start, ":text conflicts with this element or its content owner");
         if ((has_text or (has_value and std.mem.eql(u8, tag_name, "textarea"))) and std.mem.trim(u8, c.input.source[node.tag.span.end..node.close_start], " \t\r\n").len > 0) return c.reject(node.tag.span.start, "text/value bindings require empty content");
         if ((has_if and (is_void or has_visible or has_value)) or (has_loop and (is_void or (has_value and !std.mem.eql(u8, tag_name, "select"))))) return c.reject(node.tag.span.start, "conflicting structural or visibility directives");
+        if (c.attr(.{ .idx = input.idx, .name = ":style-vars" }) != null and c.attr(.{ .idx = input.idx, .name = "data-style-vars" }) != null) return c.reject(node.tag.span.start, ":style-vars conflicts with data-style-vars");
         if (has_value and c.attr(.{ .idx = input.idx, .name = "value" }) != null) return c.reject(node.tag.span.start, ":value conflicts with value");
         if (has_value) if (c.attr(.{ .idx = input.idx, .name = "type" })) |a| {
             if (a.value != null and std.mem.eql(u8, a.value.?.span.slice(c.input.source), "file")) return c.reject(a.name.start, "file input values cannot be controlled by a template");
@@ -385,6 +386,11 @@ const Compiler = struct {
             } else if (std.mem.eql(u8, n, ":checked") or std.mem.eql(u8, n, ":visible")) {
                 c.entries += input.factor;
                 try c.code.print("p.{s}(.{{ .node = node, .value = ", .{n[1..]});
+                try c.expression(a);
+                try c.code.add(" });\n");
+            } else if (std.mem.eql(u8, n, ":style-vars")) {
+                c.entries += input.factor;
+                try c.code.add("binding.styleVariables(p, .{ .node = node, .value = ");
                 try c.expression(a);
                 try c.code.add(" });\n");
             } else if (std.mem.eql(u8, n, ":on-click") or std.mem.eql(u8, n, ":input")) {
@@ -790,4 +796,15 @@ test "radio input value mode is explicit and checked remains the default" {
         "<input type=\"radio\" data-value-format=\"unknown\" :input=\"$input\">",
         "<input type=\"radio\" data-value-format=\"$mode\" :input=\"$input\">",
     }) |source| try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "invalid-radio", .diagnostic = &d }));
+}
+
+test "style variable directive reserves one leaf and rejects competing raw attributes" {
+    var d = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{ .source = "<div :style-vars=\"$layout\"></div>", .name = "layout", .diagnostic = &d });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "binding.styleVariables") != null);
+    try std.testing.expect(std.mem.indexOf(u8, code, "snapshot_capacity: usize = 1") != null);
+    for ([_][]const u8{ "<div data-style-vars=\"$raw\"></div>", "<div :style-vars=\"$layout\" data-style-vars=\"--gap:1\"></div>" }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "layout", .diagnostic = &d }));
+    }
 }
