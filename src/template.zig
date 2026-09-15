@@ -108,7 +108,6 @@ pub fn attribute(p: anytype, comptime name: []const u8, input: anytype) void {
     p.attr(.{ .node = input.node, .name = name, .value = value });
 }
 
-/// Checked same-origin route URL; encode characters outside this ASCII subset.
 /// HTTPS destinations require explicit template opt-in and caller approval.
 pub fn externalLinkHref(p: anytype, input: anytype) void {
     if (@typeInfo(@TypeOf(input.value)) == .optional) {
@@ -123,6 +122,7 @@ pub fn externalLinkHref(p: anytype, input: anytype) void {
     p.attr(.{ .node = input.node, .name = "href", .value = value });
 }
 
+/// Checked same-origin route URL; encode characters outside this ASCII subset.
 pub fn linkHref(p: anytype, input: anytype) void {
     const value: []const u8 = input.value;
     if (value.len == 0 or value[0] != '/' or std.mem.startsWith(u8, value, "//")) {

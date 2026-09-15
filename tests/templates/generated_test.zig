@@ -1065,6 +1065,13 @@ test "explicit external links escape, reject unsafe destinations and remove href
     html.len = 0;
     var writer = gui.patch.Writer{ .output = &html };
     p = .{ .html = &html, .next = &after, .previous = &before, .patches = &writer, .writing = false };
+    var tiny: [1]u8 = undefined;
+    var limited = gui.html.Writer{ .buffer = &tiny };
+    writer.output = &limited;
+    template.project(&p, .{ .href = @as(?[]const u8, null) });
+    try std.testing.expect(limited.failed);
+    writer.output = &html;
+    after = .{};
     template.project(&p, .{ .href = @as(?[]const u8, null) });
     try std.testing.expectEqualStrings(std.fmt.comptimePrint("R\t{d}\thref\n", .{template.nodes.link}), html.slice());
     for ([_][]const u8{ "", "http://example.test", "//example.test", "javascript:alert(1)", "https://u:p@example.test", "https://example.test/\n" }) |value| {

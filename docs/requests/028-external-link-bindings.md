@@ -10,5 +10,5 @@ the destination. Caller policy still decides which destinations are allowed.
 Verify escaping, removal, rejected sources and retained link/sibling identity.
 
 Verification: `npm test` passed, including escaped hrefs, destination rejection,
-attribute removal and 23 Node/browser tests. Browser coverage preserves link
+attribute removal, failed-output retry and 23 Node/browser tests. Browser coverage preserves link
 identity and sibling focus. Destination availability was not tested.
