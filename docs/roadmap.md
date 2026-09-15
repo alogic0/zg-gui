@@ -75,3 +75,7 @@ separate requests; invocation within keyed loops is not yet supported. Follow th
 - Delivered [description-list slots](requests/018-description-list-slots.md).
 
 - [Aside child slots](requests/019-aside-slots.md): provider verified; consumer adoption remains separate.
+
+Typed integer pixel and percentage style values are delivered under
+[request 020](requests/020-style-units.md), with fixed-schema admission and
+leaf/retry verification.

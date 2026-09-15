@@ -817,3 +817,38 @@ test "aside child updates retain semantic owners and retry failed output" {
     template.project(&p, .{ .children = Children{ .text = "Retry" } });
     try std.testing.expectEqualStrings("T\t300\t\"Retry\"\n", html.slice());
 }
+
+test "dimensional style variables retain owners through changes and retry" {
+    const template = @import("style_fixture");
+    const Value = gui.template.StyleValue;
+    const Layout = struct { @"--x": Value, @"--opacity": Value, @"--count": i64 };
+    const layout = Layout{ .@"--x" = .{ .value = std.math.minInt(i64), .unit = .px }, .@"--opacity" = .{ .value = 80, .unit = .percent }, .@"--count" = std.math.maxInt(i64) };
+    const Projection = gui.Projection(template.snapshot_capacity);
+    var bytes: [4096]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var first = Projection.Snapshot{};
+    var p = Projection{ .html = &html, .next = &first };
+    template.project(&p, .{ .layout = layout });
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "--x:-9223372036854775808px;--opacity:80%;--count:9223372036854775807") != null);
+    var next = Projection.Snapshot{};
+    html.len = 0;
+    var writer = gui.patch.Writer{ .output = &html };
+    p = .{ .html = &html, .next = &next, .previous = &first, .patches = &writer, .writing = false };
+    template.project(&p, .{ .layout = Layout{ .@"--x" = .{ .value = 4, .unit = .px }, .@"--opacity" = .{ .value = 100, .unit = .percent }, .@"--count" = 0 } });
+    var expected: [256]u8 = undefined;
+    try std.testing.expectEqualStrings(try std.fmt.bufPrint(&expected, "A\t{d}\tdata-style-vars\t--x:4px;--opacity:100%;--count:0\n", .{template.nodes.spacer}), html.slice());
+    const changed = next;
+    var tiny: [1]u8 = undefined;
+    html = .{ .buffer = &tiny };
+    next = .{};
+    p = .{ .html = &html, .next = &next, .previous = &changed, .patches = &writer, .writing = false };
+    template.project(&p, .{ .layout = layout });
+    try std.testing.expect(html.failed);
+    html = .{ .buffer = &bytes };
+    next = .{};
+    template.project(&p, .{ .layout = layout });
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.startsWith(u8, html.slice(), "A\t"));
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "H\t") == null);
+}

@@ -317,13 +317,19 @@ test "slot children share failure admission and do not hide snapshot costs" {
     try std.testing.expect(html.failed);
 }
 
+/// An admitted integer with a closed CSS unit, never an arbitrary CSS string.
+pub const StyleValue = struct {
+    value: i64,
+    unit: enum { number, px, percent } = .number,
+};
+
 /// Fixed numeric custom properties, serialized completely before publication.
 pub fn styleVariables(p: anytype, input: anytype) void {
     const T = @TypeOf(input.value);
     if (@typeInfo(T) != .@"struct") @compileError("style variables require a struct of named integers");
     const fields = @typeInfo(T).@"struct".field_names;
     if (fields.len == 0 or fields.len > 16) @compileError("style variables require 1 to 16 fields");
-    var bytes: [16 * 86]u8 = undefined;
+    var bytes: [16 * 88]u8 = undefined;
     var len: usize = 0;
     inline for (fields, 0..) |name, i| {
         comptime {
@@ -331,14 +337,20 @@ pub fn styleVariables(p: anytype, input: anytype) void {
                 @compileError("style variable names must match --[a-z][a-z0-9-]* and fit 64 bytes");
             for (name[3..]) |byte| if (!(byte >= 'a' and byte <= 'z') and !(byte >= '0' and byte <= '9') and byte != '-')
                 @compileError("invalid style variable name");
-            if (@typeInfo(@FieldType(T, name)) != .int and @typeInfo(@FieldType(T, name)) != .comptime_int)
+            if (@FieldType(T, name) != StyleValue and @typeInfo(@FieldType(T, name)) != .int and @typeInfo(@FieldType(T, name)) != .comptime_int)
                 @compileError("style variable values must be integers");
         }
-        const value = std.math.cast(i64, @field(input.value, name)) orelse {
+        const field = @field(input.value, name);
+        const value = if (@TypeOf(field) == StyleValue) field.value else std.math.cast(i64, field) orelse {
             p.html.failed = true;
             return;
         };
-        const part = std.fmt.bufPrint(bytes[len..], "{s}{s}:{d}", .{ if (i == 0) "" else ";", name, value }) catch {
+        const unit = if (@TypeOf(field) == StyleValue) switch (field.unit) {
+            .number => "",
+            .px => "px",
+            .percent => "%",
+        } else "";
+        const part = std.fmt.bufPrint(bytes[len..], "{s}{s}:{d}{s}", .{ if (i == 0) "" else ";", name, value, unit }) catch {
             p.html.failed = true;
             return;
         };
