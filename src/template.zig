@@ -188,7 +188,7 @@ pub const Namespace = struct {
         if (s.first == 0 or s.count == 0 or @as(u64, s.first) + s.count - 1 > std.math.maxInt(u32)) return error.NamespaceOverflow;
         for (s.overrides, 0..) |entry, i| {
             if (entry.local == 0 or entry.local > s.count or entry.node == 0) return error.NamespaceOverflow;
-            if (s.contains(entry.node) and entry.node != s.first + entry.local - 1) return error.NamespaceOverflow;
+            if (s.contains(entry.node) and entry.node != @as(u64, s.first) + entry.local - 1) return error.NamespaceOverflow;
             for (s.overrides[0..i]) |previous| {
                 if (previous.local == entry.local or previous.node == entry.node) return error.NamespaceOverflow;
             }
@@ -226,6 +226,7 @@ pub fn validateNamespaces(comptime spaces: []const Namespace) void {
 }
 
 test "explicit identities reject ambiguous ownership" {
+    try std.testing.expectEqual(std.math.maxInt(u32), try (Namespace{ .first = std.math.maxInt(u32), .count = 1, .overrides = &.{.{ .local = 1, .node = std.math.maxInt(u32) }} }).node(1));
     const space = Namespace{ .first = 100, .count = 20, .overrides = &.{.{ .local = 2, .node = 7 }} };
     try std.testing.expectEqual(@as(u32, 7), try space.node(2));
     try std.testing.expectEqual(@as(u32, 102), try space.node(3));
