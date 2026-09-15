@@ -436,3 +436,32 @@ test('input kind patches retain the input, value, sibling and focus', async () =
     });
   } finally { if (browser) await browser.close(); await server.close(); }
 });
+
+test('object image patches require same-origin permission and retain controls', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage(); await page.goto(server.url + '/dom.js');
+    await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const dom = createDomHost({ root });
+      dom.initialize('<img data-node-id="1" data-object-image="true" alt="Preview"><input data-node-id="2" value="draft"><img data-node-id="3" alt="Ordinary">');
+      const image = root.querySelector('[data-node-id="1"]');
+      const input = root.querySelector('input'); input.focus();
+      const url = URL.createObjectURL(new Blob(['<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1"/></svg>'], { type: 'image/svg+xml' }));
+      try {
+        const loaded = new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject; });
+        dom.applyPatchStream(`A\t1\tsrc\t${url}\n`); await loaded;
+        let rejected = 0;
+        for (const [id, source] of [[3, url], [1, 'blob:https://elsewhere.test/id'], [1, 'blob:null/id']]) {
+          try { dom.applyPatchStream(`A\t${id}\tsrc\t${source}\n`); } catch { rejected++; }
+        }
+        if (rejected !== 3 || image !== root.firstElementChild || input !== document.activeElement || input.value !== 'draft' || !image.naturalWidth) throw new Error('object image permission or identity failed');
+        dom.applyPatchStream('R\t1\tsrc\n');
+        if (image.hasAttribute('src') || input !== document.activeElement) throw new Error('removal changed image or focus');
+      } finally { URL.revokeObjectURL(url); }
+    });
+  } finally { if (browser) await browser.close(); await server.close(); }
+});

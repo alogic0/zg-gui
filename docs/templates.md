@@ -541,3 +541,8 @@ password, email, tel, url, search, number, date, time, datetime-local, month and
 week. Pair it with the usual `:value` binding. The consumer selects a compatible
 kind and owns normalization; changing kind alone patches the existing attribute.
 File, checkbox, radio and submission controls retain separate static contracts.
+
+Images with `data-object-image="true"` may bind a browser-created object URL to
+`src`. Ordinary image sources retain their existing policy. The DOM host admits
+blob patches only for marked images with the current origin; consumers own URL
+provenance and revocation. Opaque blob origins are unsupported.

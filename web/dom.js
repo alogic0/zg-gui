@@ -223,8 +223,10 @@ export function createDomHost({ root, onStructure = () => {} }) {
             ? target.hasAttribute('sandbox') && (fields[3] === 'about:blank'
               || (url.origin === window.location.origin && ['http:', 'https:'].includes(url.protocol))
               || (target.getAttribute('data-external-frame') === 'true' && url.protocol === 'https:'))
-            : target instanceof window.HTMLImageElement && ['http:', 'https:'].includes(url.protocol)
-              && (url.origin === window.location.origin || target.getAttribute('data-external-image') === 'true');
+            : target instanceof window.HTMLImageElement && (
+                (['http:', 'https:'].includes(url.protocol)
+                  && (url.origin === window.location.origin || target.getAttribute('data-external-image') === 'true'))
+                || (url.protocol === 'blob:' && url.origin === window.location.origin && target.getAttribute('data-object-image') === 'true'));
           if (!allowed || url.username || url.password) {
             throw new Error("Zig source patch requires an explicitly permitted image or sandboxed frame");
           }

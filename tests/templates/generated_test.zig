@@ -1195,3 +1195,39 @@ test "typed input kind changes only the control attribute and retries output" {
     try std.testing.expect(!html.failed and !scratch.failed);
     try std.testing.expectEqualStrings("A\t601\ttype\ttext\n", html.slice());
 }
+
+test "explicit object images admit blob sources, retain leaves and retry" {
+    const template = @import("object_image").Scoped(.{ .first = 700, .count = 8 });
+    const Projection = gui.Projection(template.snapshot_capacity);
+    var bytes: [2048]u8 = undefined;
+    var scratch_bytes: [1]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var scratch = gui.html.Writer{ .buffer = &scratch_bytes };
+    var before = Projection.Snapshot{};
+    var next = Projection.Snapshot{};
+    var p = Projection{ .html = &html, .next = &before };
+    template.project(&p, .{ .source = @as(?[]const u8, null) });
+    try std.testing.expect(!html.failed);
+    var writer = gui.patch.Writer{ .output = &html };
+    p = .{ .html = &scratch, .next = &next, .previous = &before, .patches = &writer, .writing = false };
+    html = .{ .buffer = bytes[0..1] };
+    template.project(&p, .{ .source = "blob:http://localhost:4173/example" });
+    try std.testing.expect(html.failed);
+    html = .{ .buffer = &bytes };
+    next = .{};
+    template.project(&p, .{ .source = "blob:http://localhost:4173/example" });
+    try std.testing.expect(!html.failed and !scratch.failed);
+    try std.testing.expectEqualStrings("A\t701\tsrc\tblob:http://localhost:4173/example\n", html.slice());
+    for ([_][]const u8{ "blob:null/example", "blob:javascript:evil", "blob:https://u:p@example.test/id", "data:image/png,abc", "blob:https://example.test/id\n" }) |bad| {
+        html = .{ .buffer = &bytes };
+        next = .{};
+        p = .{ .html = &html, .next = &next };
+        template.project(&p, .{ .source = bad });
+        try std.testing.expect(html.failed);
+    }
+    html = .{ .buffer = &bytes };
+    next = .{};
+    p = .{ .html = &html, .next = &next };
+    gui.template.attribute(&p, "src", .{ .node = 1, .value = "blob:http://localhost:4173/example" });
+    try std.testing.expect(html.failed);
+}

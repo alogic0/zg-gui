@@ -63,6 +63,21 @@ pub fn frameSource(p: anytype, input: anytype) void {
     p.attr(.{ .node = input.node, .name = "src", .value = value });
 }
 
+/// Object URL lifecycle belongs to the caller; the DOM host enforces same-origin use.
+pub fn objectImageSource(p: anytype, input: anytype) void {
+    if (@typeInfo(@TypeOf(input.value)) == .optional) {
+        if (input.value) |value| objectImageSource(p, .{ .node = input.node, .value = value }) else p.attr(.{ .node = input.node, .name = "src", .value = null });
+        return;
+    }
+    const value: []const u8 = input.value;
+    const object = std.mem.startsWith(u8, value, "blob:http://") or std.mem.startsWith(u8, value, "blob:https://");
+    if (!(if (object) validImageSource(value[5..]) else validImageSource(value))) {
+        p.html.failed = true;
+        return;
+    }
+    p.attr(.{ .node = input.node, .name = "src", .value = value });
+}
+
 pub fn attribute(p: anytype, comptime name: []const u8, input: anytype) void {
     if (@typeInfo(@TypeOf(input.value)) == .optional) {
         if (input.value) |value| attribute(p, name, .{ .node = input.node, .value = value }) else p.attr(.{ .node = input.node, .name = name, .value = null });

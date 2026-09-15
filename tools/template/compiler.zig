@@ -317,6 +317,9 @@ const Compiler = struct {
             if (std.mem.trim(u8, c.input.source[previous..node.close_start], " \t\r\n").len != 0) return c.reject(previous, "only whitespace is allowed between structural children");
         }
         if (std.mem.eql(u8, tag_name, "select") and c.attr(.{ .idx = input.idx, .name = "multiple" }) != null) return c.reject(node.tag.span.start, "multiple selection requires a dedicated value model");
+        if (c.attr(.{ .idx = input.idx, .name = "data-object-image" })) |marker| {
+            if (!std.mem.eql(u8, tag_name, "img") or !std.mem.eql(u8, try c.value(marker), "true")) return c.reject(marker.name.start, "object images require an explicit true marker on img");
+        }
         if (has_text and (is_void or has_value or has_if or has_loop or std.mem.eql(u8, tag_name, "textarea"))) return c.reject(node.tag.span.start, ":text conflicts with this element or its content owner");
         if ((has_text or (has_value and std.mem.eql(u8, tag_name, "textarea"))) and std.mem.trim(u8, c.input.source[node.tag.span.end..node.close_start], " \t\r\n").len > 0) return c.reject(node.tag.span.start, "text/value bindings require empty content");
         if ((has_if and (is_void or has_visible or has_value)) or (has_loop and (is_void or (has_value and !std.mem.eql(u8, tag_name, "select"))))) return c.reject(node.tag.span.start, "conflicting structural or visibility directives");
@@ -476,6 +479,10 @@ const Compiler = struct {
                     try c.code.add(" });\n");
                 } else if (std.mem.eql(u8, tag_name, "input") and std.mem.eql(u8, n, "type")) {
                     try c.code.add("binding.inputType(p, .{ .node = node, .value = ");
+                    try c.expression(a);
+                    try c.code.add(" });\n");
+                } else if (std.mem.eql(u8, tag_name, "img") and std.mem.eql(u8, n, "src") and c.attr(.{ .idx = input.idx, .name = "data-object-image" }) != null) {
+                    try c.code.add("binding.objectImageSource(p, .{ .node = node, .value = ");
                     try c.expression(a);
                     try c.code.add(" });\n");
                 } else if (std.mem.eql(u8, tag_name, "iframe") and std.mem.eql(u8, n, "src")) {
@@ -1086,5 +1093,12 @@ test "dynamic input types compile through the finite kind binding" {
     try std.testing.expect(std.mem.indexOf(u8, code, "binding.inputType") != null);
     for ([_][]const u8{ "<button type=\"$kind\"></button>", "<input type=\"$kind\" :checked=\"$checked\">" }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad-input", .diagnostic = &diagnostic }));
+    }
+}
+
+test "object image permission must be explicit and static" {
+    var d = Diagnostic{};
+    for ([_][]const u8{ "<img data-object-image=\"$permission\" src=\"$source\">", "<img data-object-image=\"false\" src=\"$source\">", "<iframe data-object-image=\"true\" src=\"$source\"></iframe>" }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad-image", .diagnostic = &d }));
     }
 }

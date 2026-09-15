@@ -60,3 +60,6 @@ tune to an unstated budget.
 
 Dynamic input kinds use the finite `template.InputType` contract (request 032).
 Keep file and checked-input ownership separate from form-value controls.
+
+Object image sources require explicit template and DOM permission (request 033).
+Callers retain creation/revocation ownership; ordinary image policy is unchanged.

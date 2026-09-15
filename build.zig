@@ -71,6 +71,7 @@ pub fn build(b: *std.Build) void {
     const aside_slot_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/aside_slot.gui.html") });
     const list_item_slot_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/list_item_slot.gui.html") });
     const native_constraints_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/native_constraints.gui.html") });
+    const object_image_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/object_image.gui.html") });
     const input_type_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/input_type.gui.html") });
     const navigation_link_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/navigation_link.gui.html") });
     const external_link_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/external_link.gui.html") });
@@ -108,6 +109,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "aside_slot", .module = b.createModule(.{ .root_source_file = aside_slot_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "list_item_slot", .module = b.createModule(.{ .root_source_file = list_item_slot_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "native_constraints", .module = b.createModule(.{ .root_source_file = native_constraints_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
+                .{ .name = "object_image", .module = b.createModule(.{ .root_source_file = object_image_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "input_type", .module = b.createModule(.{ .root_source_file = input_type_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "navigation_link", .module = b.createModule(.{ .root_source_file = navigation_link_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "external_link", .module = b.createModule(.{ .root_source_file = external_link_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
