@@ -62,3 +62,6 @@ separate requests; invocation within keyed loops is not yet supported. Follow th
 
 - [x] [Image source bindings](requests/011-image-source-bindings.md): provider-verified;
   URL provenance and external-image permission remain consumer responsibilities.
+
+- [x] [Description-value child slots](requests/012-description-value-slots.md):
+  provider verified; consumers own the value content and its snapshot capacity.

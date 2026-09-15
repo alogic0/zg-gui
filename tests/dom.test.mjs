@@ -176,3 +176,26 @@ test('image source updates retain image and focused sibling', async () => {
     }), true);
   } finally { await browser?.close(); await server.close(); }
 });
+
+test('description value child updates retain semantic owners and sibling focus', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    assert.equal(await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const dom = createDomHost({ root });
+      dom.initialize('<dl data-node-id="1"><dt data-node-id="2">Value</dt><dd data-node-id="3"><span data-node-id="4">Before</span></dd><dt>Draft</dt><dd><input data-node-id="5" value="keep"></dd></dl>');
+      const list = root.firstChild, term = list.firstChild, value = list.querySelector('dd'), text = value.firstChild, peer = list.querySelector('input');
+      peer.focus(); peer.setSelectionRange(1, 3);
+      dom.applyPatchStream('T\t4\t"After"\n');
+      return root.firstChild === list && list.firstChild === term && value.isConnected
+        && value.firstChild === text && text.textContent === 'After'
+        && peer === document.activeElement && peer.value === 'keep'
+        && peer.selectionStart === 1 && peer.selectionEnd === 3;
+    }), true);
+  } finally { await browser?.close(); await server.close(); }
+});
