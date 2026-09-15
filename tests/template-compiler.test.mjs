@@ -109,3 +109,22 @@ test('table row contexts preserve output after invalid structure or context', as
     assert.equal(await readFile(generated,'utf8'),accepted);
   } finally {for(const file of await readdir(directory))await unlink(join(directory,file));await rmdir(directory);}
 });
+
+test('navigation slot rejection preserves successful generated output', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'zg-gui-navigation-'));
+  const source = join(directory, 'navigation.gui.html'), generated = join(directory, 'navigation.zig');
+  try {
+    await writeFile(source, '<nav aria-label="Sections" :slot="$children"></nav>');
+    const result = spawnSync(compiler, [source, generated], {encoding:'utf8'});
+    assert.equal(result.status, 0, result.stderr);
+    const accepted = await readFile(generated, 'utf8');
+    for (const html of ['<nav :slot="$children">text</nav>', '<nav :slot="$children"><button>Go</button></nav>', '<nav :slot="$children" :text="$label"></nav>', '<nav :slot="$children" :if="$visible"></nav>']) {
+      await writeFile(source, html);
+      assert.notEqual(spawnSync(compiler, [source, generated]).status, 0);
+      assert.equal(await readFile(generated, 'utf8'), accepted);
+    }
+  } finally {
+    for (const file of await readdir(directory)) await unlink(join(directory, file));
+    await rmdir(directory);
+  }
+});

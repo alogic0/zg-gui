@@ -244,3 +244,28 @@ test('meter changes retain a focused sibling and reject out-of-range values', as
     }), true);
   } finally { await browser?.close(); await server.close(); }
 });
+
+test('navigation leaves retain the nav, focused button and sibling selection', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    assert.equal(await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const dom = createDomHost({ root });
+      dom.initialize('<nav aria-label="Sections" data-node-id="1"><button data-node-id="2">Before</button></nav><input value="draft" data-node-id="3">');
+      const nav = root.firstChild, button = nav.firstChild, peer = root.lastChild;
+      button.focus();
+      dom.applyPatchStream('T\t2\t"After"\nA\t2\taria-current\tpage\n');
+      const buttonRetained = nav === root.firstChild && button === nav.firstChild && button === document.activeElement && button.textContent === 'After';
+      peer.focus(); peer.setSelectionRange(1, 3);
+      dom.applyPatchStream('R\t2\taria-current\n');
+      return buttonRetained && nav === root.firstChild && button === nav.firstChild && nav.isConnected
+        && peer === document.activeElement && peer.value === 'draft'
+        && peer.selectionStart === 1 && peer.selectionEnd === 3;
+    }), true);
+  } finally { await browser?.close(); await server.close(); }
+});

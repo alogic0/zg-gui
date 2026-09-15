@@ -65,3 +65,6 @@ separate requests; invocation within keyed loops is not yet supported. Follow th
 
 - [x] [Description-value child slots](requests/012-description-value-slots.md):
   provider verified; consumers own the value content and its snapshot capacity.
+
+- [x] [Semantic navigation slots](requests/015-navigation-slots.md):
+  provider verified; consumer menu behavior remains separate.

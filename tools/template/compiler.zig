@@ -274,7 +274,7 @@ const Compiler = struct {
             }
         }
         if (c.attr(.{ .idx = input.idx, .name = ":slot" })) |a| {
-            if (!oneOf(tag_name, "div section dd ul ol thead tbody tfoot select optgroup") or has_text or (has_value and !std.mem.eql(u8, tag_name, "select")) or has_if or has_loop or
+            if (!oneOf(tag_name, "div section nav dd ul ol thead tbody tfoot select optgroup") or has_text or (has_value and !std.mem.eql(u8, tag_name, "select")) or has_if or has_loop or
                 std.mem.trim(u8, c.input.source[node.tag.span.end..node.close_start], " \t\r\n").len != 0)
                 return c.reject(a.name.start, ":slot requires an empty flow, list, table-section or select container with no other child owner");
         }
@@ -889,5 +889,20 @@ test "meters require explicit integer bounds and reject invalid values" {
         "<meter min=\"0\" max=\"$maximum\" value=\"1\"></meter>",
         "<meter min=\"0\" max=\"100\"></meter>",
         "<meter min=\"0\" max=\"100\" value=\"0\"><meter min=\"0\" max=\"1\" value=\"0\"></meter></meter>",
+    }) |source| try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "invalid.gui.html", .diagnostic = &diagnostic }));
+}
+
+test "navigation slots preserve single child ownership" {
+    var diagnostic = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{ .source = "<nav aria-label=\"Sections\" :ref=\"navigation\" :visible=\"$visible\" :slot=\"$children\"></nav>", .name = "navigation.gui.html", .diagnostic = &diagnostic });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "projectSlot") != null);
+    for ([_][]const u8{
+        "<nav :slot=\"$children\">text</nav>",
+        "<nav :slot=\"$children\"><button>Child</button></nav>",
+        "<nav :slot=\"$children\" :text=\"$label\"></nav>",
+        "<nav :slot=\"$children\" :value=\"$value\"></nav>",
+        "<nav :slot=\"$children\" :if=\"$visible\"></nav>",
+        "<nav :slot=\"$children\" :loop=\"$items\" :key=\"id\" :limit=\"2\"></nav>",
     }) |source| try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "invalid.gui.html", .diagnostic = &diagnostic }));
 }
