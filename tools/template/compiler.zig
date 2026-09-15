@@ -259,7 +259,7 @@ const Compiler = struct {
             } else {
                 if (!(attributeName(n) or (isSvg(tag_name) and oneOf(n, "viewBox preserveAspectRatio"))) or std.mem.startsWith(u8, n, "on") or oneOf(n, "data-node-id data-event data-input-kind data-select-value")) return c.reject(a.name.start, "reserved or unsupported attribute name");
                 if (a.value) |v| if (std.mem.startsWith(u8, v.span.slice(c.input.source), "$")) {
-                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (std.mem.eql(u8, tag_name, "use") and std.mem.eql(u8, n, "href")) or (std.mem.eql(u8, tag_name, "img") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter") and std.mem.eql(u8, n, "value")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
+                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (std.mem.eql(u8, tag_name, "img") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter") and std.mem.eql(u8, n, "value")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
                     try c.binding(.{ .attr = a, .in_loop = input.in_loop });
                 };
             }
@@ -418,7 +418,11 @@ const Compiler = struct {
                 try c.code.add(" });\n");
             } else if (a.value != null and std.mem.startsWith(u8, a.value.?.span.slice(c.input.source), "$")) {
                 c.entries += input.factor;
-                if (std.mem.eql(u8, tag_name, "meter") and std.mem.eql(u8, n, "value")) {
+                if (std.mem.eql(u8, tag_name, "a") and std.mem.eql(u8, n, "href")) {
+                    try c.code.add("binding.linkHref(p, .{ .node = node, .value = ");
+                    try c.expression(a);
+                    try c.code.add(" });\n");
+                } else if (std.mem.eql(u8, tag_name, "meter") and std.mem.eql(u8, n, "value")) {
                     const bounds = try c.meterBounds(input.idx);
                     try c.code.print("binding.meterValue(p, .{{ .node = node, .min = {d}, .max = {d}, .value = ", .{ bounds.min, bounds.max });
                     try c.expression(a);

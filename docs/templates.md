@@ -446,3 +446,11 @@ Unmapped nodes retain normal range placement. The entire range stays reserved;
 only a slot's own default ID is allowed as an in-range override. Invalid maps
 fail before generated output. Include all composed scopes in
 `template.validateNamespaces` to reject cross-scope collisions.
+
+### Local route links
+
+`<a href="$path">` binds a root-relative path, query and fragment through
+`template.linkHref`. Allowed characters are ASCII letters, digits and
+`/._-~?&=%+#`; percent-encode other content in the consumer. Empty paths,
+protocols, `//` prefixes, backslashes, whitespace and markup fail the candidate.
+SVG `use href` retains its separate sprite-fragment contract.

@@ -716,3 +716,22 @@ test "mapped component refs and leaf patches retain external identities" {
     source.projectAt(&p, model, .{ .first = 800, .count = 100, .overrides = &.{.{ .local = 1, .node = 801 }} });
     try std.testing.expect(html.failed and html.len == 0 and next.len == 0);
 }
+
+test "generated local links escape query attributes and patch the anchor alone" {
+    const component = @import("link_fixture");
+    const CP = gui.Projection(component.snapshot_capacity);
+    var bytes: [2048]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var previous = CP.Snapshot{};
+    var p = CP{ .html = &html, .next = &previous };
+    component.project(&p, .{ .path = "/items?q=a&sort=b#row", .label = "Items" });
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "q=a&amp;sort=b") != null);
+    html.len = 0;
+    var writer = gui.patch.Writer{ .output = &html };
+    var scratch = gui.html.Writer{ .buffer = &.{} };
+    var next = CP.Snapshot{};
+    p = .{ .html = &scratch, .patches = &writer, .previous = &previous, .next = &next, .writing = false };
+    component.project(&p, .{ .path = "/items/2", .label = "Items" });
+    try std.testing.expectEqualStrings(std.fmt.comptimePrint("A\t{d}\thref\t/items/2\n", .{component.nodes.link}), html.slice());
+}

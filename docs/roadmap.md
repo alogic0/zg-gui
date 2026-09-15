@@ -70,3 +70,4 @@ separate requests; invocation within keyed loops is not yet supported. Follow th
   provider verified; consumer menu behavior remains separate.
 
 - Delivered [explicit template identities](requests/016-template-identities.md).
+- Delivered [local link bindings](requests/017-local-link-bindings.md).

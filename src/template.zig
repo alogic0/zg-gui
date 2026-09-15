@@ -93,6 +93,33 @@ pub fn attribute(p: anytype, comptime name: []const u8, input: anytype) void {
     p.attr(.{ .node = input.node, .name = name, .value = value });
 }
 
+/// Checked same-origin route URL; encode characters outside this ASCII subset.
+pub fn linkHref(p: anytype, input: anytype) void {
+    const value: []const u8 = input.value;
+    if (value.len == 0 or value[0] != '/' or std.mem.startsWith(u8, value, "//")) {
+        p.html.failed = true;
+        return;
+    }
+    for (value) |byte| if (!(std.ascii.isAlphanumeric(byte) or std.mem.indexOfScalar(u8, "/._-~?&=%+#", byte) != null)) {
+        p.html.failed = true;
+        return;
+    };
+    p.attr(.{ .node = input.node, .name = "href", .value = value });
+}
+
+test "local links reject external and malformed references before writing" {
+    const gui = @import("root.zig");
+    const P = gui.Projection(1);
+    var bytes: [256]u8 = undefined;
+    for ([_][]const u8{ "", "https://example.test", "//example.test/x", "/\\example.test", "javascript:alert(1)", "/bad\npath", "/bad path", "/bad<path" }) |value| {
+        var html = gui.html.Writer{ .buffer = &bytes };
+        var snapshot = P.Snapshot{};
+        var p = P{ .html = &html, .next = &snapshot };
+        linkHref(&p, .{ .node = 1, .value = value });
+        try std.testing.expect(html.failed and html.len == 0 and snapshot.len == 0);
+    }
+}
+
 /// Bounded whole-number meter state; failure invalidates the candidate output.
 pub fn meterValue(p: anytype, input: anytype) void {
     switch (@typeInfo(@TypeOf(input.value))) {

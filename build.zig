@@ -61,6 +61,7 @@ pub fn build(b: *std.Build) void {
     const row_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/list_row.gui.html"), .fragment_context = .ul });
     const radio_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/radio.gui.html") });
     const time_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/time.gui.html") });
+    const link_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/link.gui.html") });
     const image_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/image.gui.html") });
     const style_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/style.gui.html") });
     const drag_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/drag.gui.html") });
@@ -82,6 +83,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "zg_gui", .module = test_gui },
                 .{ .name = "radio_fixture", .module = b.createModule(.{ .root_source_file = radio_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "time_fixture", .module = b.createModule(.{ .root_source_file = time_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
+                .{ .name = "link_fixture", .module = b.createModule(.{ .root_source_file = link_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "image_fixture", .module = b.createModule(.{ .root_source_file = image_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "style_fixture", .module = b.createModule(.{ .root_source_file = style_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "drag_fixture", .module = b.createModule(.{ .root_source_file = drag_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
