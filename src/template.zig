@@ -148,20 +148,36 @@ test "typed lookup follows view fields and preserves borrowed strings" {
     try std.testing.expectEqualStrings("name", get(view, "user.name", "test"));
 }
 
-/// One admitted DOM ID range. Instantiate generated templates with disjoint ranges.
+/// A reserved DOM ID range with optional explicitly owned external identities.
 pub const Namespace = struct {
     first: u32 = 1,
     count: u32 = std.math.maxInt(u32),
+    overrides: []const Override = &.{},
+    pub const Override = struct { local: u32, node: u32 };
+    fn contains(s: Namespace, id: u32) bool {
+        return id >= s.first and @as(u64, id) < @as(u64, s.first) + s.count;
+    }
+    pub fn check(s: Namespace) error{NamespaceOverflow}!void {
+        if (s.first == 0 or s.count == 0 or @as(u64, s.first) + s.count - 1 > std.math.maxInt(u32)) return error.NamespaceOverflow;
+        for (s.overrides, 0..) |entry, i| {
+            if (entry.local == 0 or entry.local > s.count or entry.node == 0) return error.NamespaceOverflow;
+            if (s.contains(entry.node) and entry.node != s.first + entry.local - 1) return error.NamespaceOverflow;
+            for (s.overrides[0..i]) |previous| {
+                if (previous.local == entry.local or previous.node == entry.node) return error.NamespaceOverflow;
+            }
+        }
+    }
     pub fn validate(comptime s: Namespace) void {
-        if (s.first == 0 or s.count == 0 or @as(u64, s.first) + s.count - 1 > std.math.maxInt(u32))
-            @compileError("invalid template namespace range");
+        s.check() catch @compileError("invalid template namespace range or identity override");
     }
     pub fn node(s: Namespace, local: u32) error{NamespaceOverflow}!u32 {
-        if (s.first == 0 or s.count == 0 or @as(u64, s.first) + s.count - 1 > std.math.maxInt(u32) or local == 0 or local > s.count) return error.NamespaceOverflow;
-        return std.math.cast(u32, @as(u64, s.first) + local - 1) orelse error.NamespaceOverflow;
+        try s.check();
+        if (local == 0 or local > s.count) return error.NamespaceOverflow;
+        for (s.overrides) |entry| if (entry.local == local) return entry.node;
+        return @intCast(@as(u64, s.first) + local - 1);
     }
 };
-/// Validate the ranges assigned by a composing application, including handwritten owners.
+/// Validate all reserved ranges and external identities in a composition.
 pub fn validateNamespaces(comptime spaces: []const Namespace) void {
     for (spaces, 0..) |s, i| {
         s.validate();
@@ -169,8 +185,32 @@ pub fn validateNamespaces(comptime spaces: []const Namespace) void {
             if (@as(u64, s.first) < @as(u64, other.first) + other.count and
                 @as(u64, other.first) < @as(u64, s.first) + s.count)
                 @compileError("overlapping template namespaces");
+            for (s.overrides) |entry| {
+                if (other.contains(entry.node)) @compileError("overlapping template identity");
+                for (other.overrides) |previous| {
+                    if (entry.node == previous.node) @compileError("overlapping template identity");
+                }
+            }
+            for (other.overrides) |entry| {
+                if (s.contains(entry.node)) @compileError("overlapping template identity");
+            }
         }
     }
+}
+
+test "explicit identities reject ambiguous ownership" {
+    const space = Namespace{ .first = 100, .count = 20, .overrides = &.{.{ .local = 2, .node = 7 }} };
+    try std.testing.expectEqual(@as(u32, 7), try space.node(2));
+    try std.testing.expectEqual(@as(u32, 102), try space.node(3));
+    for ([_]Namespace{
+        .{ .first = 100, .count = 20, .overrides = &.{.{ .local = 0, .node = 7 }} },
+        .{ .first = 100, .count = 20, .overrides = &.{.{ .local = 21, .node = 7 }} },
+        .{ .first = 100, .count = 20, .overrides = &.{.{ .local = 2, .node = 0 }} },
+        .{ .first = 100, .count = 20, .overrides = &.{.{ .local = 2, .node = 102 }} },
+        .{ .first = 100, .count = 20, .overrides = &.{ .{ .local = 2, .node = 7 }, .{ .local = 3, .node = 7 } } },
+        .{ .first = 100, .count = 20, .overrides = &.{ .{ .local = 2, .node = 7 }, .{ .local = 2, .node = 8 } } },
+    }) |invalid| try std.testing.expectError(error.NamespaceOverflow, invalid.node(1));
+    comptime validateNamespaces(&.{ space, .{ .first = 200, .count = 20, .overrides = &.{.{ .local = 2, .node = 8 }} } });
 }
 
 test "template namespace bounds reject overflow and preserve disjoint ranges" {

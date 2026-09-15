@@ -68,3 +68,5 @@ separate requests; invocation within keyed loops is not yet supported. Follow th
 
 - [x] [Semantic navigation slots](requests/015-navigation-slots.md):
   provider verified; consumer menu behavior remains separate.
+
+- Delivered [explicit template identities](requests/016-template-identities.md).

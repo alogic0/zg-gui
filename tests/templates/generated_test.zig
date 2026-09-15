@@ -685,3 +685,34 @@ test "navigation child updates retain semantic owners and retry failed output" {
     template.project(&p, .{ .children = Children{ .text = "Retry" } });
     try std.testing.expectEqualStrings("T\t300\t\"Retry\"\n", html.slice());
 }
+
+test "mapped component refs and leaf patches retain external identities" {
+    const source = @import("components");
+    const mapped = source.Scoped(.{ .first = 800, .count = 100, .overrides = &.{.{ .local = source.nodes.@"left.input", .node = 42 }} });
+    const CP = gui.Projection(mapped.snapshot_capacity);
+    var bytes: [4096]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var previous = CP.Snapshot{};
+    var p = CP{ .html = &html, .next = &previous };
+    const Field = struct { label: []const u8, value: []const u8 };
+    var model: struct { left: Field, right: struct { field: Field } } = .{ .left = .{ .label = "Left", .value = "one" }, .right = .{ .field = .{ .label = "Right", .value = "two" } } };
+    mapped.project(&p, model);
+    try std.testing.expect(!html.failed);
+    try std.testing.expectEqual(@as(u32, 42), mapped.nodes.@"left.input");
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "data-node-id=\"42\"") != null);
+    html.len = 0;
+    var writer = gui.patch.Writer{ .output = &html };
+    var scratch = gui.html.Writer{ .buffer = &.{} };
+    var next = CP.Snapshot{};
+    p = .{ .html = &scratch, .patches = &writer, .previous = &previous, .next = &next, .writing = false };
+    model.left.value = "changed";
+    mapped.project(&p, model);
+    try std.testing.expect(!html.failed and !scratch.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "42") != null);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "H\t") == null);
+    html.len = 0;
+    next = .{};
+    p = .{ .html = &html, .next = &next };
+    source.projectAt(&p, model, .{ .first = 800, .count = 100, .overrides = &.{.{ .local = 1, .node = 801 }} });
+    try std.testing.expect(html.failed and html.len == 0 and next.len == 0);
+}

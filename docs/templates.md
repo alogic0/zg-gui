@@ -436,3 +436,13 @@ HTML failed. Floats, absent bounds and nested meters are unsupported. A valid
 change emits one value attribute patch, leaving controls and focus intact.
 The public `template.meterValue(p, .{ .node, .min, .max, .value })` binding uses
 the same checks; callers supply named integer fields and valid u32 bounds.
+
+### Preserving externally owned node identities
+
+Pass `Namespace.overrides = &.{.{ .local = source.nodes.control, .node = 42 }}`
+with a disjoint `first`/`count` range to `Scoped`, `nodesAt` or `projectAt`.
+The borrowed map uses named local refs from the unscoped generated module.
+Unmapped nodes retain normal range placement. The entire range stays reserved;
+only a slot's own default ID is allowed as an in-range override. Invalid maps
+fail before generated output. Include all composed scopes in
+`template.validateNamespaces` to reject cross-scope collisions.
