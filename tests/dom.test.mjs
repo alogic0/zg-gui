@@ -153,3 +153,26 @@ test('numeric style and scroll leaves retain scroller and focused sibling', asyn
     }), true);
   } finally { await browser?.close(); await server.close(); }
 });
+
+test('image source updates retain image and focused sibling', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.route('**/*.png', route => route.fulfill({status:204}));
+    await page.goto(server.url + '/dom.js');
+    assert.equal(await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const dom = createDomHost({ root });
+      dom.initialize('<input data-node-id="1" value="draft"><img data-node-id="2" alt="Preview" src="/one.png">');
+      const input = root.firstChild, image = root.lastChild;
+      input.focus();
+      dom.applyPatchStream('A\t2\tsrc\t/two.png\n');
+      if (image.getAttribute('src') !== '/two.png') return false;
+      dom.applyPatchStream('R\t2\tsrc\n');
+      return image === root.lastChild && !image.hasAttribute('src') && input === document.activeElement && input.value === 'draft';
+    }), true);
+  } finally { await browser?.close(); await server.close(); }
+});

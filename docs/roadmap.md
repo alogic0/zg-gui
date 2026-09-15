@@ -59,3 +59,6 @@ separate requests; invocation within keyed loops is not yet supported. Follow th
 
 - [x] [Integer style-variable bindings](requests/010-integer-style-variables.md):
   provider-verified; consumer layout and scroll policy remain separate.
+
+- [x] [Image source bindings](requests/011-image-source-bindings.md): provider-verified;
+  URL provenance and external-image permission remain consumer responsibilities.

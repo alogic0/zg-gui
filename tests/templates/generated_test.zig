@@ -486,3 +486,47 @@ test "integer layout variables update leaves and reject overflow or short output
     template.project(&p, .{ .layout = .{ .@"--gap" = @as(i64, 0), .@"--extent" = std.math.maxInt(u64) } });
     try std.testing.expect(scratch.failed and html.len == 0);
 }
+
+test "generated image sources escape update remove and reject unsafe values" {
+    const image = @import("image_fixture");
+    const ImageProjection = gui.Projection(image.snapshot_capacity);
+    var bytes: [2048]u8 = undefined;
+    var scratch_bytes: [2048]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var scratch = gui.html.Writer{ .buffer = &scratch_bytes };
+    var before = ImageProjection.Snapshot{};
+    var after = ImageProjection.Snapshot{};
+    var p = ImageProjection{ .html = &html, .next = &before };
+    image.project(&p, .{ .source = @as(?[]const u8, "https://images.example.test/a?x=1&y=2") });
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "x=1&amp;y=2") != null);
+    try std.testing.expectEqual(image.snapshot_capacity, before.len);
+    var writer = gui.patch.Writer{ .output = &html };
+    p = .{ .html = &scratch, .patches = &writer, .previous = &before, .next = &after, .writing = false };
+    for ([_]?[]const u8{ "/image.png", null }) |source| {
+        html.len = 0;
+        after = .{};
+        image.project(&p, .{ .source = source });
+        var expected: [128]u8 = undefined;
+        const command = if (source) |v| try std.fmt.bufPrint(&expected, "A\t{d}\tsrc\t{s}\n", .{ image.nodes.image, v }) else try std.fmt.bufPrint(&expected, "R\t{d}\tsrc\n", .{image.nodes.image});
+        try std.testing.expectEqualStrings(command, html.slice());
+    }
+    for ([_][]const u8{ "", "//outside.test/a", "javascript:alert(1)", "data:image/png,x", "https://user:pass@example.test/a", "https://example.test/\\a", "https://example.test/\nx" }) |source| {
+        html.len = 0;
+        scratch.failed = false;
+        image.project(&p, .{ .source = source });
+        try std.testing.expect(scratch.failed and html.len == 0);
+    }
+    var tiny: [1]u8 = undefined;
+    var limited = gui.html.Writer{ .buffer = &tiny };
+    writer.output = &limited;
+    scratch.failed = false;
+    after = .{};
+    image.project(&p, .{ .source = "/retry.png" });
+    try std.testing.expect(limited.failed);
+    html.len = 0;
+    writer.output = &html;
+    after = .{};
+    image.project(&p, .{ .source = "/retry.png" });
+    try std.testing.expect(!scratch.failed and std.mem.indexOf(u8, html.slice(), "/retry.png") != null);
+}

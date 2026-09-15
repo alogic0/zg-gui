@@ -402,3 +402,14 @@ Raw dynamic `data-style-vars` stays reserved and cannot coexist with this
 directive. Ordinary `data-scroll-top` binding already supplies scroll positions;
 consumers must admit nonnegative integer pixels up to 16,777,216, as required by
 the host. Windowing and focus policy remain consumer-owned.
+
+### Image sources
+
+`<img src="$source" alt="$label">` binds an image source, with optional null
+removal. One generated entry owns the source attribute. The public attribute
+binding validates values before initial markup or patches: root-relative paths
+(excluding `//`) or credential-free HTTP(S) URLs only. Empty strings, whitespace,
+controls, backslashes and other schemes are rejected. Dynamic sources on other
+elements remain unsupported. Consumers own URL provenance and must retain
+`data-external-image="true"` when external image patches are permitted; existing
+host origin checks remain in force. No image load, cache or retry policy is added.

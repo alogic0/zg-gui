@@ -250,7 +250,7 @@ const Compiler = struct {
             } else {
                 if (!(attributeName(n) or (isSvg(tag_name) and oneOf(n, "viewBox preserveAspectRatio"))) or std.mem.startsWith(u8, n, "on") or oneOf(n, "data-node-id data-event data-input-kind data-select-value")) return c.reject(a.name.start, "reserved or unsupported attribute name");
                 if (a.value) |v| if (std.mem.startsWith(u8, v.span.slice(c.input.source), "$")) {
-                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (std.mem.eql(u8, tag_name, "use") and std.mem.eql(u8, n, "href")) or (std.mem.eql(u8, tag_name, "option") and std.mem.eql(u8, n, "value")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
+                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (std.mem.eql(u8, tag_name, "use") and std.mem.eql(u8, n, "href")) or (std.mem.eql(u8, tag_name, "img") and std.mem.eql(u8, n, "src")) or (std.mem.eql(u8, tag_name, "option") and std.mem.eql(u8, n, "value")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
                     try c.binding(.{ .attr = a, .in_loop = input.in_loop });
                 };
             }
@@ -806,5 +806,15 @@ test "style variable directive reserves one leaf and rejects competing raw attri
     try std.testing.expect(std.mem.indexOf(u8, code, "snapshot_capacity: usize = 1") != null);
     for ([_][]const u8{ "<div data-style-vars=\"$raw\"></div>", "<div :style-vars=\"$layout\" data-style-vars=\"--gap:1\"></div>" }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "layout", .diagnostic = &d }));
+    }
+}
+
+test "dynamic image sources do not admit resource sources on other elements" {
+    var d = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{ .source = "<img src=\"$source\" alt=\"Preview\">", .name = "image", .diagnostic = &d });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "snapshot_capacity: usize = 1") != null);
+    for ([_][]const u8{ "<iframe src=\"$source\"></iframe>", "<script src=\"$source\"></script>", "<div src=\"$source\"></div>" }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "image", .diagnostic = &d }));
     }
 }

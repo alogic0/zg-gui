@@ -53,6 +53,13 @@ pub fn attribute(p: anytype, comptime name: []const u8, input: anytype) void {
         if (input.value) |value| attribute(p, name, .{ .node = input.node, .value = value }) else p.attr(.{ .node = input.node, .name = name, .value = null });
         return;
     }
+    if (comptime std.mem.eql(u8, name, "src")) {
+        const value: []const u8 = input.value;
+        if (!validImageSource(value)) {
+            p.html.failed = true;
+            return;
+        }
+    }
     if (comptime std.mem.eql(u8, name, "href")) {
         const value: []const u8 = input.value;
         if (std.mem.indexOfScalar(u8, value, '#') == null or std.mem.startsWith(u8, value, "//")) {
@@ -245,4 +252,15 @@ pub fn styleVariables(p: anytype, input: anytype) void {
         len += part.len;
     }
     p.attr(.{ .node = input.node, .name = "data-style-vars", .value = bytes[0..len] });
+}
+
+fn validImageSource(value: []const u8) bool {
+    if (value.len == 0) return false;
+    for (value) |byte| if (byte <= 0x20 or byte == 0x7f or byte == '\\') return false;
+    if (std.mem.startsWith(u8, value, "/")) return !std.mem.startsWith(u8, value, "//");
+    const uri = std.Uri.parse(value) catch return false;
+    return (std.mem.eql(u8, uri.scheme, "https") or std.mem.eql(u8, uri.scheme, "http")) and uri.host != null and switch (uri.host.?) {
+        .raw => |v| v.len > 0,
+        .percent_encoded => |v| v.len > 0,
+    } and uri.user == null and uri.password == null;
 }
