@@ -503,3 +503,11 @@ HTTP(S) or `about:blank`; external HTTPS also requires
 `data-external-frame="true"`. Source and visibility patches retain the frame
 object. Navigation may replace its external document, whose contents and effects
 remain outside the template renderer.
+
+### Native field constraints
+
+`required="$required"` accepts a Boolean on input, select and textarea.
+`min="$min"`, `max="$max"` and `step="$step"` accept strings, integers or null
+on input. Null removes the attribute. Input types stay static and application
+validation owns admissible values; these bindings only project native constraints.
+All updates retain the control and its value. See request 027.

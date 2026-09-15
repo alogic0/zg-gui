@@ -18,7 +18,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
   // Attribute names Zig is allowed to set through the A/R operations. Names
   // are Zig literals, so this is defense in depth: an unexpected name fails
   // the stream (and resyncs) instead of reaching setAttribute.
-  const attributePattern = /^(?:viewBox|d|fill|stroke|stroke-width|x|y|x1|x2|y1|y2|cx|cy|r|rx|ry|width|height|points|transform|id|for|class|lang|hidden|disabled|readonly|datetime|draggable|inert|role|title|href|src|alt|type|name|placeholder|autofocus|autocomplete|min|max|step|minlength|maxlength|aria-[a-z]+(?:-[a-z]+)*|data-[a-z]+(?:-[a-z]+)*)$/;
+  const attributePattern = /^(?:viewBox|d|fill|stroke|stroke-width|x|y|x1|x2|y1|y2|cx|cy|r|rx|ry|width|height|points|transform|id|for|class|lang|hidden|disabled|required|readonly|datetime|draggable|inert|role|title|href|src|alt|type|name|placeholder|autofocus|autocomplete|min|max|step|minlength|maxlength|aria-[a-z]+(?:-[a-z]+)*|data-[a-z]+(?:-[a-z]+)*)$/;
 
   function scrollPosition(value, target) {
     if (!(target instanceof window.HTMLElement) || !/^(0|[1-9][0-9]*)$/.test(value) || Number(value) > 16777216) {

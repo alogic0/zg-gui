@@ -340,3 +340,22 @@ test('sandboxed frame sources retain the document owner and sibling focus', asyn
     }), true);
   } finally { await browser?.close(); await server.close(); }
 });
+
+test('native constraints preserve a focused input and its draft', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    assert.equal(await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const dom = createDomHost({ root });
+      dom.initialize('<input data-node-id="1" type="number" value="12" max="20">');
+      const input = root.firstChild; input.focus();
+      dom.applyPatchStream('A\t1\trequired\t\nA\t1\tmin\t5\nR\t1\tmax\nA\t1\tstep\tany\n');
+      return input === root.firstChild && input === document.activeElement && input.value === '12' && input.required && input.min === '5' && input.max === '' && input.step === 'any';
+    }), true);
+  } finally { await browser?.close(); await server.close(); }
+});

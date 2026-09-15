@@ -1020,3 +1020,33 @@ test "embedded document updates remain leaves and retry failed publication" {
     try std.testing.expect(std.mem.indexOf(u8, html.slice(), "H\t") == null);
     try std.testing.expect(std.mem.indexOf(u8, html.slice(), std.fmt.comptimePrint("A\t{d}\tsrc\tabout:blank\n", .{frame.nodes.frame})) != null);
 }
+
+test "native field constraints retain the control and retry failed output" {
+    const template = @import("native_constraints");
+    const Projection = gui.Projection(template.snapshot_capacity);
+    var bytes: [2048]u8 = undefined;
+    var output = gui.html.Writer{ .buffer = &bytes };
+    var before = Projection.Snapshot{};
+    var after = Projection.Snapshot{};
+    var p = Projection{ .html = &output, .next = &before };
+    const ConstraintView = struct { value: []const u8, required: bool, min: ?[]const u8, max: ?[]const u8, step: ?[]const u8 };
+    template.project(&p, ConstraintView{ .value = "12", .required = false, .min = "0", .max = "20", .step = "1" });
+    try std.testing.expect(!output.failed);
+    var scratch_bytes: [2048]u8 = undefined;
+    var scratch = gui.html.Writer{ .buffer = &scratch_bytes };
+    var tiny: [1]u8 = undefined;
+    var limited = gui.html.Writer{ .buffer = &tiny };
+    var writer = gui.patch.Writer{ .output = &limited };
+    p = .{ .html = &scratch, .next = &after, .previous = &before, .patches = &writer, .writing = false };
+    const changed = ConstraintView{ .value = "12", .required = true, .min = "5", .max = null, .step = "any" };
+    template.project(&p, changed);
+    try std.testing.expect(limited.failed);
+    output.len = 0;
+    writer.output = &output;
+    after = .{};
+    template.project(&p, changed);
+    try std.testing.expect(!output.failed and !scratch.failed);
+    try std.testing.expect(std.mem.indexOf(u8, output.slice(), "H\t") == null);
+    try std.testing.expect(std.mem.indexOf(u8, output.slice(), "\trequired\t\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output.slice(), "\tmax\n") != null);
+}

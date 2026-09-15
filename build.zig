@@ -70,6 +70,7 @@ pub fn build(b: *std.Build) void {
     const tab_order_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/tab_order.gui.html") });
     const aside_slot_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/aside_slot.gui.html") });
     const list_item_slot_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/list_item_slot.gui.html") });
+    const native_constraints_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/native_constraints.gui.html") });
     const embedded_document_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/embedded_document.gui.html") });
     const phrasing_slot_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/phrasing_slot.gui.html") });
     const description_slot_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/description_slot.gui.html") });
@@ -99,6 +100,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "tab_order", .module = b.createModule(.{ .root_source_file = tab_order_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "aside_slot", .module = b.createModule(.{ .root_source_file = aside_slot_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "list_item_slot", .module = b.createModule(.{ .root_source_file = list_item_slot_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
+                .{ .name = "native_constraints", .module = b.createModule(.{ .root_source_file = native_constraints_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "embedded_document", .module = b.createModule(.{ .root_source_file = embedded_document_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "phrasing_slot", .module = b.createModule(.{ .root_source_file = phrasing_slot_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "description_slot", .module = b.createModule(.{ .root_source_file = description_slot_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },

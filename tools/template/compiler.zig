@@ -276,7 +276,7 @@ const Compiler = struct {
             } else {
                 if (!(attributeName(n) or (isSvg(tag_name) and oneOf(n, "viewBox preserveAspectRatio"))) or std.mem.startsWith(u8, n, "on") or oneOf(n, "data-node-id data-event data-input-kind data-select-value")) return c.reject(a.name.start, "reserved or unsupported attribute name");
                 if (a.value) |v| if (std.mem.startsWith(u8, v.span.slice(c.input.source), "$")) {
-                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (oneOf(tag_name, "img iframe") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter progress") and std.mem.eql(u8, n, "value")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
+                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (oneOf(tag_name, "img iframe") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter progress") and std.mem.eql(u8, n, "value")) or (oneOf(tag_name, "input select textarea") and std.mem.eql(u8, n, "required")) or (std.mem.eql(u8, tag_name, "input") and oneOf(n, "min max step")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
                     try c.binding(.{ .attr = a, .in_loop = input.in_loop });
                 };
             }
@@ -1016,4 +1016,14 @@ test "embedded documents require explicit policy and reject owned child content"
         "<iframe title=\"Preview\" sandbox=\"\" srcdoc=\"markup\"></iframe>",
         "<iframe title=\"Preview\" sandbox=\"\">content</iframe>",
     }) |source| try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "invalid-frame", .diagnostic = &diagnostic }));
+}
+
+test "native constraints bind only to form controls" {
+    const a = std.testing.allocator;
+    var diagnostic = Diagnostic{};
+    const code = try compile(a, .{ .source = "<input type=\"number\" required=\"$required\" min=\"$min\" max=\"$max\" step=\"$step\">", .name = "constraints", .diagnostic = &diagnostic });
+    defer a.free(code);
+    for ([_][]const u8{ "<div required=\"$required\"></div>", "<select min=\"$min\"></select>" }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(a, .{ .source = source, .name = "invalid-constraints", .diagnostic = &diagnostic }));
+    }
 }
