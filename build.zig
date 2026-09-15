@@ -191,7 +191,7 @@ pub fn build(b: *std.Build) void {
     b.top_level_steps.get("test").?.step.dependOn(&b.addRunArtifact(demo_tests).step);
 }
 
-pub const FragmentContext = enum { flow, ul, ol, thead, tbody, tfoot, select, optgroup };
+pub const FragmentContext = enum { flow, dl, ul, ol, thead, tbody, tfoot, select, optgroup };
 
 pub const TemplateComponent = struct { name: []const u8, source: std.Build.LazyPath };
 

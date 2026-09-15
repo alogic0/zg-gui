@@ -9,7 +9,7 @@ const Error = error{ OutOfMemory, InvalidTemplate };
 pub const max_source_bytes = composition.max_source_bytes;
 pub const Diagnostic = composition.Diagnostic;
 pub const Component = composition.Component;
-pub const FragmentContext = enum { flow, ul, ol, thead, tbody, tfoot, select, optgroup };
+pub const FragmentContext = enum { flow, dl, ul, ol, thead, tbody, tfoot, select, optgroup };
 pub const Input = struct {
     source: []const u8,
     name: []const u8,
@@ -143,7 +143,7 @@ const Compiler = struct {
                             if (oneOf(tag_name, "a button form meter") and std.mem.eql(u8, tag_name, ancestor)) return c.reject(tag.name.start, "nested interactive element would be repaired by the browser");
                             if (std.mem.eql(u8, ancestor, "button") and oneOf(tag_name, "a input textarea button select")) return c.reject(tag.name.start, "interactive content is not allowed inside a button");
                         }
-                        const grouped = std.mem.eql(u8, parent_name, "div") and stack.items.len >= 2 and std.mem.eql(u8, c.name(stack.items[stack.items.len - 2]), "dl");
+                        const grouped = std.mem.eql(u8, parent_name, "div") and ((stack.items.len >= 2 and std.mem.eql(u8, c.name(stack.items[stack.items.len - 2]), "dl")) or (stack.items.len == 1 and c.input.fragment_context == .dl));
                         if (grouped and !oneOf(tag_name, "dt dd")) return c.reject(tag.name.start, "description list groups require terms and descriptions");
                         if (oneOf(tag_name, "dt dd")) {
                             if (!std.mem.eql(u8, parent_name, "dl") and !grouped) return c.reject(tag.name.start, "description term/value requires a dl or its direct div group");
@@ -909,4 +909,13 @@ test "navigation slots preserve single child ownership" {
         "<nav :slot=\"$children\" :if=\"$visible\"></nav>",
         "<nav :slot=\"$children\" :loop=\"$items\" :key=\"id\" :limit=\"2\"></nav>",
     }) |source| try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "invalid.gui.html", .diagnostic = &diagnostic }));
+}
+
+test "description fragments require an explicit semantic parent" {
+    var d: Diagnostic = .{};
+    const group = "<div><dt>Label</dt><dd :text=\"$value\"></dd></div>";
+    const code = try compile(std.testing.allocator, .{ .source = group, .name = "group", .fragment_context = .dl, .diagnostic = &d });
+    defer std.testing.allocator.free(code);
+    try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = group, .name = "group", .diagnostic = &d }));
+    try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = "<p>Invalid</p>", .name = "group", .fragment_context = .dl, .diagnostic = &d }));
 }

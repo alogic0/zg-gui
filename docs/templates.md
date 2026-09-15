@@ -458,3 +458,6 @@ SVG `use href` retains its separate sprite-fragment contract.
 An empty `dl` also accepts `:slot`. Its caller supplies valid description-list
 children (term/value pairs or grouped pairs) and owns their capacity/membership.
 The list itself remains a stable generated owner.
+
+Use `.fragment_context = .dl` / `--context=dl` for standalone description-list
+children. Grouped term/value fragments require this explicit parent context.

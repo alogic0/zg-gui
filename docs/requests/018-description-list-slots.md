@@ -10,3 +10,7 @@ Verification: `npm test` passed native/generated/compiler checks and 17 Node
 tests, including description identity/focus regression coverage. The generated
 list fixture verifies escaping, leaf-only output and short-output retry.
 Consumer adoption is separate.
+
+Standalone child templates also require explicit `.fragment_context = .dl` (CLI
+`--context=dl`). Admit direct terms/values and div groups, rejecting unrelated
+root elements and orphan grouped descriptions in ordinary flow context.
