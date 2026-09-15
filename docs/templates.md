@@ -304,11 +304,13 @@ projection pass. The callback receives the same typed projection or adapter as
 its parent. Use its ordinary text, attribute, visibility and structural methods;
 there is no raw-HTML binding or runtime template loader.
 
+Semantic `li` slots retain list items while callbacks own their flow-content
+children. The item must have a valid list parent, including fragment context.
 Semantic `aside` slots keep composed supplementary content as direct children.
 Semantic `nav` slots keep the caller's navigation controls as direct children;
 routing, active-item policy and keyboard behavior remain caller responsibilities.
 
-Slots require an empty `div`, `section`, `aside`, `nav`, `dl`, `dd`, `ul`, `ol`, `thead`, `tbody`, `tfoot` or single `select`, may retain their subtree through
+Slots require an empty `div`, `section`, `aside`, `nav`, `dl`, `dd`, `ul`, `ol`, `li`, `thead`, `tbody`, `tfoot` or single `select`, may retain their subtree through
 `:visible`, and cannot also own text, a condition or a loop. Slots inside loops
 or conditional subtrees are currently rejected. A select slot may also use
 `:value`; its callback owns valid option/optgroup children, while the existing

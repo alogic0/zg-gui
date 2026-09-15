@@ -291,7 +291,7 @@ const Compiler = struct {
             }
         }
         if (c.attr(.{ .idx = input.idx, .name = ":slot" })) |a| {
-            if (!oneOf(tag_name, "div section aside nav dl dd ul ol thead tbody tfoot select optgroup") or has_text or (has_value and !std.mem.eql(u8, tag_name, "select")) or has_if or has_loop or
+            if (!oneOf(tag_name, "div section aside nav dl dd ul ol li thead tbody tfoot select optgroup") or has_text or (has_value and !std.mem.eql(u8, tag_name, "select")) or has_if or has_loop or
                 std.mem.trim(u8, c.input.source[node.tag.span.end..node.close_start], " \t\r\n").len != 0)
                 return c.reject(a.name.start, ":slot requires an empty flow, list, table-section or select container with no other child owner");
         }
@@ -960,5 +960,18 @@ test "progress binds fractions and rejects invalid static contracts" {
         "<progress max=\"100\" value=\"0\"><progress max=\"1\" value=\"0\"></progress></progress>",
     }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "invalid.gui.html", .diagnostic = &diagnostic }));
+    }
+}
+
+test "list-item slots retain list context and reject competing children" {
+    var diagnostic = Diagnostic{};
+    const a = std.testing.allocator;
+    for ([_][]const u8{ "<ul><li :slot=\"$body\"></li></ul>", "<ol><li :visible=\"$visible\" :slot=\"$body\"></li></ol>" }) |source| {
+        const code = try compile(a, .{ .source = source, .name = "list.gui.html", .diagnostic = &diagnostic });
+        defer a.free(code);
+        try std.testing.expect(std.mem.indexOf(u8, code, "binding.projectSlot") != null);
+    }
+    for ([_][]const u8{ "<ul><li :slot=\"$body\">text</li></ul>", "<ul><li :slot=\"$body\"><button>Run</button></li></ul>", "<ul><li :slot=\"$body\" :text=\"$text\"></li></ul>", "<ul><li :slot=\"$body\" :if=\"$visible\"></li></ul>" }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(a, .{ .source = source, .name = "invalid.gui.html", .diagnostic = &diagnostic }));
     }
 }
