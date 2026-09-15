@@ -290,3 +290,26 @@ test('roving tab index leaves retain both controls and current focus', async () 
     }), true);
   } finally { await browser?.close(); await server.close(); }
 });
+
+test('fractional progress changes retain a focused sibling and reject out-of-range values', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage(); await page.goto(server.url + '/dom.js');
+    assert.equal(await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const host = createDomHost({ root });
+      host.initialize('<section><progress data-node-id="1" max="100" value="0.25"></progress><input value="draft"></section>');
+      const panel = root.firstElementChild, meter = panel.firstElementChild, peer = panel.lastElementChild;
+      peer.focus(); peer.setSelectionRange(1, 3);
+      host.applyPatchStream('A\t1\tvalue\t99.75\n');
+      let rejected = 0;
+      for (const value of ['-1', '101', 'NaN', 'Infinity']) {
+        try { host.applyPatchStream('A\t1\tvalue\t' + value + '\n'); } catch { rejected++; }
+      }
+      return rejected === 4 && meter.value === 99.75 && root.firstElementChild === panel && panel.firstElementChild === meter && document.activeElement === peer && peer.selectionStart === 1 && peer.selectionEnd === 3;
+    }), true);
+  } finally { await browser?.close(); await server.close(); }
+});

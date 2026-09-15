@@ -145,6 +145,26 @@ pub fn meterValue(p: anytype, input: anytype) void {
     attribute(p, "value", .{ .node = input.node, .value = value });
 }
 
+/// Finite determinate progress; callers own task state and admission.
+pub fn progressValue(p: anytype, input: anytype) void {
+    const value: f64 = switch (@typeInfo(@TypeOf(input.value))) {
+        .float, .comptime_float => @floatCast(input.value),
+        .int, .comptime_int => @floatFromInt(input.value),
+        else => @compileError("progress values must be numbers"),
+    };
+    const max: f64 = @floatFromInt(input.max);
+    if (!std.math.isFinite(value) or !std.math.isFinite(max) or max <= 0 or value < 0 or value > max) {
+        p.html.failed = true;
+        return;
+    }
+    var bytes: [512]u8 = undefined;
+    const text_value = std.fmt.bufPrint(&bytes, "{d}", .{if (value == 0) @as(f64, 0) else value}) catch {
+        p.html.failed = true;
+        return;
+    };
+    p.attr(.{ .node = input.node, .name = "value", .value = text_value });
+}
+
 pub fn event(p: anytype, comptime name: []const u8, input: anytype) void {
     if (@typeInfo(@TypeOf(input.value)) != .@"enum") @compileError("template actions and input kinds must be enum values");
     const value = std.math.cast(u32, @backingInt(input.value)) orelse {

@@ -464,3 +464,13 @@ The list itself remains a stable generated owner.
 
 Use `.fragment_context = .dl` / `--context=dl` for standalone description-list
 children. Grouped term/value fragments require this explicit parent context.
+
+### Determinate progress
+
+`<progress max="100" value="$level"></progress>` accepts finite integer or
+floating-point levels between zero and its static positive integer maximum.
+The compiler rejects missing/dynamic maxima, missing values, invalid static
+values, block children and nested progress. Runtime bindings reject nonfinite
+or out-of-range values before recording the leaf; they never clamp task state.
+The host validates and applies the ordinary value attribute while retaining DOM
+identity. Indeterminate progress and dynamic maxima are not supported.

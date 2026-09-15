@@ -132,15 +132,15 @@ const Compiler = struct {
                         stack.items.len -= 1;
                     },
                     .start, .start_self => {
-                        if (!oneOf(tag_name, "main header footer section article aside nav div p span h1 h2 h3 h4 h5 h6 a strong em small time b i code pre br hr form fieldset legend label input textarea button output meter ul ol li dl dt dd img details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs symbol path circle ellipse rect line polyline polygon use title")) {
+                        if (!oneOf(tag_name, "main header footer section article aside nav div p span h1 h2 h3 h4 h5 h6 a strong em small time b i code pre br hr form fieldset legend label input textarea button output meter progress ul ol li dl dt dd img details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs symbol path circle ellipse rect line polyline polygon use title")) {
                             return c.reject(tag.name.start, "unsupported element; use the documented HTML fragment subset");
                         }
                         if (tag.kind == .start_self and !tag.isVoid(c.input.source, .html) and !isSvg(tag_name)) return c.reject(tag.span.start, "non-void HTML elements require an explicit closing tag");
                         const parent_name = if (stack.items.len > 0) c.name(stack.items[stack.items.len - 1]) else if (c.input.fragment_context == .flow) "" else @tagName(c.input.fragment_context);
                         for (stack.items) |parent| {
                             const ancestor = c.name(parent);
-                            if (!isSvg(parent_name) and oneOf(ancestor, "p h1 h2 h3 h4 h5 h6 meter") and !isPhrasing(tag_name)) return c.reject(tag.name.start, "block content would implicitly close a phrasing-only ancestor");
-                            if (oneOf(tag_name, "a button form meter") and std.mem.eql(u8, tag_name, ancestor)) return c.reject(tag.name.start, "nested interactive element would be repaired by the browser");
+                            if (!isSvg(parent_name) and oneOf(ancestor, "p h1 h2 h3 h4 h5 h6 meter progress") and !isPhrasing(tag_name)) return c.reject(tag.name.start, "block content would implicitly close a phrasing-only ancestor");
+                            if (oneOf(tag_name, "a button form meter progress") and std.mem.eql(u8, tag_name, ancestor)) return c.reject(tag.name.start, "nested interactive element would be repaired by the browser");
                             if (std.mem.eql(u8, ancestor, "button") and oneOf(tag_name, "a input textarea button select")) return c.reject(tag.name.start, "interactive content is not allowed inside a button");
                         }
                         const grouped = std.mem.eql(u8, parent_name, "div") and ((stack.items.len >= 2 and std.mem.eql(u8, c.name(stack.items[stack.items.len - 2]), "dl")) or (stack.items.len == 1 and c.input.fragment_context == .dl));
@@ -185,6 +185,13 @@ const Compiler = struct {
         const max = std.fmt.parseInt(u32, try c.value(max_attr), 10) catch return c.reject(max_attr.name.start, "meter bounds must be static nonnegative integers");
         if (min >= max) return c.reject(max_attr.name.start, "meter maximum must exceed minimum");
         return .{ .min = min, .max = max };
+    }
+
+    fn progressMaximum(c: *Compiler, idx: usize) Error!u32 {
+        const a = c.attr(.{ .idx = idx, .name = "max" }) orelse return c.reject(c.nodes.items[idx].tag.span.start, "progress requires an explicit maximum");
+        const max = std.fmt.parseInt(u32, try c.value(a), 10) catch return c.reject(a.name.start, "progress maximum must be a static positive integer");
+        if (max == 0) return c.reject(a.name.start, "progress maximum must be positive");
+        return max;
     }
 
     fn binding(c: *Compiler, input: struct { attr: Attr, in_loop: bool }) Error!void {
@@ -259,7 +266,7 @@ const Compiler = struct {
             } else {
                 if (!(attributeName(n) or (isSvg(tag_name) and oneOf(n, "viewBox preserveAspectRatio"))) or std.mem.startsWith(u8, n, "on") or oneOf(n, "data-node-id data-event data-input-kind data-select-value")) return c.reject(a.name.start, "reserved or unsupported attribute name");
                 if (a.value) |v| if (std.mem.startsWith(u8, v.span.slice(c.input.source), "$")) {
-                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (std.mem.eql(u8, tag_name, "img") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter") and std.mem.eql(u8, n, "value")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
+                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (std.mem.eql(u8, tag_name, "img") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter progress") and std.mem.eql(u8, n, "value")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
                     try c.binding(.{ .attr = a, .in_loop = input.in_loop });
                 };
             }
@@ -271,6 +278,16 @@ const Compiler = struct {
             if (!std.mem.startsWith(u8, level_source, "$")) {
                 const level = std.fmt.parseInt(u32, level_source, 10) catch return c.reject(a.name.start, "meter value must be a bounded nonnegative integer");
                 if (level < bounds.min or level > bounds.max) return c.reject(a.name.start, "meter value exceeds its declared range");
+            }
+        }
+        if (std.mem.eql(u8, tag_name, "progress")) {
+            const max = try c.progressMaximum(input.idx);
+            if (c.attr(.{ .idx = input.idx, .name = "min" }) != null) return c.reject(node.tag.span.start, "progress has a fixed zero minimum");
+            const a = c.attr(.{ .idx = input.idx, .name = "value" }) orelse return c.reject(node.tag.span.start, "determinate progress requires an explicit value");
+            const source = try c.value(a);
+            if (!std.mem.startsWith(u8, source, "$")) {
+                const level = std.fmt.parseFloat(f64, source) catch return c.reject(a.name.start, "progress value must be finite and within range");
+                if (!std.math.isFinite(level) or level < 0 or level > @as(f64, @floatFromInt(max))) return c.reject(a.name.start, "progress value exceeds its declared range");
             }
         }
         if (c.attr(.{ .idx = input.idx, .name = ":slot" })) |a| {
@@ -422,6 +439,11 @@ const Compiler = struct {
                     try c.code.add("binding.linkHref(p, .{ .node = node, .value = ");
                     try c.expression(a);
                     try c.code.add(" });\n");
+                } else if (std.mem.eql(u8, tag_name, "progress") and std.mem.eql(u8, n, "value")) {
+                    const max = try c.progressMaximum(input.idx);
+                    try c.code.print("binding.progressValue(p, .{{ .node = node, .max = {d}, .value = ", .{max});
+                    try c.expression(a);
+                    try c.code.add(" });\n");
                 } else if (std.mem.eql(u8, tag_name, "meter") and std.mem.eql(u8, n, "value")) {
                     const bounds = try c.meterBounds(input.idx);
                     try c.code.print("binding.meterValue(p, .{{ .node = node, .min = {d}, .max = {d}, .value = ", .{ bounds.min, bounds.max });
@@ -558,7 +580,7 @@ fn dashedName(value: []const u8) bool {
     return true;
 }
 fn isPhrasing(name: []const u8) bool {
-    return oneOf(name, "span a strong em small time b i code br label input textarea button output meter img select svg");
+    return oneOf(name, "span a strong em small time b i code br label input textarea button output meter progress img select svg");
 }
 
 test "compiler preserves literal whitespace and entities and emits leaf bindings" {
@@ -918,4 +940,25 @@ test "description fragments require an explicit semantic parent" {
     defer std.testing.allocator.free(code);
     try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = group, .name = "group", .diagnostic = &d }));
     try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = "<p>Invalid</p>", .name = "group", .fragment_context = .dl, .diagnostic = &d }));
+}
+
+test "progress binds fractions and rejects invalid static contracts" {
+    var diagnostic = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{ .source = "<progress max=\"100\" value=\"$level\"></progress>", .name = "progress.gui.html", .diagnostic = &diagnostic });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "binding.progressValue") != null);
+    for ([_][]const u8{
+        "<progress value=\"0\"></progress>",
+        "<progress max=\"0\" value=\"0\"></progress>",
+        "<progress max=\"$maximum\" value=\"1\"></progress>",
+        "<progress max=\"100\"></progress>",
+        "<progress max=\"100\" min=\"1\" value=\"2\"></progress>",
+        "<progress max=\"100\" value=\"101\"></progress>",
+        "<progress max=\"100\" value=\"-1\"></progress>",
+        "<progress max=\"100\" value=\"NaN\"></progress>",
+        "<progress max=\"100\" value=\"0\"><div></div></progress>",
+        "<progress max=\"100\" value=\"0\"><progress max=\"1\" value=\"0\"></progress></progress>",
+    }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "invalid.gui.html", .diagnostic = &diagnostic }));
+    }
 }

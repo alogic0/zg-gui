@@ -191,11 +191,11 @@ export function createDomHost({ root, onStructure = () => {} }) {
       const attribute = fields[2] || "";
       if (!attribute) throw new Error("Zig patch omitted an attribute name");
       if (attribute === "value") {
-        if (!(target instanceof window.HTMLOptionElement) && (operation !== "A" || !(target instanceof window.HTMLMeterElement)
+        if (!(target instanceof window.HTMLOptionElement) && (operation !== "A" || !(target instanceof window.HTMLMeterElement || target instanceof window.HTMLProgressElement)
           || !/^[0-9]+(?:\.[0-9]+)?$/.test(fields[3])
           || !Number.isFinite(Number(fields[3]))
-          || Number(fields[3]) < target.min || Number(fields[3]) > target.max)) {
-          throw new Error("Zig meter value patch requires a finite value within its declared range");
+          || Number(fields[3]) < (target instanceof window.HTMLProgressElement ? 0 : target.min) || Number(fields[3]) > target.max)) {
+          throw new Error("Zig meter/progress value patch requires a finite value within its declared range");
         }
       } else if (attribute === "tabindex") {
         if (operation === "A" && fields[3] !== "-1" && fields[3] !== "0") {

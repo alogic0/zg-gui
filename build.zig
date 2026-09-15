@@ -70,6 +70,7 @@ pub fn build(b: *std.Build) void {
     const tab_order_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/tab_order.gui.html") });
     const aside_slot_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/aside_slot.gui.html") });
     const description_slot_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/description_slot.gui.html") });
+    const progress_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/progress.gui.html") });
     const meter_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/meter.gui.html") });
     const option_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/option.gui.html"), .fragment_context = .optgroup });
     const option_group_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/option_group.gui.html"), .fragment_context = .select });
@@ -95,6 +96,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "tab_order", .module = b.createModule(.{ .root_source_file = tab_order_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "aside_slot", .module = b.createModule(.{ .root_source_file = aside_slot_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "description_slot", .module = b.createModule(.{ .root_source_file = description_slot_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
+                .{ .name = "progress", .module = b.createModule(.{ .root_source_file = progress_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "meter", .module = b.createModule(.{ .root_source_file = meter_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "option", .module = b.createModule(.{ .root_source_file = option_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "option_group", .module = b.createModule(.{ .root_source_file = option_group_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
