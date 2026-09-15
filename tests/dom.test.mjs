@@ -376,6 +376,10 @@ test('external link updates retain the link and focused sibling', async () => {
       const link = root.firstChild, input = root.lastChild; input.focus();
       dom.applyPatchStream('A\t1\thref\thttps://example.test/?a=1&b=2\n');
       if (link.getAttribute('href') !== 'https://example.test/?a=1&b=2') return false;
+      dom.applyPatchStream('A\t1\thref\thttp://example.test/plain\n');
+      if (link.getAttribute('href') !== 'http://example.test/plain') return false;
+      dom.applyPatchStream('A\t1\thref\t#section-2\n');
+      if (link.getAttribute('href') !== '#section-2') return false;
       dom.applyPatchStream('R\t1\thref\n');
       return link === root.firstChild && !link.hasAttribute('href') && input === document.activeElement && input.value === 'draft';
     }), true);

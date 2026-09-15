@@ -55,3 +55,5 @@ tune to an unstated budget.
 - [005: table fragments](requests/005-table-fragments.md)
 
 - [030: dynamic determinate progress bounds](requests/030-dynamic-progress-bounds.md)
+
+- [031: fragment anchors and explicit HTTP links](requests/031-fragment-and-http-links.md)

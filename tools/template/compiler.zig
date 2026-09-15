@@ -466,9 +466,13 @@ const Compiler = struct {
             } else if (a.value != null and std.mem.startsWith(u8, a.value.?.span.slice(c.input.source), "$")) {
                 c.entries += input.factor;
                 if (std.mem.eql(u8, tag_name, "a") and std.mem.eql(u8, n, "href")) {
-                    const external = if (c.attr(.{ .idx = input.idx, .name = "data-external-link" })) |marker| std.mem.eql(u8, try c.value(marker), "true") else false;
+                    const external = if (c.attr(.{ .idx = input.idx, .name = "data-external-link" })) |marker| oneOf(try c.value(marker), "true http") else false;
                     try c.code.add(if (external) "binding.externalLinkHref(p, .{ .node = node, .value = " else "binding.linkHref(p, .{ .node = node, .value = ");
                     try c.expression(a);
+                    if (external) {
+                        const marker = c.attr(.{ .idx = input.idx, .name = "data-external-link" }).?;
+                        if (std.mem.eql(u8, try c.value(marker), "http")) try c.code.add(", .allow_http = true");
+                    }
                     try c.code.add(" });\n");
                 } else if (std.mem.eql(u8, tag_name, "iframe") and std.mem.eql(u8, n, "src")) {
                     try c.code.add("binding.frameSource(p, .{ .node = node, .value = ");

@@ -523,3 +523,15 @@ All updates retain the control and its value. See request 027.
 to remove the destination. Credentials, control characters, backslashes and
 non-HTTPS schemes are rejected before publishing output. The marker is static;
 ordinary dynamic anchor hrefs still require rooted local paths. See request 028.
+
+### Same-document and explicitly permitted HTTP links
+
+Dynamic local `href` accepts `#section-id` as well as absolute local paths.
+Fragments use the same restricted ASCII syntax; a bare `#` is rejected.
+`data-external-link="http"` explicitly permits HTTP or HTTPS destinations through
+`externalLinkHref` with `allow_http = true`. The default marker `true` remains
+HTTPS-only. Both reject credentials, unsafe characters and other schemes before
+publishing an href. Consumers remain responsible for destination authorization.
+
+Use `template.validExternalLink(.{ .value = url, .allow_http = true })` to
+admit an optional resource before projecting it. Its default remains HTTPS-only.
