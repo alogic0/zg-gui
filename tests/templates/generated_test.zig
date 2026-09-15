@@ -336,3 +336,36 @@ test "table fragments retain owner and row controls across text patches" {
     try std.testing.expectEqual(@as(usize, 0), html.len);
     try std.testing.expectEqual(@as(usize, 0), next.len);
 }
+
+test "select slot membership updates only its options and preserves value binding" {
+    const template = @import("select_slot").Scoped(.{ .first = 100, .count = 10 });
+    const Options = struct {
+        label: []const u8,
+        pub fn project(value: @This(), p: anytype, owner: struct { node: u32 }) void {
+            const list = p.beginList(.{ .node = owner.node, .membership = value.label });
+            p.add("<option value=\"a\">");
+            p.escaped(value.label);
+            p.add("</option>");
+            p.endList(list);
+        }
+    };
+    const SP = gui.Projection(template.snapshot_capacity + 1);
+    var bytes: [2048]u8 = undefined;
+    var commands: [2048]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var output = gui.html.Writer{ .buffer = &commands };
+    var writer = gui.patch.Writer{ .output = &output };
+    var before = SP.Snapshot{};
+    var p = SP{ .html = &html, .next = &before };
+    template.project(&p, .{ .selected = "a", .options = Options{ .label = "One & two" } });
+    try std.testing.expect(!html.failed);
+    try std.testing.expectEqual(template.snapshot_capacity + 1, before.len);
+    var next = SP.Snapshot{};
+    p = .{ .html = &html, .next = &next, .previous = &before, .patches = &writer, .writing = false };
+    template.project(&p, .{ .selected = "a", .options = Options{ .label = "Three <four>" } });
+    try std.testing.expectEqualStrings(std.fmt.comptimePrint("H\t{d}\t\"<option value=\\\"a\\\">Three &lt;four&gt;</option>\"\n", .{template.nodes.select}), output.slice());
+    output = .{ .buffer = commands[0..1] };
+    next = .{};
+    template.project(&p, .{ .selected = "a", .options = Options{ .label = "Another" } });
+    try std.testing.expect(output.failed);
+}

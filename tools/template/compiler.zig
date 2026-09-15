@@ -256,9 +256,9 @@ const Compiler = struct {
             }
         }
         if (c.attr(.{ .idx = input.idx, .name = ":slot" })) |a| {
-            if (!oneOf(tag_name, "div section ul ol thead tbody tfoot") or has_text or has_value or has_if or has_loop or
+            if (!oneOf(tag_name, "div section ul ol thead tbody tfoot select") or has_text or (has_value and !std.mem.eql(u8, tag_name, "select")) or has_if or has_loop or
                 std.mem.trim(u8, c.input.source[node.tag.span.end..node.close_start], " \t\r\n").len != 0)
-                return c.reject(a.name.start, ":slot requires an empty flow, list or table-section container with no other content owner");
+                return c.reject(a.name.start, ":slot requires an empty flow, list, table-section or select container with no other child owner");
         }
         if (oneOf(tag_name, "ul ol dl table colgroup thead tbody tfoot tr select optgroup")) {
             if (has_text) return c.reject(node.tag.span.start, "this container requires structural children, not text");
@@ -732,5 +732,17 @@ test "table section fragments and slots reject implicit repair" {
     }
     for ([_][]const u8{ "<tr><td>orphan</td></tr>", "<tbody :slot=\"$rows\"></tbody>", "<table><tbody :slot=\"$rows\"><tr><td>x</td></tr></tbody></table>", "<table><tbody :slot=\"$rows\" :text=\"$label\"></tbody></table>", "<table :slot=\"$rows\"></table>" }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "table", .diagnostic = &d }));
+    }
+}
+
+test "select slots retain value ownership and reject competing children" {
+    var d = Diagnostic{};
+    for ([_][]const u8{ "<select :slot=\"$options\"></select>", "<select :value=\"$selected\" :input=\"$input\" :slot=\"$options\"></select>" }) |source| {
+        const code = try compile(std.testing.allocator, .{ .source = source, .name = "select.gui.html", .diagnostic = &d });
+        defer std.testing.allocator.free(code);
+        try std.testing.expect(std.mem.indexOf(u8, code, "binding.projectSlot") != null);
+    }
+    for ([_][]const u8{ "<select :slot=\"$options\"><option>A</option></select>", "<select :slot=\"$options\">text</select>", "<select :slot=\"$options\" :text=\"$label\"></select>", "<select :slot=\"$options\" :if=\"$visible\"></select>", "<select multiple :slot=\"$options\"></select>", "<select :loop=\"$items\" :key=\"id\" :limit=\"2\" :slot=\"$options\"></select>" }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "invalid-select.gui.html", .diagnostic = &d }));
     }
 }

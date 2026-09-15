@@ -72,3 +72,27 @@ test('table section patches retain table header row controls and focus', async (
     assert.deepEqual(result,{scalar:true,structure:true,unique:true});
   } finally {await browser?.close();await server.close();}
 });
+
+test('select option replacement retains owner focus and controlled selection', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    assert.equal(await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const dom = createDomHost({ root });
+      dom.initialize('<section data-node-id="1"><select data-node-id="2" data-select-value="b"><option value="a">A</option><option value="b">B</option></select><input data-node-id="3" value="draft"></section>');
+      const panel = root.firstChild, select = panel.querySelector('select'), peer = panel.querySelector('input');
+      select.focus();
+      dom.applyPatchStream('H\t2\t' + JSON.stringify('<option value="a">A</option>') + '\n');
+      if (select.value !== '' || document.activeElement !== select) return false;
+      dom.applyPatchStream('H\t2\t' + JSON.stringify('<option value="b">B</option><option value="c">C</option>') + '\n');
+      return root.firstChild === panel && select === panel.querySelector('select')
+        && document.activeElement === select && select.value === 'b'
+        && peer === panel.querySelector('input') && peer.value === 'draft';
+    }), true);
+  } finally { await browser?.close(); await server.close(); }
+});

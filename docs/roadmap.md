@@ -24,6 +24,8 @@ Application integration and product acceptance belong to consumers.
 - [x] Table-section slots and explicit row-fragment contexts; see
   [request 005](requests/005-table-fragments.md).
 
+- [x] Single-select child slots; see [request 006](requests/006-select-slots.md).
+
 ## Capability extensions
 
 - [x] Reusable template invocation with typed inputs, stable instance namespaces

@@ -294,9 +294,12 @@ projection pass. The callback receives the same typed projection or adapter as
 its parent. Use its ordinary text, attribute, visibility and structural methods;
 there is no raw-HTML binding or runtime template loader.
 
-Slots require an empty `div`, `section`, `ul`, `ol`, `thead`, `tbody` or `tfoot`, may retain their subtree through
+Slots require an empty `div`, `section`, `ul`, `ol`, `thead`, `tbody`, `tfoot` or single `select`, may retain their subtree through
 `:visible`, and cannot also own text, a condition or a loop. Slots inside loops
-or conditional subtrees are currently rejected. Consumer callbacks are responsible
+or conditional subtrees are currently rejected. A select slot may also use
+`:value`; its callback owns valid option/optgroup children, while the existing
+controlled-value binding owns selection. Without `:value`, selection belongs to
+the callback or host. Multiple selection remains unsupported. Consumer callbacks are responsible
 for valid child markup, disjoint descendant IDs, structural introduction/removal,
 failure propagation, and the smallest changed owner. The compiler cannot validate
 the callback's emitted children or discover its memory costs.
