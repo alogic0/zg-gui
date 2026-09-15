@@ -425,6 +425,8 @@ test('input kind patches retain the input, value, sibling and focus', async () =
       const sibling = control.nextElementSibling;
       const parent = control.parentElement;
       control.focus(); control.setSelectionRange(1, 3);
+      dom.applyPatchStream('A\t601\tdir\trtl\nA\t602\tname\tsecret\nA\t602\tautocomplete\toff\n');
+      if (parent.dir !== 'rtl' || control.name !== 'secret' || control.autocomplete !== 'off') throw new Error('metadata patch failed');
       for (const type of ['text', 'password']) {
         dom.applyPatchStream(`A\t602\ttype\t${type}\n`);
         if (control !== document.activeElement || control.parentElement !== parent ||

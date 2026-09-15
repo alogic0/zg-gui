@@ -63,3 +63,6 @@ Keep file and checked-input ownership separate from form-value controls.
 
 Object image sources require explicit template and DOM permission (request 033).
 Callers retain creation/revocation ownership; ordinary image policy is unchanged.
+
+Form controls support dynamic name/autocomplete metadata and containers support
+direction bindings (request 034). Metadata updates never copy draft values.

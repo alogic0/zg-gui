@@ -276,7 +276,7 @@ const Compiler = struct {
             } else {
                 if (!(attributeName(n) or (isSvg(tag_name) and oneOf(n, "viewBox preserveAspectRatio"))) or std.mem.startsWith(u8, n, "on") or oneOf(n, "data-node-id data-event data-input-kind data-select-value")) return c.reject(a.name.start, "reserved or unsupported attribute name");
                 if (a.value) |v| if (std.mem.startsWith(u8, v.span.slice(c.input.source), "$")) {
-                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (oneOf(tag_name, "img iframe") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter progress") and std.mem.eql(u8, n, "value")) or (std.mem.eql(u8, tag_name, "progress") and std.mem.eql(u8, n, "max")) or (oneOf(tag_name, "input select textarea") and std.mem.eql(u8, n, "required")) or (std.mem.eql(u8, tag_name, "input") and oneOf(n, "min max step type")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
+                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (oneOf(tag_name, "img iframe") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter progress") and std.mem.eql(u8, n, "value")) or (std.mem.eql(u8, tag_name, "progress") and std.mem.eql(u8, n, "max")) or (oneOf(tag_name, "input select textarea") and std.mem.eql(u8, n, "required")) or (std.mem.eql(u8, tag_name, "input") and oneOf(n, "min max step type")) or (oneOf(tag_name, "input select textarea") and oneOf(n, "name autocomplete")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
                     try c.binding(.{ .attr = a, .in_loop = input.in_loop });
                 };
             }
@@ -617,7 +617,7 @@ fn attributeName(value: []const u8) bool {
     return true;
 }
 fn dynamicAttribute(name: []const u8) bool {
-    return oneOf(name, "class lang disabled readonly autofocus inert role title placeholder alt id for datetime draggable tabindex aria-label") or
+    return oneOf(name, "class lang dir disabled readonly autofocus inert role title placeholder alt id for datetime draggable tabindex aria-label") or
         (std.mem.startsWith(u8, name, "aria-") and dashedName(name[5..])) or
         (std.mem.startsWith(u8, name, "data-") and dashedName(name[5..]) and !oneOf(name, "data-node-id data-event data-input-kind data-value-format data-text-format data-style-vars data-select-value"));
 }
@@ -1100,5 +1100,17 @@ test "object image permission must be explicit and static" {
     var d = Diagnostic{};
     for ([_][]const u8{ "<img data-object-image=\"$permission\" src=\"$source\">", "<img data-object-image=\"false\" src=\"$source\">", "<iframe data-object-image=\"true\" src=\"$source\"></iframe>" }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad-image", .diagnostic = &d }));
+    }
+}
+
+test "form metadata bindings remain scoped to form controls" {
+    var diagnostic = Diagnostic{};
+    for ([_][]const u8{ "<input name=\"$name\" autocomplete=\"$completion\">", "<select name=\"$name\"></select>", "<textarea autocomplete=\"$completion\"></textarea>", "<div dir=\"$direction\"></div>" }) |source| {
+        const code = try compile(std.testing.allocator, .{ .source = source, .name = "metadata", .diagnostic = &diagnostic });
+        defer std.testing.allocator.free(code);
+        try std.testing.expect(std.mem.indexOf(u8, code, "binding.attribute") != null);
+    }
+    for ([_][]const u8{ "<div name=\"$name\"></div>", "<span autocomplete=\"$completion\"></span>" }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad-metadata", .diagnostic = &diagnostic }));
     }
 }

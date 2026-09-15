@@ -1231,3 +1231,27 @@ test "explicit object images admit blob sources, retain leaves and retry" {
     gui.template.attribute(&p, "src", .{ .node = 1, .value = "blob:http://localhost:4173/example" });
     try std.testing.expect(html.failed);
 }
+
+test "form metadata changes only named leaves and retries output" {
+    const template = @import("form_metadata").Scoped(.{ .first = 600, .count = 8 });
+    const Projection = gui.Projection(template.snapshot_capacity);
+    var bytes: [2048]u8 = undefined;
+    var scratch_bytes: [1]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var scratch = gui.html.Writer{ .buffer = &scratch_bytes };
+    var before = Projection.Snapshot{};
+    var next = Projection.Snapshot{};
+    var p = Projection{ .html = &html, .next = &before };
+    template.project(&p, .{ .direction = "ltr", .name = "secret", .completion = @as(?[]const u8, "current-password") });
+    try std.testing.expect(!html.failed);
+    var writer = gui.patch.Writer{ .output = &html };
+    p = .{ .html = &scratch, .next = &next, .previous = &before, .patches = &writer, .writing = false };
+    html = .{ .buffer = bytes[0..1] };
+    template.project(&p, .{ .direction = "rtl", .name = "key", .completion = @as(?[]const u8, null) });
+    try std.testing.expect(html.failed);
+    html = .{ .buffer = &bytes };
+    next = .{};
+    template.project(&p, .{ .direction = "rtl", .name = "key", .completion = @as(?[]const u8, null) });
+    try std.testing.expect(!html.failed and !scratch.failed);
+    try std.testing.expectEqualStrings("A\t600\tdir\trtl\nA\t601\tname\tkey\nR\t601\tautocomplete\n", html.slice());
+}
