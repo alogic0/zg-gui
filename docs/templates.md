@@ -454,3 +454,7 @@ fail before generated output. Include all composed scopes in
 `/._-~?&=%+#`; percent-encode other content in the consumer. Empty paths,
 protocols, `//` prefixes, backslashes, whitespace and markup fail the candidate.
 SVG `use href` retains its separate sprite-fragment contract.
+
+An empty `dl` also accepts `:slot`. Its caller supplies valid description-list
+children (term/value pairs or grouped pairs) and owns their capacity/membership.
+The list itself remains a stable generated owner.

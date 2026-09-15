@@ -66,6 +66,7 @@ pub fn build(b: *std.Build) void {
     const style_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/style.gui.html") });
     const drag_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/drag.gui.html") });
     const navigation_slot_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/navigation_slot.gui.html") });
+    const description_list_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/description_list.gui.html") });
     const description_slot_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/description_slot.gui.html") });
     const meter_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/meter.gui.html") });
     const option_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/option.gui.html"), .fragment_context = .optgroup });
@@ -88,6 +89,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "style_fixture", .module = b.createModule(.{ .root_source_file = style_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "drag_fixture", .module = b.createModule(.{ .root_source_file = drag_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "navigation_slot", .module = b.createModule(.{ .root_source_file = navigation_slot_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
+                .{ .name = "description_list", .module = b.createModule(.{ .root_source_file = description_list_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "description_slot", .module = b.createModule(.{ .root_source_file = description_slot_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "meter", .module = b.createModule(.{ .root_source_file = meter_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "option", .module = b.createModule(.{ .root_source_file = option_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },

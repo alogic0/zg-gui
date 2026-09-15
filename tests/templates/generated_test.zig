@@ -735,3 +735,44 @@ test "generated local links escape query attributes and patch the anchor alone" 
     component.project(&p, .{ .path = "/items/2", .label = "Items" });
     try std.testing.expectEqualStrings(std.fmt.comptimePrint("A\t{d}\thref\t/items/2\n", .{component.nodes.link}), html.slice());
 }
+
+test "description list child updates retain semantic owners and retry failed output" {
+    const template = @import("description_list").Scoped(.{ .first = 200, .count = 16 });
+    const Children = struct {
+        text: []const u8,
+        pub fn project(self: @This(), p: anytype, _: struct { node: u32 }) void {
+            p.add("<div><dt>Value</dt><dd");
+            p.node(300);
+            p.add(">");
+            p.text(.{ .node = 300, .value = self.text });
+            p.add("</dd></div>");
+        }
+    };
+    const DescriptionProjection = gui.Projection(template.snapshot_capacity + 1);
+    var bytes: [2048]u8 = undefined;
+    var temporary: [2048]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var scratch = gui.html.Writer{ .buffer = &temporary };
+    var before = DescriptionProjection.Snapshot{};
+    var after = DescriptionProjection.Snapshot{};
+    var p = DescriptionProjection{ .html = &html, .next = &before };
+    template.project(&p, .{ .children = Children{ .text = "Before < &" } });
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "Before &lt; &amp;") != null);
+    html.len = 0;
+    var writer = gui.patch.Writer{ .output = &html };
+    p = .{ .html = &scratch, .patches = &writer, .next = &after, .previous = &before, .writing = false };
+    template.project(&p, .{ .children = Children{ .text = "After" } });
+    try std.testing.expectEqualStrings("T\t300\t\"After\"\n", html.slice());
+    var tiny: [1]u8 = undefined;
+    var limited = gui.html.Writer{ .buffer = &tiny };
+    writer.output = &limited;
+    after = .{};
+    template.project(&p, .{ .children = Children{ .text = "Retry" } });
+    try std.testing.expect(limited.failed);
+    html.len = 0;
+    writer.output = &html;
+    after = .{};
+    template.project(&p, .{ .children = Children{ .text = "Retry" } });
+    try std.testing.expectEqualStrings("T\t300\t\"Retry\"\n", html.slice());
+}

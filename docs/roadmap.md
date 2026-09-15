@@ -71,3 +71,5 @@ separate requests; invocation within keyed loops is not yet supported. Follow th
 
 - Delivered [explicit template identities](requests/016-template-identities.md).
 - Delivered [local link bindings](requests/017-local-link-bindings.md).
+
+- Delivered [description-list slots](requests/018-description-list-slots.md).
