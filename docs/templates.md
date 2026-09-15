@@ -310,7 +310,7 @@ Semantic `aside` slots keep composed supplementary content as direct children.
 Semantic `nav` slots keep the caller's navigation controls as direct children;
 routing, active-item policy and keyboard behavior remain caller responsibilities.
 
-Slots require an empty `div`, `section`, `aside`, `nav`, `dl`, `dd`, `ul`, `ol`, `li`, `thead`, `tbody`, `tfoot` or single `select`, may retain their subtree through
+Slots require an empty `div`, `section`, `aside`, `nav`, `dl`, `dd`, `ul`, `ol`, `li`, `p`, `span`, `option`, `thead`, `tbody`, `tfoot` or single `select`, may retain their subtree through
 `:visible`, and cannot also own text, a condition or a loop. Slots inside loops
 or conditional subtrees are currently rejected. A select slot may also use
 `:value`; its callback owns valid option/optgroup children, while the existing
@@ -478,3 +478,11 @@ values, block children and nested progress. Runtime bindings reject nonfinite
 or out-of-range values before recording the leaf; they never clamp task state.
 The host validates and applies the ordinary value attribute while retaining DOM
 identity. Indeterminate progress and dynamic maxima are not supported.
+
+Typed `p` and `span` slots require phrasing-only callback output. They support
+escaped text composition without a joined-string allocation. Callback output
+validity and child snapshot capacity remain the caller’s responsibility.
+
+An `option` slot follows the same rules, with escaped text-only output and a
+valid select/optgroup parent. This permits unbounded borrowed labels and short
+formatted suffixes without adding a joined-string limit.

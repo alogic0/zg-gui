@@ -946,3 +946,49 @@ test "list item child updates retain semantic owners and retry failed output" {
     template.project(&p, .{ .children = Children{ .text = "Retry" } });
     try std.testing.expectEqualStrings("T\t300\t\"Retry\"\n", html.slice());
 }
+
+test "phrasing child updates retain semantic owners and retry failed output" {
+    const template = @import("phrasing_slot").Scoped(.{ .first = 200, .count = 16 });
+    const Children = struct {
+        text: []const u8,
+        pub fn project(self: @This(), p: anytype, _: struct { node: u32 }) void {
+            p.add("<span");
+            p.node(300);
+            p.add(">");
+            p.text(.{ .node = 300, .value = self.text });
+            p.add("</span>");
+        }
+    };
+    const OptionText = struct {
+        pub fn project(_: @This(), p: anytype, owner: struct { node: u32 }) void {
+            p.text(.{ .node = owner.node, .value = "A < B" });
+        }
+    };
+    const PhrasingProjection = gui.Projection(template.snapshot_capacity + 2);
+    var bytes: [2048]u8 = undefined;
+    var temporary: [2048]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var scratch = gui.html.Writer{ .buffer = &temporary };
+    var before = PhrasingProjection.Snapshot{};
+    var after = PhrasingProjection.Snapshot{};
+    var p = PhrasingProjection{ .html = &html, .next = &before };
+    template.project(&p, .{ .children = Children{ .text = "Before < &" }, .option = OptionText{} });
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "Before &lt; &amp;") != null);
+    html.len = 0;
+    var writer = gui.patch.Writer{ .output = &html };
+    p = .{ .html = &scratch, .patches = &writer, .next = &after, .previous = &before, .writing = false };
+    template.project(&p, .{ .children = Children{ .text = "After" }, .option = OptionText{} });
+    try std.testing.expectEqualStrings("T\t300\t\"After\"\n", html.slice());
+    var tiny: [1]u8 = undefined;
+    var limited = gui.html.Writer{ .buffer = &tiny };
+    writer.output = &limited;
+    after = .{};
+    template.project(&p, .{ .children = Children{ .text = "Retry" }, .option = OptionText{} });
+    try std.testing.expect(limited.failed);
+    html.len = 0;
+    writer.output = &html;
+    after = .{};
+    template.project(&p, .{ .children = Children{ .text = "Retry" }, .option = OptionText{} });
+    try std.testing.expectEqualStrings("T\t300\t\"Retry\"\n", html.slice());
+}

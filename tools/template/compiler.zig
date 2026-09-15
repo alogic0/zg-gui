@@ -291,7 +291,7 @@ const Compiler = struct {
             }
         }
         if (c.attr(.{ .idx = input.idx, .name = ":slot" })) |a| {
-            if (!oneOf(tag_name, "div section aside nav dl dd ul ol li thead tbody tfoot select optgroup") or has_text or (has_value and !std.mem.eql(u8, tag_name, "select")) or has_if or has_loop or
+            if (!oneOf(tag_name, "div section aside nav dl dd ul ol li p span option thead tbody tfoot select optgroup") or has_text or (has_value and !std.mem.eql(u8, tag_name, "select")) or has_if or has_loop or
                 std.mem.trim(u8, c.input.source[node.tag.span.end..node.close_start], " \t\r\n").len != 0)
                 return c.reject(a.name.start, ":slot requires an empty flow, list, table-section or select container with no other child owner");
         }
@@ -754,7 +754,7 @@ test "typed projection slots reject competing owners and ambiguous placement" {
         "<div :slot=\"$children\" :if=\"$shown\"></div>",
         "<div :if=\"$shown\"><div :slot=\"$children\"></div></div>",
         "<ul :loop=\"$rows\" :key=\"id\" :limit=\"2\"><div :slot=\"$children\"></div></ul>",
-        "<span :slot=\"$children\"></span>",
+        "<button :slot=\"$children\"></button>",
         "<input :slot=\"$children\">",
     }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad-slot.gui.html", .diagnostic = &d }));
@@ -973,5 +973,17 @@ test "list-item slots retain list context and reject competing children" {
     }
     for ([_][]const u8{ "<ul><li :slot=\"$body\">text</li></ul>", "<ul><li :slot=\"$body\"><button>Run</button></li></ul>", "<ul><li :slot=\"$body\" :text=\"$text\"></li></ul>", "<ul><li :slot=\"$body\" :if=\"$visible\"></li></ul>" }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(a, .{ .source = source, .name = "invalid.gui.html", .diagnostic = &diagnostic }));
+    }
+}
+
+test "phrasing slots reject competing authored content" {
+    var diagnostic = Diagnostic{};
+    for ([_][]const u8{ "<p :slot=\"$body\"></p>", "<span :slot=\"$body\"></span>" }) |source| {
+        const code = try compile(std.testing.allocator, .{ .source = source, .name = "phrasing", .diagnostic = &diagnostic });
+        defer std.testing.allocator.free(code);
+        try std.testing.expect(std.mem.indexOf(u8, code, "binding.projectSlot") != null);
+    }
+    for ([_][]const u8{ "<p :slot=\"$body\">text</p>", "<span :slot=\"$body\" :text=\"$text\"></span>", "<p :slot=\"$body\" :if=\"$show\"></p>" }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "invalid", .diagnostic = &diagnostic }));
     }
 }
