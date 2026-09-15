@@ -132,7 +132,7 @@ const Compiler = struct {
                         stack.items.len -= 1;
                     },
                     .start, .start_self => {
-                        if (!oneOf(tag_name, "main header footer section article aside nav div p span h1 h2 h3 h4 h5 h6 a strong em small time b i code pre br hr form fieldset legend label input textarea button output meter progress ul ol li dl dt dd img details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs symbol path circle ellipse rect line polyline polygon use title")) {
+                        if (!oneOf(tag_name, "main header footer section article aside nav div p span h1 h2 h3 h4 h5 h6 a strong em small time b i code pre br hr form fieldset legend label input textarea button output meter progress ul ol li dl dt dd img iframe details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs symbol path circle ellipse rect line polyline polygon use title")) {
                             return c.reject(tag.name.start, "unsupported element; use the documented HTML fragment subset");
                         }
                         if (tag.kind == .start_self and !tag.isVoid(c.input.source, .html) and !isSvg(tag_name)) return c.reject(tag.span.start, "non-void HTML elements require an explicit closing tag");
@@ -206,6 +206,16 @@ const Compiler = struct {
         node.factor = input.factor;
         const tag_name = c.name(input.idx);
         const is_void = node.tag.isVoid(c.input.source, .html);
+        if (std.mem.eql(u8, tag_name, "iframe")) {
+            _ = c.attr(.{ .idx = input.idx, .name = "title" }) orelse return c.reject(node.tag.span.start, "iframe requires an accessible title");
+            const sandbox = c.attr(.{ .idx = input.idx, .name = "sandbox" }) orelse return c.reject(node.tag.span.start, "iframe requires a static sandbox policy");
+            if (std.mem.startsWith(u8, try c.value(sandbox), "$")) return c.reject(sandbox.name.start, "iframe sandbox policy must be static");
+            if (node.children.items.len != 0 or std.mem.trim(u8, c.input.source[node.tag.span.end..node.close_start], " \t\r\n").len != 0) return c.reject(node.tag.span.start, "iframe document content is owned externally");
+            inline for (.{ "srcdoc", ":text", ":slot" }) |attribute| {
+                if (c.attr(.{ .idx = input.idx, .name = attribute }) != null) return c.reject(node.tag.span.start, "iframe document content is owned externally");
+            }
+        }
+
         var has_text = false;
         var has_value = false;
         var has_if = false;
@@ -266,7 +276,7 @@ const Compiler = struct {
             } else {
                 if (!(attributeName(n) or (isSvg(tag_name) and oneOf(n, "viewBox preserveAspectRatio"))) or std.mem.startsWith(u8, n, "on") or oneOf(n, "data-node-id data-event data-input-kind data-select-value")) return c.reject(a.name.start, "reserved or unsupported attribute name");
                 if (a.value) |v| if (std.mem.startsWith(u8, v.span.slice(c.input.source), "$")) {
-                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (std.mem.eql(u8, tag_name, "img") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter progress") and std.mem.eql(u8, n, "value")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
+                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (oneOf(tag_name, "img iframe") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter progress") and std.mem.eql(u8, n, "value")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
                     try c.binding(.{ .attr = a, .in_loop = input.in_loop });
                 };
             }
@@ -437,6 +447,10 @@ const Compiler = struct {
                 c.entries += input.factor;
                 if (std.mem.eql(u8, tag_name, "a") and std.mem.eql(u8, n, "href")) {
                     try c.code.add("binding.linkHref(p, .{ .node = node, .value = ");
+                    try c.expression(a);
+                    try c.code.add(" });\n");
+                } else if (std.mem.eql(u8, tag_name, "iframe") and std.mem.eql(u8, n, "src")) {
+                    try c.code.add("binding.frameSource(p, .{ .node = node, .value = ");
                     try c.expression(a);
                     try c.code.add(" });\n");
                 } else if (std.mem.eql(u8, tag_name, "progress") and std.mem.eql(u8, n, "value")) {
@@ -865,7 +879,7 @@ test "dynamic image sources do not admit resource sources on other elements" {
     const code = try compile(std.testing.allocator, .{ .source = "<img src=\"$source\" alt=\"Preview\">", .name = "image", .diagnostic = &d });
     defer std.testing.allocator.free(code);
     try std.testing.expect(std.mem.indexOf(u8, code, "snapshot_capacity: usize = 1") != null);
-    for ([_][]const u8{ "<iframe src=\"$source\"></iframe>", "<script src=\"$source\"></script>", "<div src=\"$source\"></div>" }) |source| {
+    for ([_][]const u8{ "<script src=\"$source\"></script>", "<div src=\"$source\"></div>" }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "image", .diagnostic = &d }));
     }
 }
@@ -986,4 +1000,20 @@ test "phrasing slots reject competing authored content" {
     for ([_][]const u8{ "<p :slot=\"$body\">text</p>", "<span :slot=\"$body\" :text=\"$text\"></span>", "<p :slot=\"$body\" :if=\"$show\"></p>" }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "invalid", .diagnostic = &diagnostic }));
     }
+}
+
+test "embedded documents require explicit policy and reject owned child content" {
+    var diagnostic = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{ .source = "<iframe title=\"Preview\" sandbox=\"allow-scripts\" src=\"$source\" :visible=\"$visible\"></iframe>", .name = "frame", .diagnostic = &diagnostic });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "snapshot_capacity: usize = 2") != null);
+    for ([_][]const u8{
+        "<iframe src=\"$source\"></iframe>",
+        "<iframe title=\"Preview\" src=\"$source\"></iframe>",
+        "<iframe title=\"Preview\" sandbox=\"$policy\"></iframe>",
+        "<iframe title=\"Preview\" sandbox=\"\" :text=\"$body\"></iframe>",
+        "<iframe title=\"Preview\" sandbox=\"\" :slot=\"$body\"></iframe>",
+        "<iframe title=\"Preview\" sandbox=\"\" srcdoc=\"markup\"></iframe>",
+        "<iframe title=\"Preview\" sandbox=\"\">content</iframe>",
+    }) |source| try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "invalid-frame", .diagnostic = &diagnostic }));
 }

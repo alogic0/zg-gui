@@ -48,6 +48,21 @@ pub fn text(p: anytype, input: anytype) void {
     p.text(.{ .node = input.node, .value = value });
 }
 
+/// Embedded document sources retain a distinct binding from image sources.
+/// The caller supplies the sandbox and origin policy; the host enforces patches.
+pub fn frameSource(p: anytype, input: anytype) void {
+    if (@typeInfo(@TypeOf(input.value)) == .optional) {
+        if (input.value) |value| frameSource(p, .{ .node = input.node, .value = value }) else p.attr(.{ .node = input.node, .name = "src", .value = null });
+        return;
+    }
+    const value: []const u8 = input.value;
+    if (!std.mem.eql(u8, value, "about:blank") and !validImageSource(value)) {
+        p.html.failed = true;
+        return;
+    }
+    p.attr(.{ .node = input.node, .name = "src", .value = value });
+}
+
 pub fn attribute(p: anytype, comptime name: []const u8, input: anytype) void {
     if (@typeInfo(@TypeOf(input.value)) == .optional) {
         if (input.value) |value| attribute(p, name, .{ .node = input.node, .value = value }) else p.attr(.{ .node = input.node, .name = name, .value = null });

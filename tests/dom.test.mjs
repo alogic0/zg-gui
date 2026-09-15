@@ -313,3 +313,30 @@ test('fractional progress changes retain a focused sibling and reject out-of-ran
     }), true);
   } finally { await browser?.close(); await server.close(); }
 });
+test('sandboxed frame sources retain the document owner and sibling focus', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.route('**/frame-*', route => route.fulfill({ contentType: 'text/html', body: '<p>Preview</p>' }));
+    await page.goto(server.url + '/dom.js');
+    assert.equal(await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const dom = createDomHost({ root });
+      dom.initialize('<input data-node-id="1" value="draft"><iframe data-node-id="2" title="Preview" sandbox="" src="about:blank"></iframe>');
+      const input = root.firstChild, frame = root.lastChild;
+      input.focus();
+      dom.applyPatchStream('A\t2\tsrc\t/frame-one\nA\t2\thidden\t\nR\t2\thidden\n');
+      for (const source of ['javascript:alert(1)', 'data:text/html,test', 'https://external.test/frame-one', 'https://name:secret@external.test/frame-one']) {
+        let rejected = false;
+        try { dom.applyPatchStream(`A\t2\tsrc\t${source}\n`); } catch { rejected = true; }
+        if (!rejected) return false;
+      }
+      frame.setAttribute('data-external-frame', 'true');
+      dom.applyPatchStream('A\t2\tsrc\thttps://external.test/frame-two\nA\t2\tsrc\tabout:blank\n');
+      return frame === root.lastChild && frame.isConnected && input === document.activeElement && input.value === 'draft' && frame.getAttribute('src') === 'about:blank';
+    }), true);
+  } finally { await browser?.close(); await server.close(); }
+});

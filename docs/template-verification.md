@@ -93,3 +93,7 @@ two 64 KiB pages; the explicit memory-growth test reaches three pages. These
 measurements include independent selection state and expanded ID allocation.
 They are not an application benchmark or a peak stack/heap profile, and no
 budget tuning was performed.
+
+Embedded-document fixtures cover source/visibility leaf patches, failed output
+retry, rejected inline content and unchanged sibling focus and frame identity.
+See request 026; document loading behavior remains caller-owned.

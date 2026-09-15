@@ -486,3 +486,20 @@ validity and child snapshot capacity remain the caller’s responsibility.
 An `option` slot follows the same rules, with escaped text-only output and a
 valid select/optgroup parent. This permits unbounded borrowed labels and short
 formatted suffixes without adding a joined-string limit.
+
+### Embedded documents
+
+`<iframe title="Preview" sandbox="allow-scripts" src="$source"
+:visible="$visible"></iframe>` compiles the frame boundary. A title and a static
+sandbox attribute are required. Children, `srcdoc`, text and slot directives are
+rejected. The generated `template.frameSource` binding accepts null (remove),
+`about:blank`, rooted local paths and credential-free HTTP(S) URLs; it rejects
+control characters, protocol-relative paths and other schemes. Image source
+validation is unchanged.
+
+The caller owns initial destinations, sandbox tokens and embedding policy. The
+default host permits source patches only on sandboxed frames, for same-origin
+HTTP(S) or `about:blank`; external HTTPS also requires
+`data-external-frame="true"`. Source and visibility patches retain the frame
+object. Navigation may replace its external document, whose contents and effects
+remain outside the template renderer.

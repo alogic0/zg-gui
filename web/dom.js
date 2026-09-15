@@ -218,10 +218,15 @@ export function createDomHost({ root, onStructure = () => {} }) {
         }
         if (attribute === "src") {
           const url = new URL(fields[3], document.baseURI);
-          const allowed = url.origin === window.location.origin || target.getAttribute?.('data-external-image') === 'true';
-          if (!(target instanceof window.HTMLImageElement) || !allowed
-            || !['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
-            throw new Error("Zig image source patch requires a same-origin image or an explicit HTTP(S) image permission");
+          const frame = target instanceof window.HTMLIFrameElement;
+          const allowed = frame
+            ? target.hasAttribute('sandbox') && (fields[3] === 'about:blank'
+              || (url.origin === window.location.origin && ['http:', 'https:'].includes(url.protocol))
+              || (target.getAttribute('data-external-frame') === 'true' && url.protocol === 'https:'))
+            : target instanceof window.HTMLImageElement && ['http:', 'https:'].includes(url.protocol)
+              && (url.origin === window.location.origin || target.getAttribute('data-external-image') === 'true');
+          if (!allowed || url.username || url.password) {
+            throw new Error("Zig source patch requires an explicitly permitted image or sandboxed frame");
           }
         }
         target.setAttribute(attribute, fields[3]);

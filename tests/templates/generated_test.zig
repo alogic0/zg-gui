@@ -992,3 +992,31 @@ test "phrasing child updates retain semantic owners and retry failed output" {
     template.project(&p, .{ .children = Children{ .text = "Retry" }, .option = OptionText{} });
     try std.testing.expectEqualStrings("T\t300\t\"Retry\"\n", html.slice());
 }
+
+test "embedded document updates remain leaves and retry failed publication" {
+    const frame = @import("embedded_document").Scoped(.{ .first = 500, .count = 8 });
+    const FrameProjection = gui.Projection(frame.snapshot_capacity);
+    var bytes: [2048]u8 = undefined;
+    var scratch_bytes: [2048]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var scratch = gui.html.Writer{ .buffer = &scratch_bytes };
+    var before = FrameProjection.Snapshot{};
+    var after = FrameProjection.Snapshot{};
+    var p = FrameProjection{ .html = &html, .next = &before };
+    frame.project(&p, .{ .source = "/preview?a=1&b=2", .visible = true });
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "/preview?a=1&amp;b=2") != null);
+    var tiny: [1]u8 = undefined;
+    var limited = gui.html.Writer{ .buffer = &tiny };
+    var writer = gui.patch.Writer{ .output = &limited };
+    p = .{ .html = &scratch, .patches = &writer, .previous = &before, .next = &after, .writing = false };
+    frame.project(&p, .{ .source = "about:blank", .visible = false });
+    try std.testing.expect(limited.failed);
+    html.len = 0;
+    writer.output = &html;
+    after = .{};
+    frame.project(&p, .{ .source = "about:blank", .visible = false });
+    try std.testing.expect(!html.failed and !scratch.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "H\t") == null);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), std.fmt.comptimePrint("A\t{d}\tsrc\tabout:blank\n", .{frame.nodes.frame})) != null);
+}
