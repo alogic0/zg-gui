@@ -26,6 +26,9 @@ Application integration and product acceptance belong to consumers.
 
 - [x] Single-select child slots; see [request 006](requests/006-select-slots.md).
 
+Semantic time elements are implemented and verified in
+[request 007](requests/007-time-elements.md).
+
 ## Capability extensions
 
 - [x] Reusable template invocation with typed inputs, stable instance namespaces

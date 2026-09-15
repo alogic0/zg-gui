@@ -132,7 +132,7 @@ const Compiler = struct {
                         stack.items.len -= 1;
                     },
                     .start, .start_self => {
-                        if (!oneOf(tag_name, "main header footer section article aside nav div p span h1 h2 h3 h4 h5 h6 a strong em small b i code pre br hr form fieldset legend label input textarea button output ul ol li dl dt dd img details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs symbol path circle ellipse rect line polyline polygon use title")) {
+                        if (!oneOf(tag_name, "main header footer section article aside nav div p span h1 h2 h3 h4 h5 h6 a strong em small time b i code pre br hr form fieldset legend label input textarea button output ul ol li dl dt dd img details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs symbol path circle ellipse rect line polyline polygon use title")) {
                             return c.reject(tag.name.start, "unsupported element; use the documented HTML fragment subset");
                         }
                         if (tag.kind == .start_self and !tag.isVoid(c.input.source, .html) and !isSvg(tag_name)) return c.reject(tag.span.start, "non-void HTML elements require an explicit closing tag");
@@ -505,7 +505,7 @@ fn attributeName(value: []const u8) bool {
     return true;
 }
 fn dynamicAttribute(name: []const u8) bool {
-    return oneOf(name, "class lang disabled readonly autofocus inert role title placeholder alt id for aria-label") or
+    return oneOf(name, "class lang disabled readonly autofocus inert role title placeholder alt id for datetime aria-label") or
         (std.mem.startsWith(u8, name, "aria-") and dashedName(name[5..])) or
         (std.mem.startsWith(u8, name, "data-") and dashedName(name[5..]) and !oneOf(name, "data-node-id data-event data-input-kind data-value-format data-text-format data-style-vars data-select-value"));
 }
@@ -518,7 +518,7 @@ fn dashedName(value: []const u8) bool {
     return true;
 }
 fn isPhrasing(name: []const u8) bool {
-    return oneOf(name, "span a strong em small b i code br label input textarea button output img select svg");
+    return oneOf(name, "span a strong em small time b i code br label input textarea button output img select svg");
 }
 
 test "compiler preserves literal whitespace and entities and emits leaf bindings" {
@@ -744,5 +744,25 @@ test "select slots retain value ownership and reject competing children" {
     }
     for ([_][]const u8{ "<select :slot=\"$options\"><option>A</option></select>", "<select :slot=\"$options\">text</select>", "<select :slot=\"$options\" :text=\"$label\"></select>", "<select :slot=\"$options\" :if=\"$visible\"></select>", "<select multiple :slot=\"$options\"></select>", "<select :loop=\"$items\" :key=\"id\" :limit=\"2\" :slot=\"$options\"></select>" }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "invalid-select.gui.html", .diagnostic = &d }));
+    }
+}
+
+test "semantic time supports phrasing and table cells without implicit repair" {
+    var d = Diagnostic{};
+    for ([_][]const u8{
+        "<p><time datetime=\"2030-10-01\" :text=\"$label\"></time></p>",
+        "<table><tbody><tr><td><time datetime=\"$instant\" data-text-format=\"instant-local\" :text=\"$label\"></time></td></tr></tbody></table>",
+    }) |source| {
+        const code = try compile(std.testing.allocator, .{ .source = source, .name = "time", .diagnostic = &d });
+        std.testing.allocator.free(code);
+    }
+    for ([_][]const u8{
+        "<table><time>wrong</time></table>",
+        "<ul><time>wrong</time></ul>",
+        "<select><time>wrong</time></select>",
+        "<p><div><time>wrong</time></div></p>",
+        "<time data-text-format=\"$format\"></time>",
+    }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "time", .diagnostic = &d }));
     }
 }

@@ -125,7 +125,10 @@ between children. Text bindings on `dd` update only that description.
 
 Supported HTML tags include the original fragment elements plus `table`, `caption`,
 `colgroup`, `col`, `thead`, `tbody`, `tfoot`, `tr`, `th`, `td`, `select`, `optgroup`
-and `option`. Tables require explicit sections: put rows inside `tbody`, `thead`
+and `option`. Semantic `time` is supported in flow/phrasing content and table
+cells, with escaped text and optional `datetime` bindings. Consumers supply and
+validate dates and own timezone formatting; literal host formatting attributes
+are preserved. Tables require explicit sections: put rows inside `tbody`, `thead`
 or `tfoot`. Invalid table/select nesting and non-whitespace text between their
 structural children are rejected before the browser can repair the tree.
 Multiple-select controls require a separate value model and remain unsupported.
@@ -150,7 +153,7 @@ Dynamic option and selected values must be single-line: tab, CR and LF reject
 the projection rather than being normalized by the attribute patch protocol.
 
 Dynamic HTML attributes include class, lang, disabled, readonly, autofocus,
-inert, role, title, placeholder, alt, id, for, and supported aria/data names.
+inert, role, title, placeholder, alt, id, for, datetime, and supported aria/data names.
 Bind id/for from the composing view to keep label associations unique. Internal
 node/event/input IDs and dynamic host formatting directives are reserved.
 Inline event-handler attributes are rejected; page styling belongs in CSS.

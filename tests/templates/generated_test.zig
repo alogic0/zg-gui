@@ -369,3 +369,27 @@ test "select slot membership updates only its options and preserves value bindin
     template.project(&p, .{ .selected = "a", .options = Options{ .label = "Another" } });
     try std.testing.expect(output.failed);
 }
+
+test "generated time updates only text and optional datetime with bounded output" {
+    const time = @import("time_fixture");
+    const Projection = gui.Projection(time.snapshot_capacity);
+    var previous = Projection.Snapshot{};
+    var next = Projection.Snapshot{};
+    var html_bytes: [1024]u8 = undefined;
+    var output_bytes: [1024]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &html_bytes };
+    var output = gui.html.Writer{ .buffer = &output_bytes };
+    var writer = gui.patch.Writer{ .output = &output };
+    var p = Projection{ .html = &html, .next = &previous };
+    time.project(&p, .{ .instant = @as(?[]const u8, "2030-10-01"), .label = "A < B & C" });
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "A &lt; B &amp; C") != null);
+    try std.testing.expectEqual(time.snapshot_capacity, previous.len);
+    p = .{ .html = &html, .patches = &writer, .previous = &previous, .next = &next, .writing = false };
+    time.project(&p, .{ .instant = @as(?[]const u8, null), .label = "Tomorrow" });
+    try std.testing.expectEqualStrings(std.fmt.comptimePrint("R\t{d}\tdatetime\nT\t{d}\t\"Tomorrow\"\n", .{ time.nodes.time, time.nodes.time }), output.slice());
+    output = .{ .buffer = output_bytes[0..1] };
+    next = .{};
+    time.project(&p, .{ .instant = @as(?[]const u8, "2030-10-02"), .label = "Later" });
+    try std.testing.expect(output.failed);
+}
