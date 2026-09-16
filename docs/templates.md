@@ -34,6 +34,7 @@ literal dollar sign in a static attribute can be written as `&#36;`.
 | --- | --- |
 | `:text="$value"` | Escaped text leaf; string, integer, bool or enum |
 | `title="$value"`, `aria-expanded="$open"`, `data-theme="$theme"`, `tabindex="$index"` | Named attribute update; optional values remove the attribute |
+| `colspan="$columns"`, `rowspan="$rows"` on `td`/`th` | Escaped named cell attributes; optional absence removes the attribute; callers own valid span values |
 | `disabled="$busy"` | Boolean attribute presence; requires bool or optional bool |
 | `:value="$draft"` | String value property on input, textarea or single select; textarea content must be empty |
 | `:checked="$enabled"` | Boolean checked property on a static checkbox/radio input |

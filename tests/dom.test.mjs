@@ -70,6 +70,12 @@ test('table section patches retain table header row controls and focus', async (
       dom.initialize('<button data-node-id="1">Refresh</button><table data-node-id="2"><thead data-node-id="3"><tr><th>Label</th><th>Draft</th></tr></thead><tbody data-node-id="4"><tr data-node-id="5"><td data-node-id="6">One</td><td><input data-node-id="7" value="keep"></td></tr></tbody></table>');
       const table=root.querySelector('table'),head=table.tHead,body=table.tBodies[0],row=body.rows[0],input=root.querySelector('input'),button=root.querySelector('button');
       input.focus();dom.applyPatchStream('T\t6\t"Changed"\n');
+      const cell = row.cells[0];
+      dom.applyPatchStream('A\t6\tcolspan\t2\nA\t6\trowspan\t3\n');
+      const spans = cell === row.cells[0] && cell.colSpan === 2 && cell.rowSpan === 3
+        && input === document.activeElement && input.value === 'keep';
+      dom.applyPatchStream('R\t6\trowspan\n');
+      if (!spans || cell.hasAttribute('rowspan')) throw new Error('cell span patch replaced or blurred peers');
       const scalar=body.rows[0]===row&&input===document.activeElement&&input.value==='keep';
       button.focus();dom.applyPatchStream('H\t4\t'+JSON.stringify('<tr data-node-id="8"><td data-node-id="9">Two</td><td>Read only</td></tr>')+'\n');
       const structure=table===root.querySelector('table')&&head===table.tHead&&body===table.tBodies[0]&&body.rows.length===1&&body.rows[0].cells.length===2&&button===document.activeElement&&!row.isConnected;

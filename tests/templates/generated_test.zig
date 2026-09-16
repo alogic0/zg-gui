@@ -1255,3 +1255,29 @@ test "form metadata changes only named leaves and retries output" {
     try std.testing.expect(!html.failed and !scratch.failed);
     try std.testing.expectEqualStrings("A\t600\tdir\trtl\nA\t601\tname\tkey\nR\t601\tautocomplete\n", html.slice());
 }
+
+test "table spans patch cells only and retry output refusal" {
+    const template = @import("table_spans");
+    const Projection = gui.Projection(template.snapshot_capacity);
+    var bytes: [2048]u8 = undefined;
+    var scratch_bytes: [1]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var scratch = gui.html.Writer{ .buffer = &scratch_bytes };
+    var before = Projection.Snapshot{};
+    var next = Projection.Snapshot{};
+    var p = Projection{ .html = &html, .next = &before };
+    template.project(&p, .{ .columns = @as(u8, 7), .rows = @as(?u8, 2), .draft = "Retained draft" });
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "colspan=\"7\"") != null);
+    var writer = gui.patch.Writer{ .output = &html };
+    p = .{ .html = &scratch, .next = &next, .previous = &before, .patches = &writer, .writing = false };
+    html = .{ .buffer = bytes[0..1] };
+    template.project(&p, .{ .columns = @as(u8, 6), .rows = @as(?u8, null), .draft = "Retained draft" });
+    try std.testing.expect(html.failed);
+    html = .{ .buffer = &bytes };
+    next = .{};
+    template.project(&p, .{ .columns = @as(u8, 6), .rows = @as(?u8, null), .draft = "Retained draft" });
+    try std.testing.expect(!html.failed and !scratch.failed);
+    var expected: [128]u8 = undefined;
+    try std.testing.expectEqualStrings(try std.fmt.bufPrint(&expected, "A\t{d}\tcolspan\t6\nR\t{d}\trowspan\n", .{ template.nodes.heading, template.nodes.cell }), html.slice());
+}

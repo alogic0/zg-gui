@@ -184,3 +184,25 @@ test('dynamic progress rejection preserves accepted compiler output', async () =
     await rmdir(directory);
   }
 });
+
+
+test('dynamic table spans are restricted to cells', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'zg-gui-cell-spans-'));
+  const source = join(directory, 'view.gui.html'), output = join(directory, 'view.zig');
+  try {
+    await writeFile(source, '<table><tbody><tr><th colspan="$columns">Title</th><td rowspan="$rows">Value</td></tr></tbody></table>');
+    let result = spawnSync(compiler, [source, output], { encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    const accepted = await readFile(output, 'utf8');
+    for (const html of ['<div colspan="$columns"></div>', '<table rowspan="$rows"></table>']) {
+      await writeFile(source, html);
+      result = spawnSync(compiler, [source, output], { encoding: 'utf8' });
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /unsupported dynamic attribute/);
+      assert.equal(await readFile(output, 'utf8'), accepted);
+    }
+  } finally {
+    for (const name of await readdir(directory)) await unlink(join(directory, name));
+    await rmdir(directory);
+  }
+});
