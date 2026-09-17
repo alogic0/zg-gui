@@ -70,7 +70,50 @@ pub fn compile(allocator: Allocator, input: Input) Error![]u8 {
     try compiler.parse();
     for (compiler.roots.items) |idx| try compiler.validate(.{ .idx = idx, .in_loop = false });
     try compiler.generate();
-    return allocator.dupe(u8, compiler.code.bytes.items);
+    return mergeStaticRuns(allocator, compiler.code.bytes.items);
+}
+
+/// Consecutive static markup runs become one `p.add` call. The generator
+/// emits each literal as it is produced, so an opening tag, its static
+/// attributes and its `>` arrive as separate lines when nothing dynamic sits
+/// between them; the escaped literal bodies concatenate as they are.
+fn mergeStaticRuns(allocator: Allocator, code: []const u8) Error![]u8 {
+    const prefix = "p.add(\"";
+    const suffix = "\");";
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(allocator);
+    var pending: ?[]const u8 = null;
+    var lines = std.mem.splitScalar(u8, code, '\n');
+    while (lines.next()) |line| {
+        if (std.mem.startsWith(u8, line, prefix) and std.mem.endsWith(u8, line, suffix) and line.len >= prefix.len + suffix.len) {
+            const body = line[prefix.len .. line.len - suffix.len];
+            if (pending == null) {
+                try out.appendSlice(allocator, prefix);
+                pending = body;
+            }
+            try out.appendSlice(allocator, body);
+            continue;
+        }
+        if (pending != null) {
+            try out.appendSlice(allocator, suffix);
+            try out.append(allocator, '\n');
+            pending = null;
+        }
+        try out.appendSlice(allocator, line);
+        if (lines.peek() != null) try out.append(allocator, '\n');
+    }
+    if (pending != null) {
+        try out.appendSlice(allocator, suffix);
+        try out.append(allocator, '\n');
+    }
+    return out.toOwnedSlice(allocator);
+}
+
+test "consecutive static runs merge into one add call" {
+    const a = std.testing.allocator;
+    const merged = try mergeStaticRuns(a, "p.add(\"<div\");\np.node(node);\np.add(\" class=\\\"a\\\"\");\np.add(\">\");\nelement_2(p, view, space);\np.add(\"</div>\");\n");
+    defer a.free(merged);
+    try std.testing.expectEqualStrings("p.add(\"<div\");\np.node(node);\np.add(\" class=\\\"a\\\">\");\nelement_2(p, view, space);\np.add(\"</div>\");\n", merged);
 }
 
 const Compiler = struct {

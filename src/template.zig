@@ -39,7 +39,7 @@ fn string(buffer: []u8, value: anytype) ?[]const u8 {
     };
 }
 
-pub fn text(p: anytype, input: anytype) void {
+pub noinline fn text(p: anytype, input: anytype) void {
     var bytes: [128]u8 = undefined;
     const value = string(&bytes, input.value) orelse {
         p.html.failed = true;
@@ -78,7 +78,7 @@ pub fn objectImageSource(p: anytype, input: anytype) void {
     p.attr(.{ .node = input.node, .name = "src", .value = value });
 }
 
-pub fn attribute(p: anytype, comptime name: []const u8, input: anytype) void {
+pub noinline fn attribute(p: anytype, comptime name: []const u8, input: anytype) void {
     if (@typeInfo(@TypeOf(input.value)) == .optional) {
         if (input.value) |value| attribute(p, name, .{ .node = input.node, .value = value }) else p.attr(.{ .node = input.node, .name = name, .value = null });
         return;
@@ -252,7 +252,7 @@ pub fn inputType(p: anytype, input: struct { node: u32, value: InputType }) void
     attribute(p, "type", .{ .node = input.node, .value = @tagName(input.value) });
 }
 
-pub fn event(p: anytype, comptime name: []const u8, input: anytype) void {
+pub noinline fn event(p: anytype, comptime name: []const u8, input: anytype) void {
     if (@typeInfo(@TypeOf(input.value)) != .@"enum") @compileError("template actions and input kinds must be enum values");
     const value = std.math.cast(u32, @backingInt(input.value)) orelse {
         p.html.failed = true;
