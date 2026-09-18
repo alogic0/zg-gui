@@ -132,7 +132,7 @@ been installed, suitable for attaching a custom capability to declared nodes.
 that property changed. Use `previous = null` for an initial capture. Strings are
 hashed immediately and never retained. `SnapshotTooLarge` leaves insertion
 unpublished; discard a failed projection and retry from its last accepted
-snapshot. Initialize each next snapshot with `.{};` do not reset only `len`, since
-its buckets also belong to the snapshot. `entries[0..len]` preserves traversal
+snapshot. Initialize each next snapshot with `.{};` or reset `len` to zero.
+The index is initialized lazily on first insertion; empty snapshots never read it. `entries[0..len]` preserves traversal
 order for structural membership walks. Internal links/buckets are not serialized
 or a stable wire format. `gui.Projection` uses this store automatically.

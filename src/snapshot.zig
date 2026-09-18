@@ -19,6 +19,9 @@ pub noinline fn record(input: struct {
     change: Change,
 }) error{SnapshotTooLarge}!bool {
     if (input.len.* == input.entries.len) return error.SnapshotTooLarge;
+    // Empty captures need only initialize len, as existing projection adapters do.
+    // Clear the index lazily on first insertion; never inspect an empty old index.
+    if (input.len.* == 0) @memset(input.buckets, 0);
     const change = input.change;
     const property = std.hash.Wyhash.hash(0, change.property);
     const value = if (change.value) |v| std.hash.Wyhash.hash(1, v) else 0;
@@ -28,6 +31,7 @@ pub noinline fn record(input: struct {
     input.buckets[slot] = @intCast(input.len.*);
     var changed = true;
     if (input.previous) |old| {
+        if (old.entries.len == 0) return true;
         var cursor = old.buckets[bucket(.{ .node = change.node, .property = property, .count = old.buckets.len })];
         while (cursor != 0) {
             const entry = old.entries[cursor - 1];
@@ -49,7 +53,7 @@ pub fn Snapshot(comptime capacity: usize) type {
     return struct {
         const Self = @This();
         entries: [capacity]Entry = undefined,
-        buckets: [bucket_count]u32 = @splat(0),
+        buckets: [bucket_count]u32 = undefined,
         len: usize = 0,
 
         pub fn view(self: *const Self) View {
@@ -97,4 +101,16 @@ test "indexed snapshots retain first occurrence semantics and empty capacity" {
     try std.testing.expect(try next.changed(.{ .previous = &old, .change = .{ .node = 7, .property = "class", .value = "first" } }));
     var empty = Snapshot(0){};
     try std.testing.expectError(error.SnapshotTooLarge, empty.changed(.{ .previous = null, .change = .{ .node = 1, .property = "text", .value = null } }));
+}
+
+test "empty snapshots may reset only length before reusing index storage" {
+    var old: Snapshot(8) = undefined;
+    old.len = 0;
+    var next: Snapshot(8) = undefined;
+    next.len = 0;
+    const change = Change{ .node = 1, .property = "text", .value = "value" };
+    try std.testing.expect(try next.changed(.{ .previous = &old, .change = change }));
+    old = next;
+    next.len = 0;
+    try std.testing.expect(!try next.changed(.{ .previous = &old, .change = change }));
 }
