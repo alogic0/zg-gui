@@ -147,3 +147,15 @@ requires exactly one connected descendant. External mutations are observed only
 for index maintenance, never to select product patches. Moves retain identity.
 Call `dispose()` when releasing the root; the standard runtime does this itself.
 Ship the registry module alongside `dom.js` when copying the browser host files.
+
+### Named node namespaces
+
+`gui.namespace.Registry(&.{ .{ .name = "list", .count = 256 } })` allocates
+ranges at compile time. `Registry.range("list")` returns `{ first, count }`;
+`range.id(index)` and `range.child(.{ .offset = 16, .count = 8 })` reject overflow.
+Supply `.first` only for fixed reservations. Automatic ranges use first-fit
+placement around every fixed reservation and earlier automatic declarations.
+Names must be unique. Allocation errors fail compilation. Numeric values may
+change when declarations change: never persist them as business identifiers.
+Reserve a legacy pool when migrating existing aliases; allocation isolates new
+namespaces but does not validate arbitrary arithmetic within the legacy pool.
