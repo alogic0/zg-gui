@@ -473,3 +473,54 @@ test('object image patches require same-origin permission and retain controls', 
     });
   } finally { if (browser) await browser.close(); await server.close(); }
 });
+
+test('node registry tracks structural ownership, external mutations and resync', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    const result = await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const dom = createDomHost({ root });
+      dom.initialize('<div data-node-id="1"><input data-node-id="2" value="draft"><span data-node-id="3"><b data-node-id="4">old</b></span></div>');
+      const input = root.querySelector('input'); input.focus();
+      // A leaf-only stream must never perform another root-wide query.
+      const query = root.querySelectorAll.bind(root);
+      let scans = 0;
+      root.querySelectorAll = (...args) => { scans++; return query(...args); };
+      for (let i = 0; i < 100; i++) dom.applyPatchStream(`A\t2\taria-label\t${i}\n`);
+      const noRescan = scans === 0;
+      const rejects = stream => { try { dom.applyPatchStream(stream); return false; } catch { return true; } };
+      dom.applyPatchStream('T\t3\t"text"\n');
+      const textRemoved = rejects('T\t4\t"absent"\n');
+      dom.applyPatchStream('H\t3\t"<i data-node-id=\\"4\\">new</i>"\nT\t4\t"updated"\n');
+      const newOwner = root.querySelector('i');
+      dom.applyPatchStream('J\t3\t"<b data-node-id=\\"5\\">second</b>"\nM\t5\t4\tbefore\n');
+      const moved = newOwner.isConnected && root.querySelector('[data-node-id="3"]').lastElementChild === newOwner;
+      dom.applyPatchStream('D\t4\n');
+      const deleted = rejects('T\t4\t"absent"\n');
+      root.querySelector('[data-node-id="3"]').insertAdjacentHTML('beforeend', '<i data-node-id="5">duplicate</i>');
+      const duplicateSameTask = rejects('T\t5\t"ambiguous"\n');
+      root.querySelector('i').remove();
+      dom.applyPatchStream('T\t5\t"unique"\n');
+      const control = root.querySelector('b');
+      control.setAttribute('data-node-id', '6');
+      const oldIdGone = rejects('T\t5\t"old"\n');
+      dom.applyPatchStream('T\t6\t"new identity"\n');
+      await Promise.resolve(); // Observer callback records must also be drained.
+      const outside = document.createElement('i'); outside.dataset.nodeId = '6'; root.append(outside);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const duplicateLater = rejects('T\t6\t"ambiguous"\n');
+      outside.remove();
+      const retained = input.isConnected && input === document.activeElement && input.value === 'draft';
+      dom.initialize('<span data-node-id="2">reset</span>');
+      dom.applyPatchStream('T\t2\t"recovered"\n');
+      const recovered = root.textContent === 'recovered' && !input.isConnected;
+      dom.dispose();
+      return { noRescan, textRemoved, moved, deleted, duplicateSameTask, oldIdGone, duplicateLater, retained, recovered };
+    });
+    assert.ok(Object.values(result).every(Boolean), JSON.stringify(result));
+  } finally { await browser.close(); await server.close(); }
+});

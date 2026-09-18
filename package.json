@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./web/runtime.js", "./dom": "./web/dom.js" },
+  "exports": { ".": "./web/runtime.js", "./dom": "./web/dom.js", "./node-registry": "./web/node-registry.js" },
   "scripts": {
     "build": "zig build",
     "dev": "zig build && node tools/server.mjs",

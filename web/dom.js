@@ -1,3 +1,4 @@
+import { createNodeRegistry } from './node-registry.js';
 import { localDatetime, localTimeLabel, applyInitialTimeFormats } from './local-datetime.js';
 
 // Only this module writes the DOM after initialization. Hooks bind host-owned
@@ -6,14 +7,8 @@ export function createDomHost({ root, onStructure = () => {} }) {
   const document = root.ownerDocument;
   const window = document.defaultView;
   let patchTextFocus = null;
-  function patchNode(nodeId) {
-    if (!/^\d+$/.test(nodeId)) throw new Error(`Invalid Zig patch node id: ${nodeId}`);
-    const nodes = root.querySelectorAll(`[data-node-id="${nodeId}"]`);
-    if (nodes.length !== 1) {
-      throw new Error(`Zig patch node ${nodeId} resolved to ${nodes.length} elements`);
-    }
-    return nodes[0];
-  }
+  const nodes = createNodeRegistry({ root });
+  const patchNode = nodes.get;
 
   // Attribute names Zig is allowed to set through the A/R operations. Names
   // are Zig literals, so this is defense in depth: an unexpected name fails
@@ -62,6 +57,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
 
   function initialize(html) {
     root.innerHTML = html;
+    nodes.rebuild();
     applySelectValues(root);
     applyDeclaredStyles(root);
     applyInitialTimeFormats(root);
@@ -97,6 +93,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
       if (operation === "D" && fields.length === 2) {
         if (target === root || !target.parentElement) throw new Error("Zig remove patch needs an owned child subtree");
         const parent = target.parentElement;
+        nodes.forget(target);
         target.remove();
         applySelectValues(parent);
         continue;
@@ -125,6 +122,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
           continue;
         }
         if (operation === "T") {
+          nodes.forgetChildren(target);
           target.textContent = localTimeLabel(fragment, { format: target.dataset.textFormat || 'plain' });
           continue;
         }
@@ -134,6 +132,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
           target.insertAdjacentHTML("beforeend", fragment);
           applySelectValues(target);
           for (let child = last ? last.nextElementSibling : target.firstElementChild; child; child = child.nextElementSibling) {
+            nodes.add(child);
             applyDeclaredStyles(child);
             applyDeclaredProviders(child);
             applyInitialTimeFormats(child);
@@ -148,7 +147,9 @@ export function createDomHost({ root, onStructure = () => {} }) {
           || active instanceof window.HTMLTextAreaElement;
         const selectionStart = activeIsTextControl ? active.selectionStart : null;
         const selectionEnd = activeIsTextControl ? active.selectionEnd : null;
+        nodes.forgetChildren(target);
         target.innerHTML = fragment;
+        for (const child of target.children) nodes.add(child);
         applySelectValues(target);
         applyDeclaredStyles(target);
         applyDeclaredProviders(target);
@@ -248,5 +249,5 @@ export function createDomHost({ root, onStructure = () => {} }) {
     patchTextFocus = null;
   }
 
-  return Object.freeze({ initialize, applyPatchStream });
+  return Object.freeze({ initialize, applyPatchStream, dispose: nodes.dispose });
 }

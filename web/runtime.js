@@ -89,6 +89,7 @@ export function mount({ root, wasm, onError = error => console.error(error), onS
   const api = Object.freeze({ render, dispatch, setInput, dispose() {
     if (disposed) return;
     disposed = true;
+    dom.dispose();
     controller.abort();
     owners.delete(root);
   } });

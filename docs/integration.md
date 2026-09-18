@@ -136,3 +136,14 @@ snapshot. Initialize each next snapshot with `.{};` or reset `len` to zero.
 The index is initialized lazily on first insertion; empty snapshots never read it. `entries[0..len]` preserves traversal
 order for structural membership walks. Internal links/buckets are not serialized
 or a stable wire format. `gui.Projection` uses this store automatically.
+
+### DOM identity registry
+
+`web/node-registry.js` exports `createNodeRegistry({ root })`. The owned DOM host
+uses it automatically. A custom host can call `rebuild()` after full rendering,
+`forgetChildren(target)` before replacing descendants, `forget(target)` before
+removal, and `add(subtree)` after insertion. `get(id)` drains mutation records and
+requires exactly one connected descendant. External mutations are observed only
+for index maintenance, never to select product patches. Moves retain identity.
+Call `dispose()` when releasing the root; the standard runtime does this itself.
+Ship the registry module alongside `dom.js` when copying the browser host files.
