@@ -123,3 +123,16 @@ attribute names or tag names. The host's attribute allowlist is validation, not 
 HTML sanitizer. Use an appropriate page CSP for your deployment. `onStructure`
 is an optional synchronous host binding callback after introduced markup has
 been installed, suitable for attaching a custom capability to declared nodes.
+
+### Indexed property snapshots
+
+`gui.snapshot.Snapshot(capacity)` owns a copyable bounded snapshot. Call
+`next.changed(.{ .previous = &old, .change = .{ .node = id,
+.property = "text", .value = text } })` to append a comparison and learn whether
+that property changed. Use `previous = null` for an initial capture. Strings are
+hashed immediately and never retained. `SnapshotTooLarge` leaves insertion
+unpublished; discard a failed projection and retry from its last accepted
+snapshot. Initialize each next snapshot with `.{};` do not reset only `len`, since
+its buckets also belong to the snapshot. `entries[0..len]` preserves traversal
+order for structural membership walks. Internal links/buckets are not serialized
+or a stable wire format. `gui.Projection` uses this store automatically.

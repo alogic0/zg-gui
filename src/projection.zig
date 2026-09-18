@@ -4,29 +4,12 @@ const std = @import("std");
 const Html = @import("html.zig").Writer;
 const patch = @import("patch.zig");
 
-const Entry = struct { node: u32, property: u64, value: u64 };
-const Change = struct { node: u32, property: []const u8, value: ?[]const u8 };
-// Snapshot capacity changes storage, not comparison semantics. Keep hashing and
-// lookup in one implementation instead of duplicating it for every capacity.
-noinline fn recordChange(input: struct { next: []Entry, len: *usize, previous: []const Entry, failed: *bool, change: Change }) bool {
-    const change = input.change;
-    const entry = Entry{ .node = change.node, .property = std.hash.Wyhash.hash(0, change.property), .value = if (change.value) |v| std.hash.Wyhash.hash(1, v) else 0 };
-    if (input.len.* == input.next.len) {
-        input.failed.* = true;
-        return false;
-    }
-    input.next[input.len.*] = entry;
-    input.len.* += 1;
-    for (input.previous) |old| {
-        if (old.node == change.node and old.property == entry.property) return old.value != entry.value;
-    }
-    return true;
-}
+const snapshots = @import("snapshot.zig");
 
 pub fn Projection(comptime capacity: usize) type {
     return struct {
         const Self = @This();
-        pub const Snapshot = struct { entries: [capacity]Entry = undefined, len: usize = 0 };
+        pub const Snapshot = snapshots.Snapshot(capacity);
         pub const List = struct { node: u32, start: usize, writing: bool, replace: bool };
         pub const Child = struct { owner: u32, start: usize, writing: bool, append: bool };
         html: *Html,
@@ -35,8 +18,11 @@ pub fn Projection(comptime capacity: usize) type {
         next: *Snapshot,
         writing: bool = true,
 
-        fn changed(self: *Self, input: Change) bool {
-            return recordChange(.{ .next = &self.next.entries, .len = &self.next.len, .previous = if (self.previous) |previous| previous.entries[0..previous.len] else &.{}, .failed = &self.html.failed, .change = input });
+        fn changed(self: *Self, input: snapshots.Change) bool {
+            return self.next.changed(.{ .previous = self.previous, .change = input }) catch {
+                self.html.failed = true;
+                return false;
+            };
         }
         pub fn add(self: *Self, value: []const u8) void {
             if (self.writing) self.html.add(value);
