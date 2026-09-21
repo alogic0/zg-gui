@@ -103,7 +103,11 @@ pub fn Projection(comptime capacity: usize) type {
             const id = input.node;
             const value = input.value;
             const dirty = self.changed(.{ .node = id, .property = "#value", .value = value });
-            if (self.writing) self.escaped(value) else if (dirty) if (self.patches) |writer| writer.formValue(.{ .node = id, .value = value });
+            if (self.writing) {
+                // HTML parsing consumes the first newline after <textarea>.
+                if (value.len > 0 and (value[0] == '\n' or value[0] == '\r')) self.add("\n");
+                self.escaped(value);
+            } else if (dirty) if (self.patches) |writer| writer.formValue(.{ .node = id, .value = value });
         }
         /// Call inside the stable child-list element, with a domain membership key.
         /// Descendant patches are suppressed when this list introduces their nodes.
@@ -163,6 +167,60 @@ pub fn Projection(comptime capacity: usize) type {
 
 pub fn boolean(value: bool) []const u8 {
     return if (value) "true" else "false";
+}
+
+test "textarea HTML protects leading newlines without changing value patches" {
+    const P = Projection(1);
+    var bytes: [128]u8 = undefined;
+    for ([_]struct { value: []const u8, html: []const u8 }{
+        .{ .value = "", .html = "" },
+        .{ .value = "plain", .html = "plain" },
+        .{ .value = "\n", .html = "\n\n" },
+        .{ .value = "\n\n<&>", .html = "\n\n\n&lt;&amp;&gt;" },
+        .{ .value = "\r\ntext", .html = "\n\r\ntext" },
+    }) |case| {
+        var html = Html{ .buffer = &bytes };
+        var previous = P.Snapshot{};
+        var p = P{ .html = &html, .next = &previous };
+        p.textareaValue(.{ .node = 1, .value = case.value });
+        try std.testing.expect(!html.failed);
+        try std.testing.expectEqualStrings(case.html, html.slice());
+
+        html.len = 0;
+        var next = P.Snapshot{};
+        var writer = patch.Writer{ .output = &html };
+        p = .{ .html = &html, .next = &next, .previous = &previous, .patches = &writer, .writing = false };
+        p.textareaValue(.{ .node = 1, .value = case.value });
+        try std.testing.expectEqualStrings("", html.slice());
+        next.len = 0;
+        p.textareaValue(.{ .node = 1, .value = "\nchanged" });
+        try std.testing.expect(!html.failed);
+        try std.testing.expectEqualStrings("V\t1\t\"\\nchanged\"\n", html.slice());
+    }
+}
+
+test "textarea newline compensation rejects exhausted output and permits retry" {
+    const P = Projection(1);
+    var bytes: [8]u8 = undefined;
+    var html = Html{ .buffer = &bytes };
+    var previous = P.Snapshot{};
+    var p = P{ .html = &html, .next = &previous };
+    p.textareaValue(.{ .node = 1, .value = "old" });
+    const saved = previous.entries[0].value;
+
+    var next = P.Snapshot{};
+    html = .{ .buffer = bytes[0..2] }; // The value fits, but its extra newline does not.
+    p = .{ .html = &html, .previous = &previous, .next = &next };
+    p.textareaValue(.{ .node = 1, .value = "\nx" });
+    try std.testing.expect(html.failed);
+    try std.testing.expectEqual(saved, previous.entries[0].value);
+
+    html = .{ .buffer = &bytes };
+    next.len = 0;
+    p.textareaValue(.{ .node = 1, .value = "\nx" });
+    try std.testing.expect(!html.failed);
+    try std.testing.expectEqualStrings("\n\nx", html.slice());
+    try std.testing.expectEqual(saved, previous.entries[0].value);
 }
 
 test "snapshot capacity rejects the candidate without modifying the previous snapshot" {

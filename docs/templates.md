@@ -54,6 +54,11 @@ consumer state through `:checked`. Checkbox overrides, other radio formats and
 dynamic formatting modes remain rejected. Form drafts must still
 be copied into application-owned state when inputs arrive.
 
+Controlled textarea values preserve leading newlines in initial and structural
+HTML as well as value patches. The HTML serializer compensates for the browser's
+first-newline handling; native line-ending normalization still applies. See
+[the textarea contract](requests/040-textarea-leading-newlines.md).
+
 Text bindings require empty, non-void elements. A loop directive belongs on
 the container, which must have exactly one child element as the row template.
 Each item key must be a stable `u32`. The compiler derives every repeated

@@ -93,3 +93,50 @@ test('generated input kind changes precede controlled values in either attribute
     }
   } finally { await browser?.close(); await server.close(); }
 });
+
+test('generated textarea values preserve leading newlines in HTML and patches', async () => {
+  const server = await serve({ directory: join(root, 'web') });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    const frames = await projectFrames({
+      template: '<textarea :value="$value"></textarea>',
+      declarations: 'const View = struct { value: []const u8 };',
+      views: '.{ .value = "\\n\\n<&>" }, .{ .value = "\\n\\n<&>" }, .{ .value = "\\nchanged" }',
+    });
+    assert.equal(frames[1], '');
+    const result = await page.evaluate(async frames => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const dom = createDomHost({ root });
+      dom.initialize(frames[0]); dom.applyPatchStream(frames[1]);
+      const initial = root.firstElementChild.value;
+      dom.applyPatchStream(frames[2]);
+      const updated = root.firstElementChild.value;
+      dom.initialize(frames[0]);
+      const recovered = root.firstElementChild.value;
+      dom.initialize('<section><input value="draft"><div data-node-id="99"></div></section>');
+      const parent = root.firstElementChild, input = parent.firstElementChild, owner = parent.lastElementChild;
+      input.focus(); input.setSelectionRange(1, 3);
+      dom.applyPatchStream('H\t99\t' + JSON.stringify(frames[0]) + '\n');
+      const replaced = owner.firstElementChild.value;
+      dom.applyPatchStream('H\t99\t""\nJ\t99\t' + JSON.stringify(frames[0]) + '\n');
+      const textarea = owner.firstElementChild;
+      const appended = textarea.value;
+      dom.applyPatchStream(frames[2]);
+      return {
+        initial, updated, recovered, replaced, appended,
+        retained: root.firstElementChild === parent && parent.lastElementChild === owner
+          && owner.firstElementChild === textarea && textarea.value === '\nchanged'
+          && parent.firstElementChild === input && document.activeElement === input
+          && input.value === 'draft' && input.selectionStart === 1 && input.selectionEnd === 3,
+      };
+    }, frames);
+    assert.deepEqual(result, {
+      initial: '\n\n<&>', updated: '\nchanged', recovered: '\n\n<&>',
+      replaced: '\n\n<&>', appended: '\n\n<&>', retained: true,
+    });
+  } finally { await browser?.close(); await server.close(); }
+});
