@@ -236,6 +236,14 @@ export function createDomHost({ root, onStructure = () => {} }) {
         if (attribute === "data-select-value" || (attribute === "value" && target instanceof window.HTMLOptionElement)) applySelectValues(target);
         if (attribute === "data-style-vars") applyDeclaredStyles(target);
       } else if (operation === "R" && fields.length === 3) {
+        if (attribute === "data-style-vars") {
+          for (const declaration of (target.getAttribute(attribute) || '').split(';')) {
+            const separator = declaration.indexOf(':');
+            if (separator <= 0) continue;
+            const property = declaration.slice(0, separator).trim();
+            if (/^--[a-z][a-z0-9-]*$/.test(property)) target.style.removeProperty(property);
+          }
+        }
         target.removeAttribute(attribute);
         if (attribute === "value" && target instanceof window.HTMLOptionElement) applySelectValues(target);
       } else {

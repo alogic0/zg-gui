@@ -160,6 +160,43 @@ test('numeric style and scroll leaves retain scroller and focused sibling', asyn
   } finally { await browser?.close(); await server.close(); }
 });
 
+test('clearing optional styles removes only declared properties and retains focus', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    const result = await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const dom = createDomHost({ root });
+      dom.initialize('<section><input value="draft"><div data-node-id="1" data-style-vars="--gap:12px;--opacity:80%"><span data-style-vars="--gap:3px"></span></div></section>');
+      const parent = root.firstElementChild, input = parent.firstElementChild;
+      const target = parent.lastElementChild, child = target.firstElementChild;
+      target.style.setProperty('--unrelated', '7');
+      input.focus(); input.setSelectionRange(1, 3);
+      dom.applyPatchStream('R\t1\tdata-style-vars\nR\t1\tdata-style-vars\n');
+      const cleared = !target.hasAttribute('data-style-vars')
+        && target.style.getPropertyValue('--gap') === ''
+        && target.style.getPropertyValue('--opacity') === '';
+      dom.applyPatchStream('A\t1\tdata-style-vars\t--gap:4px;--opacity:50%\n');
+      return {
+        cleared,
+        restored: target.style.getPropertyValue('--gap') === '4px'
+          && target.style.getPropertyValue('--opacity') === '50%',
+        unrelated: target.style.getPropertyValue('--unrelated') === '7'
+          && child.style.getPropertyValue('--gap') === '3px',
+        retained: root.firstElementChild === parent && parent.lastElementChild === target
+          && target.firstElementChild === child && parent.firstElementChild === input
+          && document.activeElement === input && input.value === 'draft'
+          && input.selectionStart === 1 && input.selectionEnd === 3,
+      };
+    });
+    assert.deepEqual(result, { cleared: true, restored: true, unrelated: true, retained: true });
+  } finally { await browser?.close(); await server.close(); }
+});
+
 test('image source updates retain image and focused sibling', async () => {
   const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
   let browser;
