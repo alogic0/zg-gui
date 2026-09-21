@@ -13,7 +13,7 @@ test('standalone WASM application retains state, identity and focus', async () =
     const failures = [];
     page.on('pageerror', error => failures.push(error.message));
     page.on('console', message => { if (message.type() === 'error') failures.push(message.text()); });
-    await page.goto(server.url);
+    await page.goto(server.url + '/basics.html');
     await page.waitForFunction(() => window.demo);
     await page.getByLabel('Workspace name').fill('Studio 🧭 <test>');
     assert.equal(await page.locator('#greeting').textContent(), 'Studio 🧭 <test>');
@@ -76,7 +76,7 @@ test('runtime resynchronizes an invalid patch and can remount after disposal', a
   try {
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
-    await page.goto(server.url);
+    await page.goto(server.url + '/basics.html');
     await page.waitForFunction(() => window.demo);
     const result = await page.evaluate(async () => {
       const { mount } = await import('/runtime.js');
@@ -114,7 +114,7 @@ test('invoked components retain table rows, SVG namespaces and controlled select
     const page = await browser.newPage();
     const failures = [];
     page.on('pageerror', error => failures.push(error.message));
-    await page.goto(server.url);
+    await page.goto(server.url + '/basics.html');
     await page.waitForFunction(() => window.demo);
     const first = page.getByRole('region', { name: 'Primary integration', exact: true });
     const second = page.getByRole('region', { name: 'Secondary integration', exact: true });

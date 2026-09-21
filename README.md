@@ -1,53 +1,99 @@
 # zg-gui
 
-A standalone Zig/WASM GUI core with HTML-like templates compiled into Zig.
-Zig owns state and rendering decisions. A small JavaScript host applies the
-typed DOM stream and forwards declared actions and inputs.
+A compact Zig/WebAssembly GUI framework with HTML-like templates compiled into
+Zig. Application state and rendering decisions live in Zig; a small JavaScript
+host applies precise DOM updates and forwards declared events.
 
-Includes bounded escaped HTML, leaf snapshots, structural and keyed child
-lists, text/attribute/form/focus/move patches, browser validation, UTF-8 exchange,
-and mount/dispose lifecycle. Runtime dependencies: a browser and WebAssembly.
-Playwright is only a development dependency.
+**Small updates. Steady controls.** Keyed rows, editable forms, and focused inputs
+keep their DOM identity across updates and reordering.
 
-Write layouts in [HTML templates](examples/demo.gui.html), with bindings such
-as `:text="$count"` and `:on-click="$actions.increment"`. The native compiler
-generates stable node IDs and projection code during the build. Application
-state, derived view values and actions stay in [Zig](examples/demo.zig).
-See the [template language and build guide](docs/templates.md).
+![Fieldwork: the zg-gui project workspace](docs/images/workspace-desktop.png)
 
-Use the exact compiler in `.zigversion`.
+[Watch the interaction demo](docs/images/workspace-demo.webm) ·
+[Mobile screenshot](docs/images/workspace-mobile.png) ·
+[Dark theme](docs/images/workspace-dark.png) ·
+[Source walkthrough](docs/workspace-showcase.md)
+
+## Try the workspace
+
+Use the exact Zig compiler in [`.zigversion`](.zigversion), then:
 
 ```sh
-cd ~/prog/zg-gui
-zig build test
 npm ci
-npm test
-npm run test:browser
 npm run dev
 ```
 
-The last command builds and serves the example at `http://127.0.0.1:4180`.
-It demonstrates controlled text and checkbox inputs, a theme, a counter,
-disclosure visibility, and keyed rows that retain their browser drafts and focus.
-Press Ctrl+C to stop the development server.
+Open **http://127.0.0.1:4180**. Stop the server with Ctrl+C.
 
-For browser tests, install Chromium with `npx playwright install chromium` if
-it is not already available. Tests run headlessly and require no backend.
+Fieldwork is a complete, synthetic project workspace. Edit task names and notes,
+change status and priority, assign teammates, search, filter, sort, reorder, add
+and delete tasks. Progress, an SVG status chart, and recent activity update from
+the same Zig state. Light/dark themes and a responsive layout work on desktop
+and mobile. The three overview cards share one compiled template component.
 
-For another application, import the `zg_gui` Zig module and host it with
-`web/runtime.js`. See the [integration and ownership guide](docs/integration.md),
-the [command protocol](docs/protocol.md), and the working [example](examples/demo.zig).
+No account, backend, external assets, or runtime npm dependencies. Changes stay
+in the current session; reload or **Reset demo** restores the sample. The example
+holds up to 24 tasks. Open **How this demo works** for a quick explanation and a
+source walkthrough. The smaller introductory demo remains at **/basics.html**.
 
-Verified locally: native core/example tests, a ReleaseSafe WASM build, Chromium
-interaction and recovery tests, and desktop/mobile screenshots. The composed example's
-WASM is 54,949 bytes and starts with two 64 KiB memory pages, including a 64 KiB
-stack. These are example measurements, not a budget for other applications;
-peak stack/heap use has not been profiled. Screenshots are generated under
-ignored `test-results/` by the browser test command.
+## A template, a typed view, a small host
 
-The demo also invokes two [reusable panels](examples/panels.gui.html) with
-SVG icons, keyed table rows and controlled selects. See the
-[framework roadmap](docs/roadmap.md) for available and planned capabilities.
+```html
+<input :value="$name" :input="$inputs.name">
+<ul :loop="$rows" :key="id" :limit="24">
+  <li><span :text="$item.label"></span></li>
+</ul>
+```
 
-Framework work follows [neutral capability requests](docs/contributing.md).
-Consumer integration and product acceptance remain outside this repository.
+The native compiler validates templates and generates stable identities and typed
+projection code. The browser receives escaped initial HTML, followed by text,
+attribute, form-value, focus, and structural commands. There is no runtime
+template parser or virtual DOM.
+
+- Caller-owned, bounded HTML and patch buffers with explicit failure admission.
+- Property snapshots and keyed child lists with retained row identity.
+- Reusable template components, scoped namespaces, and typed child slots.
+- Controlled inputs/selects, SVG, table fragments, and numeric CSS variables.
+- UTF-8 exchange, mount/dispose lifecycle, and explicit recovery after bad patches.
+
+Start with the [template guide](docs/templates.md),
+[integration and ownership](docs/integration.md), and
+[command protocol](docs/protocol.md). The [roadmap](docs/roadmap.md) documents
+capabilities and limits, including unsupported nested keyed loops and multiple
+selection. Consumer state, effects, routing, styling, and application policy
+remain outside the framework.
+
+## Explore the example
+
+| File | Responsibility |
+| --- | --- |
+| [workspace.zig](examples/workspace.zig) | Owned state, validation, view derivation, actions, ABI, native tests |
+| [workspace.gui.html](examples/workspace.gui.html) | Workspace layout, forms, keyed task and activity lists |
+| [workspace-metric.gui.html](examples/workspace-metric.gui.html) | Reusable summary card and SVG status chart |
+| [workspace.css](examples/web/workspace.css) | Responsive layout, visual design, themes |
+| [workspace.js](examples/web/workspace.js) | Loading the public browser runtime |
+| [workspace.test.mjs](tests/workspace.test.mjs) | Real WASM/browser journeys, identity, focus, limits and measurements |
+
+`zig build` produces the complete static site in **zig-out/web**. All application
+assets use relative paths, including beneath a repository subpath. See the
+[showcase guide](docs/workspace-showcase.md) for hosting and reproducible checks.
+
+## Verify
+
+```sh
+npx playwright install chromium
+npm test
+npm run test:browser
+```
+
+`npm test` runs native, compiler, independent-package, and host tests, including
+the workspace. The browser suite exercises both examples, recovery, retained DOM
+objects, focus, selection, desktop/mobile layout, and generated-template edge
+cases. Playwright is a development dependency only.
+
+The [showcase guide](docs/workspace-showcase.md#measurements) records artifact
+size, memory, and representative patch work. These are example measurements,
+not consumer budgets or peak-memory guarantees.
+
+Framework changes follow [neutral capability requests](docs/contributing.md).
+Provider verification and consumer application acceptance remain separate.

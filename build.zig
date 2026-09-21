@@ -219,6 +219,57 @@ pub fn build(b: *std.Build) void {
         }),
     });
     b.top_level_steps.get("test").?.step.dependOn(&b.addRunArtifact(demo_tests).step);
+
+    const workspace_source = generateTemplate(b, .{
+        .compiler = template_compiler,
+        .source = b.path("examples/workspace.gui.html"),
+        .components = &.{.{ .name = "metric", .source = b.path("examples/workspace-metric.gui.html") }},
+    });
+    const workspace = b.addExecutable(.{
+        .name = "workspace",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/workspace.zig"),
+            .target = wasm_target,
+            .optimize = .safe,
+            .strip = true,
+            .imports = &.{
+                .{ .name = "zg_gui", .module = wasm_gui },
+                .{ .name = "workspace_template", .module = b.createModule(.{
+                    .root_source_file = workspace_source,
+                    .target = wasm_target,
+                    .optimize = .safe,
+                    .imports = &.{.{ .name = "zg_gui", .module = wasm_gui }},
+                }) },
+            },
+        }),
+    });
+    workspace.entry = .disabled;
+    workspace.rdynamic = true;
+    workspace.export_memory = true;
+    workspace.stack_size = 512 * 1024;
+    b.getInstallStep().dependOn(&b.addInstallFile(workspace.getEmittedBin(), "web/workspace.wasm").step);
+    b.installFile("examples/workspace.zig", "web/source/workspace.zig");
+    b.installFile("examples/workspace.gui.html", "web/source/workspace.gui.html");
+    b.installFile("examples/workspace-metric.gui.html", "web/source/workspace-metric.gui.html");
+    const workspace_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/workspace.zig"),
+            .target = b.graph.host,
+            .optimize = .debug,
+            .imports = &.{
+                .{ .name = "zg_gui", .module = test_gui },
+                .{ .name = "workspace_template", .module = b.createModule(.{
+                    .root_source_file = workspace_source,
+                    .target = b.graph.host,
+                    .optimize = .debug,
+                    .imports = &.{.{ .name = "zg_gui", .module = test_gui }},
+                }) },
+            },
+        }),
+    });
+    const workspace_check = b.step("test-workspace", "Test the bounded workspace example");
+    workspace_check.dependOn(&b.addRunArtifact(workspace_tests).step);
+    b.top_level_steps.get("test").?.step.dependOn(workspace_check);
 }
 
 pub const FragmentContext = enum { flow, dl, ul, ol, thead, tbody, tfoot, tr, select, optgroup };
