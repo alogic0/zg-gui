@@ -487,14 +487,8 @@ const Compiler = struct {
         for (node.attrs) |a| {
             const n = a.name.slice(c.input.source);
             if (dynamic_max != null and oneOf(n, "max value")) continue;
-            if (oneOf(n, ":ref :key :limit :loop :text :if :slot")) continue;
-            if (std.mem.eql(u8, n, ":value")) {
-                if (oneOf(tag_name, "textarea select")) continue;
-                c.entries += input.factor;
-                try c.code.add("p.formValue(.{ .node = node, .text_value = ");
-                try c.expression(a);
-                try c.code.add(" });\n");
-            } else if (std.mem.eql(u8, n, ":checked") or std.mem.eql(u8, n, ":visible")) {
+            if (oneOf(n, ":ref :key :limit :loop :text :if :slot :value")) continue;
+            if (std.mem.eql(u8, n, ":checked") or std.mem.eql(u8, n, ":visible")) {
                 c.entries += input.factor;
                 try c.code.print("p.{s}(.{{ .node = node, .value = ", .{n[1..]});
                 try c.expression(a);
@@ -550,6 +544,14 @@ const Compiler = struct {
                     try c.code.add(" });\n");
                 }
             } else try c.literal(try std.fmt.allocPrint(c.a, " {s}", .{a.span().slice(c.input.source)}));
+        }
+        // Native input types sanitize value writes. Apply all attributes before
+        // the controlled value, regardless of their order in the template.
+        if (value_attr != null and std.mem.eql(u8, tag_name, "input")) {
+            c.entries += input.factor;
+            try c.code.add("p.formValue(.{ .node = node, .text_value = ");
+            try c.expression(value_attr.?);
+            try c.code.add(" });\n");
         }
         if (c.attr(.{ .idx = input.idx, .name = ":input" }) != null) {
             if (c.attr(.{ .idx = input.idx, .name = "type" })) |t| {
