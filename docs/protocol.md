@@ -26,6 +26,9 @@ Explicit SVG geometry/paint attributes and HTML id/for associations are allowed.
 Append operations use the target element's parsing context for table and SVG children.
 Controlled selects declare `data-select-value`; the host restores that declared
 value after option insertion/removal/reordering and child replacement.
+Option text patches also restore this selection, because options without an
+explicit `value` derive their value from their text. A missing declared value
+leaves no option selected until a matching option returns.
 
 The host supports numeric `data-style-vars` custom properties and bounded
 `data-scroll-top`. `data-value-format="instant-local"` and `data-text-format`

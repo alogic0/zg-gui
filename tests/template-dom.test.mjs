@@ -140,3 +140,47 @@ test('generated textarea values preserve leading newlines in HTML and patches', 
     });
   } finally { await browser?.close(); await server.close(); }
 });
+
+test('generated option text patches restore declared selection without a value patch', async () => {
+  const frames = await projectFrames({
+    template: '<section><select :value="$selected"><option :text="$first"></option><option :text="$second"></option></select><select :value="$selected"><option value="a" :text="$first"></option><option value="c" :text="$second"></option></select><select><option :text="$first"></option><option :text="$second"></option></select><input value="draft"></section>',
+    declarations: 'const View = struct { selected: []const u8 = "a", first: []const u8, second: []const u8 };',
+    views: '.{ .first = "a", .second = "c" }, .{ .first = "b", .second = "a" }, .{ .first = "b", .second = "a" }, .{ .first = "b", .second = "c" }, .{ .first = "a", .second = "c" }',
+  });
+  assert.equal(frames[2], '');
+  for (const frame of frames.slice(1)) {
+    for (const line of frame.split('\n').filter(Boolean)) assert.ok(line.startsWith('T\t'), line);
+  }
+  const server = await serve({ directory: join(root, 'web') });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    const result = await page.evaluate(async frames => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const dom = createDomHost({ root }); dom.initialize(frames[0]);
+      const parent = root.firstElementChild, input = parent.lastElementChild;
+      const [controlled, explicit, uncontrolled] = parent.querySelectorAll('select');
+      const originalOptions = [...parent.querySelectorAll('option')];
+      input.value = 'browser draft';
+      controlled.focus();
+      dom.applyPatchStream(frames[1]); dom.applyPatchStream(frames[2]);
+      const swapped = controlled.value === 'a' && controlled.selectedIndex === 1;
+      const native = explicit.value === 'a' && explicit.selectedIndex === 0
+        && uncontrolled.value === 'b' && uncontrolled.selectedIndex === 0;
+      dom.applyPatchStream(frames[3]);
+      const absent = controlled.value === '' && controlled.selectedIndex === -1;
+      dom.applyPatchStream(frames[4]);
+      return {
+        swapped, native, absent, restored: controlled.value === 'a' && controlled.selectedIndex === 0,
+        retained: root.firstElementChild === parent && parent.firstElementChild === controlled
+          && document.activeElement === controlled && parent.lastElementChild === input
+          && input.value === 'browser draft'
+          && [...parent.querySelectorAll('option')].every((option, i) => option === originalOptions[i]),
+      };
+    }, frames);
+    assert.deepEqual(result, { swapped: true, native: true, absent: true, restored: true, retained: true });
+  } finally { await browser?.close(); await server.close(); }
+});

@@ -124,6 +124,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
         if (operation === "T") {
           nodes.forgetChildren(target);
           target.textContent = localTimeLabel(fragment, { format: target.dataset.textFormat || 'plain' });
+          if (target instanceof window.HTMLOptionElement) applySelectValues(target);
           continue;
         }
         if (operation === "J") {
