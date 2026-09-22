@@ -14,4 +14,6 @@
 <symbol id="sliders" viewBox="0 0 24 24"><path d="M4 6h9m4 0h3M4 18h3m4 0h9M4 12h3m4 0h9"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="9" cy="18" r="2"/></symbol>
 <symbol id="trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></symbol>
 <symbol id="reset" viewBox="0 0 24 24"><path d="M3 4v6h6M3 10a9 9 0 1 1 1 7"/></symbol>
+<symbol id="arrow-up" viewBox="0 0 24 24"><path d="M12 20V4m-6 6 6-6 6 6"/></symbol>
+<symbol id="arrow-down" viewBox="0 0 24 24"><path d="M12 4v16m-6-6 6 6 6-6"/></symbol>
 </svg>

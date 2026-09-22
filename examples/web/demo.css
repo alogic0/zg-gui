@@ -48,3 +48,6 @@ li { padding: 14px; border: 1px solid var(--line); border-radius: 8px; }
 input::placeholder { color: var(--muted); opacity: 1; }
 @media (max-width: 800px) { .integration-panels { grid-template-columns: minmax(0, 1fr); } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+
+.card select { background-image: var(--select-chevron); background-repeat: no-repeat; background-position: right 12px center; background-size: 16px 16px; padding-inline: 12px 40px; }
+@media (forced-colors: active) { .card select { background-image: none; } }

@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Inside Fieldwork — zg-gui</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <script src="demo-theme.js"></script>
   <link rel="stylesheet" href="demo-shared.css">
   <link rel="stylesheet" href="workspace.css">
 </head>
 <body>
   <main class="source-page">
-    <nav class="site-header" aria-label="Demo pages"><a class="site-brand" href="index.html">zg-gui<span>Zig + WebAssembly</span></a><div class="site-nav"><a href="index.html">Showcase</a><a href="basics.html">Basics</a><a href="source.html" aria-current="page">Source</a></div></nav>
+    <nav class="site-header" aria-label="Demo pages"><a class="site-brand" href="index.html">zg-gui<span>Zig + WebAssembly</span></a><div class="site-nav"><a href="index.html">Showcase</a><a href="basics.html">Basics</a><a href="source.html" aria-current="page">Source</a></div><button class="theme-toggle" data-source-theme aria-label="Use dark theme">Dark theme</button></nav>
     <a href="index.html">← Back to the workspace</a>
     <h1>From interaction to source.</h1>
     <p>Fieldwork is a synthetic planning workspace built with zg-gui. Its tasks, filters, selection, and activity live in Zig. A small browser host applies the resulting DOM commands.</p>
@@ -31,7 +32,7 @@
     <pre><code>var next = state;
 // Apply the admitted edit to next.
 return render(.{ .candidate = next, .mode = .patch });</code></pre>
-    <p>There is no storage or backend. Reloading starts a fresh sample. Search folds ASCII case and matches UTF-8 text byte-for-byte otherwise. User edits allow 48 UTF-16 units for titles/search and 256 for notes, fitting their UTF-8 byte buffers.</p>
+    <p>Task data has no storage or backend. Reloading starts a fresh sample; only your theme preference is saved in this browser. Search folds ASCII case and matches UTF-8 text byte-for-byte otherwise. User edits allow 48 UTF-16 units for titles/search and 256 for notes, fitting their UTF-8 byte buffers.</p>
     <h2>3. Update the smallest owner</h2>
     <p>Changing a title updates its text and form value. Reordering emits move commands for retained keyed rows. The table, detail panel, and unrelated controls keep their DOM identity. Try typing in Notes, then use the Move task controls.</p>
     <p>Creation and deletion add or remove individual rows. Changing a filter removes excluded rows; their DOM objects are recreated when they return. Task data remains in Zig throughout.</p>

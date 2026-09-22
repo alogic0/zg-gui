@@ -3,14 +3,17 @@
 The default example is a synthetic project-planning workspace. Its purpose is to
 make the framework's capabilities inspectable through a complete small app.
 There are no customer records, backend services, authentication, or persistent
-storage. The original introduction is still available at `/basics.html`.
+task storage. Only the appearance preference is saved in browser localStorage.
+The original introduction is still available at `/basics.html`.
 
 ## Run and explore
 
 Use the compiler in `.zigversion`, run `npm ci`, then `npm run dev`. Open
 http://127.0.0.1:4180. Try the following journey:
 
-1. Select a task and edit its name or notes in the detail panel.
+1. Click anywhere on a task row to select it and edit its name or notes in the
+   detail panel. The completion button only toggles completion; the task title
+   remains the keyboard entry point.
 2. Change its status, priority, or assignee. The row, progress and activity update.
 3. Use the arrow buttons to reorder the selected task. Reordering returns the
    list to manual order, including when it was previously sorted.
@@ -26,7 +29,8 @@ http://127.0.0.1:4180. Try the following journey:
    **Back to tasks** returns focus to the selected row, or search if a filter
    hides that row. Native details disclosure opens the implementation notes.
 
-Changes are session-only. Reload discards them. Reset restores the tasks and
+Task changes are session-only. Reload discards them. The theme persists across
+Showcase, Basics and Source, including reloads. Reset restores the tasks and
 activity while retaining the chosen theme and font size. The sample accepts at
 most 24 tasks; creation disables at capacity, and the status message explains
 how to continue.
@@ -55,6 +59,10 @@ draft. Retained rows keep their drafts.
   mobile viewport navigation and focus return. It leaves task state in Zig and
   removes its listeners on disposal. The example-only `window.workspace` handle
   exposes public runtime methods for tests.
+- [demo-theme.js](../examples/web/demo-theme.js) restores the saved theme before
+  painting and synchronizes each Zig example through public dispatch. Storage
+  failure leaves local theme controls usable. Its observers and listeners are
+  released with the example; Source uses the same preference and control.
 - [workspace.css](../examples/web/workspace.css) owns presentation and responsive
   behavior. Both examples share navigation and theme tokens in
   [demo-shared.css](../examples/web/demo-shared.css). No network fonts, third-party
@@ -86,8 +94,8 @@ creation/deletion and font-size limits, scalar/move patch shape, and maximum
 escaped text at full task capacity followed by recovery. Browser journeys use
 the real WASM module and assert row/ancestor/control identity, focus and
 selection retention, empty states, form updates, sorting, reordering, activity,
-reset, mobile editor
-navigation, font-size keyboard controls and narrow layouts at 140%, and assets
+reset, mobile editor navigation, theme persistence, whole-row selection,
+font-size keyboard controls and narrow layouts at 140%, and assets
 beneath a repository subpath.
 
 The tests write desktop, mobile, and dark screenshots beneath ignored
