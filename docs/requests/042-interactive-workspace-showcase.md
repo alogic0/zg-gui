@@ -30,6 +30,28 @@ output is reviewable locally; publication depends on a repository destination.
 
 ## Verification and measurements
 
+### Font-size preference
+
+Provide accessible decrease/increase buttons and a current percentage in the
+workspace toolbar. Example-owned Zig state bounds text size to 80–140% in ten
+percentage-point steps, initially 100%. Reset retains this preference with the
+theme; reload restores defaults. Use the public template CSS-variable binding
+to scale text, including forms, without replacing existing DOM. No allocations,
+storage, or framework API changes are needed. Out-of-range actions are no-ops.
+Verify keyboard activation, disabled limits, text scaling, retained edits,
+ancestors, focus and selection, and usable narrow layouts at the largest size.
+
+Verified with five native workspace checks, the site build, and all four
+workspace browser/artifact tests. At 140%, tested widths from 320 to 1440 pixels
+have no page overflow. Updated presentation captures include the toolbar.
+The WASM is 157,954 bytes; initial and observed linear memory remain 917,504
+bytes. Initial HTML is 28,407 bytes. A 100% to 110% adjustment emits 49 bytes in
+two commands (one CSS-variable attribute and one percentage text update), with
+no HTML replacement. Reordering still emits 174 bytes in eight commands. Peak
+stack/heap usage remains unprofiled.
+
+### Initial showcase delivery
+
 `zig build test-workspace` passes four native checks, including maximum escaped
 text across all 24 tasks and full recovery. `npm test` passes native/compiler
 checks and 37 Node tests. `npm run test:browser` passes all 29 checks. The new

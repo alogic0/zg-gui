@@ -53,13 +53,14 @@ const State = struct {
     sort: enum { manual, priority, title } = .manual,
     query: Text(192) = .{},
     dark: bool = false,
+    font_size: u8 = 100,
     focus_revision: u32 = 0,
     activity: [max_activity]Activity = @splat(.{}),
     activity_len: usize = 0,
     next_activity: u32 = 1,
     notice: []const u8 = "Sample workspace. Changes stay in this session.",
 };
-const Action = enum(u32) { select = 1, complete, filter, add, remove, up, down, theme, reset, clear };
+const Action = enum(u32) { select = 1, complete, filter, add, remove, up, down, theme, reset, clear, font_decrease, font_increase };
 const Input = enum(u32) { search = 1, title, notes, status, priority, sort, owner };
 const owners = [_][]const u8{ "Alex Kim", "Jules Lee", "Morgan Reed" };
 const initials = [_][]const u8{ "AK", "JL", "MR" };
@@ -209,6 +210,7 @@ fn render(input: struct { candidate: State, mode: gui.patch.RenderMode }) u32 {
     const empty_task = Task{};
     const selected = if (selected_index) |i| &s.tasks[i] else &empty_task;
     const percent = if (s.len == 0) 0 else (counts[2] * 100 + s.len / 2) / s.len;
+    var font_size_label: [4]u8 = undefined;
     var progress_value: [32]u8 = undefined;
     var progress_note: [64]u8 = undefined;
     var active_value: [32]u8 = undefined;
@@ -229,6 +231,10 @@ fn render(input: struct { candidate: State, mode: gui.patch.RenderMode }) u32 {
         .theme = @as([]const u8, if (s.dark) "dark" else "light"),
         .theme_label = @as([]const u8, if (s.dark) "Use light theme" else "Use dark theme"),
         .dark = s.dark,
+        .font_style = .{ .@"--font-scale" = s.font_size },
+        .font_size_label = std.fmt.bufPrint(&font_size_label, "{d}%", .{s.font_size}) catch unreachable,
+        .font_decrease_disabled = s.font_size <= 80,
+        .font_increase_disabled = s.font_size >= 140,
         .notice = s.notice,
         .query = s.query.slice(),
         .sort = @tagName(s.sort),
@@ -268,7 +274,7 @@ fn render(input: struct { candidate: State, mode: gui.patch.RenderMode }) u32 {
             else => "2",
         }),
         .activity = activity[0..s.activity_len],
-        .actions = .{ .select = Action.select, .complete = Action.complete, .filter = Action.filter, .add = Action.add, .remove = Action.remove, .up = Action.up, .down = Action.down, .theme = Action.theme, .reset = Action.reset, .clear = Action.clear },
+        .actions = .{ .select = Action.select, .complete = Action.complete, .filter = Action.filter, .add = Action.add, .remove = Action.remove, .up = Action.up, .down = Action.down, .theme = Action.theme, .reset = Action.reset, .clear = Action.clear, .font_decrease = Action.font_decrease, .font_increase = Action.font_increase },
         .inputs = .{ .search = Input.search, .title = Input.title, .notes = Input.notes, .status = Input.status, .priority = Input.priority, .sort = Input.sort, .owner = Input.owner },
     });
     p.focus(.{ .owner = template.nodes.detail_title, .target = if (selected_index != null) template.nodes.detail_title else template.nodes.add_task, .revision = s.focus_revision });
@@ -340,11 +346,15 @@ pub export fn dispatch(action_id: u32, value: i32) u32 {
                 next.notice = "Task moved. You’re back in manual order.";
             }
         },
+        .font_decrease => next.font_size = @max(80, next.font_size - 10),
+        .font_increase => next.font_size = @min(140, next.font_size + 10),
         .theme => next.dark = !next.dark,
         .reset => {
             const dark = next.dark;
+            const font_size = next.font_size;
             next = seed();
             next.dark = dark;
+            next.font_size = font_size;
             next.notice = "Sample workspace restored.";
         },
         .clear => {
@@ -421,6 +431,27 @@ test "workspace edits and reorders emit leaf and move patches" {
     try std.testing.expect(std.mem.indexOf(u8, output[0..output_len], "H\t") == null);
     try std.testing.expect(resync() > 0);
 }
+test "workspace font preference is bounded retained on reset and recovered" {
+    _ = init();
+    inputForTest(.notes, "Keep my draft");
+    _ = dispatch(@backingInt(Action.font_increase), 0);
+    try std.testing.expect(std.mem.indexOf(u8, output[0..output_len], "--font-scale:110") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output[0..output_len], "H\t") == null);
+    try std.testing.expectEqualStrings("Keep my draft", state.tasks[2].notes.slice());
+    for (0..30) |_| _ = dispatch(@backingInt(Action.font_increase), 0);
+    try std.testing.expectEqual(@as(u8, 140), state.font_size);
+    try std.testing.expectEqual(@as(u32, 0), dispatch(@backingInt(Action.font_increase), 0));
+    _ = dispatch(@backingInt(Action.reset), 0);
+    try std.testing.expectEqual(@as(u8, 140), state.font_size);
+    try std.testing.expect(resync() > 0);
+    try std.testing.expect(std.mem.indexOf(u8, output[0..output_len], "--font-scale:140") != null);
+    for (0..30) |_| _ = dispatch(@backingInt(Action.font_decrease), 0);
+    try std.testing.expectEqual(@as(u8, 80), state.font_size);
+    try std.testing.expectEqual(@as(u32, 0), dispatch(@backingInt(Action.font_decrease), 0));
+    _ = init();
+    try std.testing.expectEqual(@as(u8, 100), state.font_size);
+}
+
 test "workspace bounds creation removal and malformed input" {
     _ = init();
     @memset(exchange[0..193], 'x');

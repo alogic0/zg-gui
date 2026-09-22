@@ -20,12 +20,15 @@ http://127.0.0.1:4180. Try the following journey:
    filtered out.
 5. Add a task. Search and status filters clear so the new task is visible, and the
    editor receives focus. Delete it or reset the sample when finished.
-6. Switch themes and resize to a mobile viewport. Task selection brings the
-   editor into view. Native details disclosure opens the implementation notes.
+6. Use A− / A+ in the top bar to adjust all workspace text from 80% to 140%
+   in 10% steps (default 100%). Switch themes and resize to a mobile viewport.
+   Task selection brings the editor into view. Native details disclosure opens
+   the implementation notes.
 
 Changes are session-only. Reload discards them. Reset restores the tasks and
-activity while retaining the chosen theme. The sample accepts at most 24 tasks;
-creation disables at capacity, and the status message explains how to continue.
+activity while retaining the chosen theme and font size. The sample accepts at
+most 24 tasks; creation disables at capacity, and the status message explains
+how to continue.
 
 ## Code and ownership
 
@@ -63,11 +66,12 @@ npm run test:browser
 ```
 
 Native coverage includes state updates, invalid/oversized UTF-8 input, filtering,
-creation/deletion limits, scalar/move patch shape, and maximum escaped text at
-full task capacity followed by recovery. Browser journeys use the real WASM
-module and assert row/ancestor/control identity, focus and selection retention,
+creation/deletion and font-size limits, scalar/move patch shape, and maximum
+escaped text at full task capacity followed by recovery. Browser journeys use
+the real WASM module and assert row/ancestor/control identity, focus and selection retention,
 empty states, form updates, sorting, reordering, activity, reset, mobile editor
-navigation, and assets beneath a repository subpath.
+navigation, font-size keyboard controls and narrow layouts at 140%, and assets
+beneath a repository subpath.
 
 The tests write desktop, mobile, and dark screenshots beneath ignored
 `test-results/`. Reviewed presentation captures and the short interaction video

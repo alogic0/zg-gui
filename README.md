@@ -29,7 +29,8 @@ Fieldwork is a complete, synthetic project workspace. Edit task names and notes,
 change status and priority, assign teammates, search, filter, sort, reorder, add
 and delete tasks. Progress, an SVG status chart, and recent activity update from
 the same Zig state. Light/dark themes and a responsive layout work on desktop
-and mobile. The three overview cards share one compiled template component.
+and mobile. Use **A− / A+** in the top bar to adjust text size from 80% to 140%.
+The three overview cards share one compiled template component.
 
 No account, backend, external assets, or runtime npm dependencies. Changes stay
 in the current session; reload or **Reset demo** restores the sample. The example

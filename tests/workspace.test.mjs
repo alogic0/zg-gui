@@ -129,6 +129,62 @@ test('workspace capacity, mobile navigation, source links and static subpaths wo
   } finally { await browser?.close(); await server.close(); }
 });
 
+test('workspace font controls scale text without losing edits, identity or focus', async () => {
+  const server = await serve({ directory });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.goto(server.url);
+    await page.waitForFunction(() => window.workspace);
+    const increase = page.getByRole('button', { name: 'Increase font size', exact: true });
+    const decrease = page.getByRole('button', { name: 'Decrease font size', exact: true });
+    const size = page.getByLabel('Font size', { exact: true });
+    const fontSizes = () => page.evaluate(() => ['h1', '.task-title > span', '#task-notes']
+      .map(selector => parseFloat(getComputedStyle(document.querySelector(selector)).fontSize)));
+    const originalSizes = await fontSizes();
+    await increase.focus();
+    await increase.press('Enter');
+    assert.equal(await size.textContent(), '110%');
+    assert.equal(await increase.evaluate(node => node === document.activeElement), true);
+    const enlargedSizes = await fontSizes();
+    enlargedSizes.forEach((value, index) => assert.ok(Math.abs(value / originalSizes[index] - 1.1) < 0.001));
+    await page.getByLabel('Notes', { exact: true }).fill('Keep this draft and selection.');
+    assert.equal(await page.evaluate(() => {
+      const selectors = ['.workspace', 'main', 'table', 'tbody', '[data-task="3"]', '#task-notes'];
+      const retained = selectors.map(selector => document.querySelector(selector));
+      const notes = retained.at(-1);
+      notes.focus(); notes.setSelectionRange(2, 8);
+      window.workspace.dispatch({ action: 12 });
+      return selectors.every((selector, index) => document.querySelector(selector) === retained[index])
+        && notes === document.activeElement && notes.selectionStart === 2 && notes.selectionEnd === 8
+        && notes.value === 'Keep this draft and selection.';
+    }), true);
+    await increase.click();
+    await increase.click();
+    assert.equal(await size.textContent(), '140%');
+    assert.equal(await increase.isDisabled(), true);
+    await page.getByRole('button', { name: 'Reset demo', exact: true }).click();
+    assert.equal(await size.textContent(), '140%');
+    for (const width of [1440, 1024, 768, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflow at ${width}px`);
+      assert.equal(await decrease.isVisible(), true);
+    }
+    await mkdir(new URL('../test-results', import.meta.url), { recursive: true });
+    await page.screenshot({ path: new URL('../test-results/workspace-large-text-mobile.png', import.meta.url).pathname, fullPage: true });
+    for (let i = 0; i < 6; i++) await decrease.click();
+    assert.equal(await size.textContent(), '80%');
+    assert.equal(await decrease.isDisabled(), true);
+    await page.reload();
+    await page.waitForFunction(() => window.workspace);
+    assert.equal(await size.textContent(), '100%');
+    assert.deepEqual(errors, []);
+  } finally { await browser?.close(); await server.close(); }
+});
+
 test('workspace artifact reports bounded memory and patch work', async () => {
   const file = new URL('../zig-out/web/workspace.wasm', import.meta.url);
   const { instance } = await WebAssembly.instantiate(await readFile(file));

@@ -1,4 +1,4 @@
-<div class="workspace" data-theme="$theme">
+<div class="workspace" data-theme="$theme" :style-vars="$font_style">
   <a class="skip-link" href="#main">Skip to workspace</a>
   <aside class="sidebar" aria-label="Workspace navigation">
     <a class="brand" href="#overview"><span class="brand-mark" aria-hidden="true">f.</span><span>fieldwork<span class="brand-dot">/</span></span></a>
@@ -14,7 +14,7 @@
     <div class="profile"><span class="avatar avatar-indigo">AK</span><div><strong>Alex Kim</strong><small>Your sample workspace</small></div></div>
   </aside>
   <div class="workspace-body">
-    <header class="topbar"><div class="breadcrumbs"><span>Workspace</span><span aria-hidden="true">/</span><strong>Website refresh</strong></div><div class="topbar-actions"><span class="session-tag"><span class="live-dot"></span>Session only</span><button class="icon-button" :on-click="$actions.theme" aria-label="$theme_label" title="$theme_label"><svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#sun"></use></svg></button></div></header>
+    <header class="topbar"><div class="breadcrumbs"><span>Workspace</span><span aria-hidden="true">/</span><strong>Website refresh</strong></div><div class="topbar-actions"><span class="session-tag"><span class="live-dot"></span>Session only</span><div class="font-size-controls" role="group" aria-label="Text size"><button class="icon-button" :on-click="$actions.font_decrease" disabled="$font_decrease_disabled" aria-label="Decrease font size" title="Decrease font size">A−</button><output aria-label="Font size" aria-live="polite" :text="$font_size_label"></output><button class="icon-button" :on-click="$actions.font_increase" disabled="$font_increase_disabled" aria-label="Increase font size" title="Increase font size">A+</button></div><button class="icon-button" :on-click="$actions.theme" aria-label="$theme_label" title="$theme_label"><svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#sun"></use></svg></button></div></header>
     <main id="main">
       <section class="project-header" id="overview" aria-labelledby="project-title">
         <div><p class="eyebrow">A LITTLE STRUCTURE. MORE ROOM TO CREATE.</p><div class="title-line"><h1 id="project-title">Website refresh</h1><span class="project-status"><span class="live-dot"></span>In motion</span></div><p class="project-description">From first ideas to the final details. Bring it all together here.</p></div>
