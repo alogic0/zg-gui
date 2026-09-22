@@ -2,11 +2,11 @@
   <a class="skip-link" href="#main">Skip to workspace</a>
   <aside class="sidebar" aria-label="Workspace navigation">
     <a class="brand" href="#overview"><span class="brand-mark" aria-hidden="true">f.</span><span>fieldwork<span class="brand-dot">/</span></span></a>
-    <div class="workspace-switch"><span class="workspace-avatar">S</span><div><strong>Studio workspace</strong><small>Personal space</small></div><span class="switch-mark" aria-hidden="true">⌘</span></div>
+    <p class="workspace-context">A sample project workspace.<br>All changes stay in this session.</p>
     <p class="nav-label">WORKSPACE</p>
     <nav class="navigation" aria-label="Sections">
       <a href="#overview"><svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#grid"></use></svg>Overview</a>
-      <a class="nav-current" href="#tasks"><svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#layers"></use></svg>Project tasks<span class="nav-count" :text="$total"></span></a>
+      <a href="#tasks"><svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#layers"></use></svg>Project tasks<span class="nav-count" :text="$total"></span></a>
       <a href="#activity"><svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#activity"></use></svg>Activity</a>
     </nav>
     <div class="sidebar-project"><p class="nav-label">CURRENT PROJECT</p><a href="#overview"><span class="project-dot"></span>Website refresh</a><span class="project-caption">Make something worth sharing.</span></div>
@@ -14,10 +14,13 @@
     <div class="profile"><span class="avatar avatar-indigo">AK</span><div><strong>Alex Kim</strong><small>Your sample workspace</small></div></div>
   </aside>
   <div class="workspace-body">
-    <header class="topbar"><div class="breadcrumbs"><span>Workspace</span><span aria-hidden="true">/</span><strong>Website refresh</strong></div><div class="topbar-actions"><span class="session-tag"><span class="live-dot"></span>Session only</span><div class="font-size-controls" role="group" aria-label="Text size"><button class="icon-button" :on-click="$actions.font_decrease" disabled="$font_decrease_disabled" aria-label="Decrease font size" title="Decrease font size">A−</button><output aria-label="Font size" aria-live="polite" :text="$font_size_label"></output><button class="icon-button" :on-click="$actions.font_increase" disabled="$font_increase_disabled" aria-label="Increase font size" title="Increase font size">A+</button></div><button class="icon-button" :on-click="$actions.theme" aria-label="$theme_label" title="$theme_label"><svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#sun"></use></svg></button></div></header>
+    <header class="topbar">
+      <nav class="site-header" aria-label="Demo pages"><a class="site-brand" href="index.html">zg-gui<span>Zig + WebAssembly</span></a><div class="site-nav"><a href="index.html" aria-current="page">Showcase</a><a href="basics.html">Basics</a><a href="source.html">Source</a></div></nav>
+      <div class="topbar-actions"><div class="font-size-controls" role="group" aria-label="Text size"><button class="icon-button" :on-click="$actions.font_decrease" disabled="$font_decrease_disabled" aria-label="Decrease font size" title="Decrease font size">A−</button><output aria-label="Font size" aria-live="polite" :text="$font_size_label"></output><button class="icon-button" :on-click="$actions.font_increase" disabled="$font_increase_disabled" aria-label="Increase font size" title="Increase font size">A+</button></div><button class="theme-toggle" :on-click="$actions.theme" aria-label="$theme_label" :text="$theme_button"></button></div>
+    </header>
     <main id="main">
       <section class="project-header" id="overview" aria-labelledby="project-title">
-        <div><p class="eyebrow">A LITTLE STRUCTURE. MORE ROOM TO CREATE.</p><div class="title-line"><h1 id="project-title">Website refresh</h1><span class="project-status"><span class="live-dot"></span>In motion</span></div><p class="project-description">From first ideas to the final details. Bring it all together here.</p></div>
+        <div><p class="eyebrow">A ZG-GUI INTERACTIVE DEMO</p><div class="title-line"><h1 id="project-title">Website refresh</h1><span class="project-status"><span class="live-dot"></span>In motion</span></div><p class="project-description">Try editing a task, changing its status, or reordering it. Zig updates the page while keeping your other controls in place.</p></div>
         <div class="project-people"><div class="avatar-stack" aria-label="Alex Kim, Jules Lee, and Morgan Reed"><span class="avatar avatar-indigo">AK</span><span class="avatar avatar-peach">JL</span><span class="avatar avatar-sage">MR</span></div><span>Small team. Shared direction.</span></div>
       </section>
       <section class="metrics" aria-label="Project overview">
@@ -39,10 +42,10 @@
             </tr>
           </tbody></table></div>
           <div class="empty-state" :visible="$empty"><svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#search"></use></svg><h3>No tasks here yet</h3><p>Try another search or filter, or make room for a new idea.</p><button class="button secondary" :on-click="$actions.clear">Clear filters</button></div>
-          <div class="table-footer"><span :text="$row_count"></span><span>Choose a task to make it yours <span aria-hidden="true">↗</span></span></div>
+          <div class="table-footer"><span :text="$row_count"></span><a class="source-link" href="source.html">See how task updates work →</a></div>
         </section>
         <aside class="detail-panel panel" aria-label="Task details">
-          <div class="detail-top"><span class="eyebrow">TASK DETAILS</span><svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#sliders"></use></svg></div>
+          <div class="detail-top"><h2>Task details</h2><button class="button secondary back-to-tasks" data-back-to-tasks="true">Back to tasks</button></div>
           <div class="detail-empty" :visible="$no_selection"><h2>A fresh start</h2><p>Add a task to start shaping your project.</p><button class="button primary" :on-click="$actions.add">Add your first task</button></div>
           <div :visible="$has_selection">
             <div class="detail-code" :text="$selected_code"></div>
@@ -53,14 +56,14 @@
             <div class="detail-property"><label for="task-owner"><svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#user"></use></svg>Assignee</label><select id="task-owner" :value="$selected_owner_value" :input="$inputs.owner"><option value="0">Alex Kim</option><option value="1">Jules Lee</option><option value="2">Morgan Reed</option></select></div>
             <div class="detail-divider"></div>
             <label class="notes-label" for="task-notes">Notes <svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#edit"></use></svg></label><textarea id="task-notes" rows="7" maxlength="256" placeholder="A little context goes a long way…" :value="$selected_notes" :input="$inputs.notes"></textarea>
-            <p class="save-hint"><span class="live-dot"></span>Changes saved in this session</p>
+            <p class="save-hint"><span class="live-dot"></span>Session only · reload discards changes</p>
             <div class="detail-actions"><div><button class="icon-button" title="Move task up" aria-label="Move task up" :on-click="$actions.up" disabled="$up_disabled">↑</button><button class="icon-button" title="Move task down" aria-label="Move task down" :on-click="$actions.down" disabled="$down_disabled">↓</button></div><button class="button danger" :on-click="$actions.remove"><svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#trash"></use></svg>Delete task</button></div>
           </div>
         </aside>
       </div>
       <div class="bottom-grid">
         <section class="activity-panel panel" id="activity" aria-labelledby="activity-title"><div class="panel-heading"><h2 id="activity-title">A little forward motion</h2><span class="subtle">Recent activity</span></div><ol class="activity-list" :loop="$activity" :key="id" :limit="5"><li><span class="activity-marker" aria-hidden="true"></span><div><p :text="$item.label"></p><span :text="$item.detail"></span></div><small :text="$item.time"></small></li></ol></section>
-        <section class="demo-card"><span class="demo-card-label">YOUR SPACE TO EXPLORE</span><h2>Go on. Move things around.</h2><p>Edit a task. Change its status. Reorder the list. Everything here is yours to try.</p><div class="demo-card-bottom"><span>No account. No backend.<br>Just a little possibility.</span><button class="button secondary" :on-click="$actions.reset"><svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#reset"></use></svg>Reset demo</button></div></section>
+        <section class="demo-card"><span class="demo-card-label">YOUR SPACE TO EXPLORE</span><h2>Try the next interaction.</h2><p>Write a note, then move the task up or down. Its details stay intact. Reset restores the sample tasks.</p><div class="demo-card-bottom"><span>No account or backend.</span><button class="button secondary" :on-click="$actions.reset"><svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#reset"></use></svg>Reset demo</button></div></section>
       </div>
       <details class="how-it-works panel" id="how"><summary><span><span class="code-mark" aria-hidden="true">&lt;/&gt;</span>Small updates. Steady controls.</span><span class="summary-hint">How this demo works <span aria-hidden="true">＋</span></span></summary><div class="how-content"><div><h3>01 · State in Zig</h3><p>Tasks, filters, and derived progress live in a bounded Zig model. This sample holds up to 24 tasks.</p></div><div><h3>02 · Compiled templates</h3><p>HTML-like templates become typed projections at build time. The summary cards share one component.</p></div><div><h3>03 · A small browser host</h3><p>Typed patches update individual values and move existing rows. Reordering keeps DOM objects and input focus intact.</p></div><a href="source.html">Read the source walkthrough <span aria-hidden="true">↗</span></a></div></details>
       <footer class="page-footer"><span>Built with <strong>zg-gui</strong><span class="footer-separator">·</span>Zig + WebAssembly</span><span role="status" aria-live="polite" :text="$notice"></span></footer>

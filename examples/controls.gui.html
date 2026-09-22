@@ -8,7 +8,8 @@
           :loop="$options" :key="id" :limit="3">
     <option value="$item.value" :text="$item.label"></option>
   </select>
-  <dl><div><dt>Selected channel</dt><dd :ref="selection" :text="$selected"></dd></div></dl>
+  <p class="option-notice" role="status" :visible="$unavailable">Email is temporarily unavailable. Restore the Email option above, or choose SMS.</p>
+  <dl><div><dt>Selected channel</dt><dd :ref="selection" :text="$selection_label"></dd></div></dl>
   <table>
     <caption>Field mapping</caption>
     <thead><tr><th>Incoming field</th><th>Draft</th></tr></thead>
@@ -16,7 +17,7 @@
       <tr><td :text="$item.label"></td><td><input aria-label="$item.label"></td></tr>
     </tbody>
   </table>
-  <svg viewBox="0 0 40 24" width="40" height="24" aria-label="Mapping markers">
+  <svg viewBox="0 0 40 24" width="40" height="24" fill="currentColor" aria-label="Mapping markers">
     <g :loop="$markers" :key="id" :limit="3"><circle cx="$item.x" cy="12" r="3" /></g>
   </svg>
 </section>

@@ -230,6 +230,7 @@ fn render(input: struct { candidate: State, mode: gui.patch.RenderMode }) u32 {
     template.project(&p, .{
         .theme = @as([]const u8, if (s.dark) "dark" else "light"),
         .theme_label = @as([]const u8, if (s.dark) "Use light theme" else "Use dark theme"),
+        .theme_button = @as([]const u8, if (s.dark) "Light theme" else "Dark theme"),
         .dark = s.dark,
         .font_style = .{ .@"--font-scale" = s.font_size },
         .font_size_label = std.fmt.bufPrint(&font_size_label, "{d}%", .{s.font_size}) catch unreachable,
@@ -249,9 +250,9 @@ fn render(input: struct { candidate: State, mode: gui.patch.RenderMode }) u32 {
         .rows = rows[0..count],
         .empty = count == 0,
         .row_count = std.fmt.bufPrint(&row_count, "{d} of {d} tasks", .{ count, s.len }) catch unreachable,
-        .metric_progress = Metric{ .label = "Overall progress", .value = std.fmt.bufPrint(&progress_value, "{d}%", .{percent}) catch unreachable, .note = std.fmt.bufPrint(&progress_note, "{d} of {d} tasks complete", .{ counts[2], s.len }) catch unreachable, .icon = "workspace-icons.svg#progress", .progress = progress, .show_progress = true },
+        .metric_progress = Metric{ .label = "Progress", .value = std.fmt.bufPrint(&progress_value, "{d}%", .{percent}) catch unreachable, .note = std.fmt.bufPrint(&progress_note, "{d} of {d} tasks complete", .{ counts[2], s.len }) catch unreachable, .icon = "workspace-icons.svg#progress", .progress = progress, .show_progress = true },
         .metric_active = Metric{
-            .label = "In progress",
+            .label = "Active",
             .value = std.fmt.bufPrint(&active_value, "{d}", .{counts[1]}) catch unreachable,
             .note = "Good things are taking shape",
             .icon = "workspace-icons.svg#layers",
@@ -260,7 +261,7 @@ fn render(input: struct { candidate: State, mode: gui.patch.RenderMode }) u32 {
             .chart_label = std.fmt.bufPrint(&chart_label, "{d} to do, {d} in progress, {d} done", .{ counts[0], counts[1], counts[2] }) catch unreachable,
             .chart = .{ .planned_y = 24 - planned_height, .planned_height = planned_height, .active_y = 24 - active_height, .active_height = active_height, .done_y = 24 - done_height, .done_height = done_height },
         },
-        .metric_planned = Metric{ .label = "Up next", .value = std.fmt.bufPrint(&planned_value, "{d}", .{counts[0]}) catch unreachable, .note = "Ready when you are", .icon = "workspace-icons.svg#arrow", .progress = progress },
+        .metric_planned = Metric{ .label = "To do", .value = std.fmt.bufPrint(&planned_value, "{d}", .{counts[0]}) catch unreachable, .note = "Ready when you are", .icon = "workspace-icons.svg#arrow", .progress = progress },
         .has_selection = selected_index != null,
         .no_selection = selected_index == null,
         .selected_code = selected.code.slice(),

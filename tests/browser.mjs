@@ -167,7 +167,7 @@ test('invoked components retain table rows, SVG namespaces and controlled select
       return slot.isConnected && slot === first.parentElement.parentElement
         && first.isConnected && second.isConnected && select === first.querySelector('select')
         && list === first.querySelector('dl') && description === list.querySelector('dd')
-        && description.textContent === 'email' && sibling === second.querySelector('dd') && sibling.textContent === 'email'
+        && description.textContent === 'Email' && sibling === second.querySelector('dd') && sibling.textContent === 'Email'
         && input === second.querySelector('input') && document.activeElement === input
         && input.value === 'independent browser draft' && select.value === 'email'
         && second.querySelector('select').value === 'email';
@@ -184,7 +184,11 @@ test('invoked components retain table rows, SVG namespaces and controlled select
       const initialCircle = markers.firstElementChild;
       window.demo.dispatch({ action: 3 });
       window.demo.dispatch({ action: 4 });
-      const removedSelection = select.value === '';
+      const rowsDoNotChangeOptions = select.value === 'email' && select.options.length === 2;
+      const reversedAll = [...panel.querySelectorAll('tbody tr td:first-child')].map(e => e.textContent).join(',') === 'Third row,Second row,First row';
+      window.demo.dispatch({ action: 8 });
+      const removedSelection = select.value === '' && panel.querySelector('.option-notice').hidden === false
+        && panel.querySelector('dd').textContent === 'Email — temporarily unavailable';
       const appendedCircle = markers.lastElementChild;
       const svgCorrect = initialCircle.isConnected && markers.children.length === 3
         && appendedCircle.namespaceURI === 'http://www.w3.org/2000/svg'
@@ -192,13 +196,14 @@ test('invoked components retain table rows, SVG namespaces and controlled select
       const rowsCorrect = row.isConnected && input.value === 'retained mapping draft'
         && document.activeElement === input && panel.querySelectorAll('tbody tr').length === 3;
       window.demo.dispatch({ action: 4 });
-      const restored = select.value === 'email';
+      window.demo.dispatch({ action: 8 });
+      const restored = select.value === 'email' && panel.querySelector('.option-notice').hidden;
       window.demo.setInput({ kind: 2, value: 'true' });
       const ids = [...document.querySelectorAll('[data-node-id]')].map(n => n.dataset.nodeId);
-      return { removedSelection, restored, svgCorrect, rowsCorrect, unique: new Set(ids).size === ids.length,
+      return { rowsDoNotChangeOptions, reversedAll, removedSelection, restored, svgCorrect, rowsCorrect, unique: new Set(ids).size === ids.length,
         icon: panel.querySelector('use').getAttribute('href'), selectRetained: select === panel.querySelector('select') };
     });
-    assert.deepEqual(result, { removedSelection: true, restored: true, svgCorrect: true, rowsCorrect: true,
+    assert.deepEqual(result, { rowsDoNotChangeOptions: true, reversedAll: true, removedSelection: true, restored: true, svgCorrect: true, rowsCorrect: true,
       unique: true, icon: 'icons.svg#link-active', selectRetained: true });
     assert.deepEqual(failures, []);
   } finally { await browser?.close(); await server.close(); }

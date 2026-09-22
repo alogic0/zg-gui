@@ -22,13 +22,25 @@ http://127.0.0.1:4180. Try the following journey:
    editor receives focus. Delete it or reset the sample when finished.
 6. Use A− / A+ in the top bar to adjust all workspace text from 80% to 140%
    in 10% steps (default 100%). Switch themes and resize to a mobile viewport.
-   Task selection brings the editor into view. Native details disclosure opens
-   the implementation notes.
+   Task selection brings the editor heading into view on narrow screens.
+   **Back to tasks** returns focus to the selected row, or search if a filter
+   hides that row. Native details disclosure opens the implementation notes.
 
 Changes are session-only. Reload discards them. Reset restores the tasks and
 activity while retaining the chosen theme and font size. The sample accepts at
 most 24 tasks; creation disables at capacity, and the status message explains
 how to continue.
+
+## Basics and source navigation
+
+Showcase, Basics and Source links remain visible at every supported width. The
+Basics page walks through live input, count updates, retained rows and independent
+component instances. Each experiment links to an explanation and source downloads.
+Reverse rows reverses the entire visible list and both mapping tables; toggling a
+third row does not change channel options. The separate Remove Email option
+experiment explains unavailable selections and restores them when Email returns,
+unless the visitor chose SMS instead. Removing a row discards its browser-only
+draft. Retained rows keep their drafts.
 
 ## Code and ownership
 
@@ -39,10 +51,14 @@ how to continue.
 - [workspace-metric.gui.html](../examples/workspace-metric.gui.html) is invoked
   three times with independent typed views. One instance includes a derived SVG
   distribution of to-do, active, and completed tasks.
-- [workspace.js](../examples/web/workspace.js) only loads the public runtime. The
-  example-only `window.workspace` handle exposes its public methods for tests.
+- [workspace.js](../examples/web/workspace.js) loads the public runtime and owns
+  mobile viewport navigation and focus return. It leaves task state in Zig and
+  removes its listeners on disposal. The example-only `window.workspace` handle
+  exposes public runtime methods for tests.
 - [workspace.css](../examples/web/workspace.css) owns presentation and responsive
-  behavior. No network fonts, third-party images, or CSS frameworks are used.
+  behavior. Both examples share navigation and theme tokens in
+  [demo-shared.css](../examples/web/demo-shared.css). No network fonts, third-party
+  images, or CSS frameworks are used.
 
 Text fields own their bytes. Titles/search use 192-byte buffers, notes use 1,024
 bytes, and exchange capacity is 2,048 bytes. The browser limits titles/search to
@@ -68,8 +84,9 @@ npm run test:browser
 Native coverage includes state updates, invalid/oversized UTF-8 input, filtering,
 creation/deletion and font-size limits, scalar/move patch shape, and maximum
 escaped text at full task capacity followed by recovery. Browser journeys use
-the real WASM module and assert row/ancestor/control identity, focus and selection retention,
-empty states, form updates, sorting, reordering, activity, reset, mobile editor
+the real WASM module and assert row/ancestor/control identity, focus and
+selection retention, empty states, form updates, sorting, reordering, activity,
+reset, mobile editor
 navigation, font-size keyboard controls and narrow layouts at 140%, and assets
 beneath a repository subpath.
 

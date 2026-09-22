@@ -248,6 +248,10 @@ pub fn build(b: *std.Build) void {
     workspace.export_memory = true;
     workspace.stack_size = 512 * 1024;
     b.getInstallStep().dependOn(&b.addInstallFile(workspace.getEmittedBin(), "web/workspace.wasm").step);
+    b.installFile("examples/demo.zig", "web/source/demo.zig");
+    b.installFile("examples/demo.gui.html", "web/source/demo.gui.html");
+    b.installFile("examples/controls.gui.html", "web/source/controls.gui.html");
+    b.installFile("examples/panels.gui.html", "web/source/panels.gui.html");
     b.installFile("examples/workspace.zig", "web/source/workspace.zig");
     b.installFile("examples/workspace.gui.html", "web/source/workspace.gui.html");
     b.installFile("examples/workspace-metric.gui.html", "web/source/workspace-metric.gui.html");

@@ -90,6 +90,10 @@ test('workspace capacity, mobile navigation, source links and static subpaths wo
     await page.goto(server.url + '/web/index.html');
     await page.waitForFunction(() => window.workspace);
     await page.locator('[data-task="4"] .task-title').click();
+    await page.waitForFunction(() => {
+      const top = document.querySelector('.detail-panel').getBoundingClientRect().top;
+      return top >= 0 && top < 80;
+    });
     assert.equal(await page.getByLabel('Task name', { exact: true }).inputValue(), 'Design the landing page');
     assert.equal(await page.getByLabel('Task name', { exact: true }).evaluate(node => {
       const box = node.getBoundingClientRect();
@@ -98,6 +102,19 @@ test('workspace capacity, mobile navigation, source links and static subpaths wo
     await page.getByLabel('Notes', { exact: true }).fill('Keyboard-friendly notes 🧭');
     await page.getByLabel('Notes', { exact: true }).press('Tab');
     assert.equal(await page.evaluate(() => document.activeElement.tagName), 'BUTTON');
+    await page.getByRole('button', { name: 'Back to tasks', exact: true }).click();
+    assert.equal(await page.locator('[data-task="4"] .task-title').evaluate(node => {
+      const box = node.getBoundingClientRect();
+      return node === document.activeElement && box.top >= 0 && box.bottom <= innerHeight;
+    }), true);
+    await page.locator('[data-task="4"] .task-title').press('Enter');
+    await page.waitForFunction(() => document.querySelector('.detail-panel').getBoundingClientRect().top < 80);
+    assert.equal(await page.getByLabel('Notes', { exact: true }).inputValue(), 'Keyboard-friendly notes 🧭');
+    await page.getByLabel('Find a task').fill('no matching task');
+    await page.getByRole('button', { name: 'Back to tasks', exact: true }).click();
+    assert.equal(await page.getByLabel('Find a task').evaluate(node => node === document.activeElement), true);
+    assert.equal(await page.getByLabel('Find a task').inputValue(), 'no matching task');
+    await page.getByRole('button', { name: 'Clear filters', exact: true }).click();
     await page.evaluate(() => { for (let i = 0; i < 30; i++) window.workspace.dispatch({ action: 4 }); });
     assert.equal(await page.locator('tbody tr').count(), 24);
     assert.equal(await page.getByRole('button', { name: 'Add task', exact: true }).isDisabled(), true);
@@ -118,7 +135,7 @@ test('workspace capacity, mobile navigation, source links and static subpaths wo
     await page.locator('#how summary').click();
     await page.getByRole('link', { name: 'Read the source walkthrough' }).click();
     assert.equal(await page.title(), 'Inside Fieldwork — zg-gui');
-    for (const name of ['workspace.zig', 'workspace.gui.html', 'workspace-metric.gui.html']) {
+    for (const name of ['workspace.zig', 'workspace.gui.html', 'workspace-metric.gui.html', 'demo.zig', 'demo.gui.html', 'controls.gui.html', 'panels.gui.html']) {
       const response = await page.request.get(server.url + '/web/source/' + name);
       assert.equal(response.status(), 200);
       assert.ok((await response.body()).length > 100);
