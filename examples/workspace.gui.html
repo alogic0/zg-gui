@@ -2,7 +2,7 @@
   <a class="skip-link" href="#main">Skip to workspace</a>
   <aside class="sidebar" aria-label="Workspace navigation">
     <a class="brand" href="#overview"><span class="brand-mark" aria-hidden="true">f.</span><span>fieldwork<span class="brand-dot">/</span></span></a>
-    <p class="workspace-context">A sample project workspace.<br>All changes stay in this session.</p>
+    <p class="workspace-context">A sample project workspace.<br>Your workspace stays in this tab.</p>
     <p class="nav-label">WORKSPACE</p>
     <nav class="navigation" aria-label="Sections">
       <a href="#overview"><svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#grid"></use></svg>Overview</a>
@@ -56,9 +56,9 @@
             <div class="detail-property"><label for="task-owner"><svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#user"></use></svg>Assignee</label><select id="task-owner" :value="$selected_owner_value" :input="$inputs.owner"><option value="0">Alex Kim</option><option value="1">Jules Lee</option><option value="2">Morgan Reed</option></select></div>
             <div class="detail-divider"></div>
             <label class="notes-label" for="task-notes">Notes <svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#edit"></use></svg></label><textarea id="task-notes" rows="7" maxlength="256" placeholder="A little context goes a long way…" :value="$selected_notes" :input="$inputs.notes"></textarea>
-            <p class="save-hint"><span class="live-dot"></span>Session only · reload discards changes</p>
             <div class="detail-actions"><div><button class="icon-button" title="Move task up" aria-label="Move task up" :on-click="$actions.up" disabled="$up_disabled"><svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#arrow-up"></use></svg></button><button class="icon-button" title="Move task down" aria-label="Move task down" :on-click="$actions.down" disabled="$down_disabled"><svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#arrow-down"></use></svg></button></div><button class="button danger" :on-click="$actions.remove"><svg class="icon" aria-hidden="true"><use href="workspace-icons.svg#trash"></use></svg>Delete task</button></div>
           </div>
+          <p class="save-hint"><span class="live-dot"></span><span data-save-status role="status">Saving workspace…</span></p>
         </aside>
       </div>
       <div class="bottom-grid">

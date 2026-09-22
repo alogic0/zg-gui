@@ -58,7 +58,7 @@ const State = struct {
     activity: [max_activity]Activity = @splat(.{}),
     activity_len: usize = 0,
     next_activity: u32 = 1,
-    notice: []const u8 = "Sample workspace. Changes stay in this session.",
+    notice: []const u8 = "Sample workspace.",
 };
 const Action = enum(u32) { select = 1, complete, filter, add, remove, up, down, theme, reset, clear, font_decrease, font_increase };
 const Input = enum(u32) { search = 1, title, notes, status, priority, sort, owner };
@@ -72,6 +72,10 @@ var scratch: [131072]u8 = undefined;
 var output: [131072]u8 = undefined;
 var output_len: usize = 0;
 var mode: gui.patch.RenderMode = .full;
+// Example-specific, versioned snapshot; never expose raw State bytes or pointers.
+var session_buffer: [32768]u8 = undefined;
+var session_prepared = false;
+var mounted = false;
 
 fn seed() State {
     var s = State{};
@@ -295,7 +299,10 @@ fn render(input: struct { candidate: State, mode: gui.patch.RenderMode }) u32 {
 }
 
 pub export fn init() u32 {
-    return render(.{ .candidate = seed(), .mode = .full });
+    const candidate = if (session_prepared) state else seed();
+    session_prepared = false;
+    mounted = true;
+    return render(.{ .candidate = candidate, .mode = .full });
 }
 pub export fn resync() u32 {
     return render(.{ .candidate = state, .mode = .full });
@@ -396,7 +403,7 @@ pub export fn setInput(kind_id: u32, length: u32) u32 {
                 else => unreachable,
             }
             log(&next, .{ .task = task, .label = "Updated task details" });
-            next.notice = "Changes saved for this session.";
+            next.notice = "Task updated.";
         },
     }
     return render(.{ .candidate = next, .mode = .patch });
@@ -415,6 +422,117 @@ pub export fn getExchangeBuffer() usize {
 }
 pub export fn getExchangeCapacity() u32 {
     return exchange.len;
+}
+
+// Session hooks belong to this example, not the framework mount ABI.
+const activity_labels = [_][]const u8{ "Started a task", "Completed a task", "Reopened a task", "Created a task", "Removed a task", "Updated task details" };
+const activity_times = [_][]const u8{ "Just now", "Sample · 10:24", "Sample · 09:48", "Sample · 09:12" };
+fn stringIndex(values: []const []const u8, value: []const u8) !u8 {
+    for (values, 0..) |item, i| if (std.mem.eql(u8, item, value)) return @intCast(i);
+    return error.InvalidSession;
+}
+fn writeText(w: *std.Io.Writer, value: []const u8) !void {
+    try w.writeInt(u16, @intCast(value.len), .little);
+    try w.writeAll(value);
+}
+fn readText(r: *std.Io.Reader, target: anytype) !void {
+    const value = try r.take(try r.takeInt(u16, .little));
+    if (!target.set(value)) return error.InvalidSession;
+}
+fn readEnum(r: *std.Io.Reader, comptime T: type) !T {
+    return std.enums.fromInt(T, try r.takeByte()) orelse error.InvalidSession;
+}
+fn encodeSession(s: *const State, bytes: []u8) !u32 {
+    var w = std.Io.Writer.fixed(bytes);
+    try w.writeAll("ZGW1");
+    try w.writeByte(@intCast(s.len));
+    try w.writeInt(u16, @intCast(s.selected), .little);
+    try w.writeInt(u16, @intCast(s.next_id), .little);
+    try w.writeByte(s.filter);
+    try w.writeByte(@backingInt(s.sort));
+    try w.writeByte(s.font_size);
+    try writeText(&w, s.query.slice());
+    for (s.tasks[0..s.len]) |*task| {
+        try w.writeInt(u16, @intCast(task.id), .little);
+        try writeText(&w, task.title.slice());
+        try writeText(&w, task.notes.slice());
+        try w.writeByte(@backingInt(task.status));
+        try w.writeByte(@backingInt(task.priority));
+        try w.writeByte(task.owner);
+    }
+    try w.writeByte(@intCast(s.activity_len));
+    try w.writeInt(u16, @intCast(s.next_activity), .little);
+    for (s.activity[0..s.activity_len]) |*item| {
+        try w.writeInt(u16, @intCast(item.id), .little);
+        try w.writeInt(u16, @intCast(item.task), .little);
+        try w.writeByte(try stringIndex(&activity_labels, item.label));
+        try w.writeByte(try stringIndex(&activity_times, item.time));
+        try writeText(&w, item.detail.slice());
+    }
+    return @intCast(w.buffered().len);
+}
+fn decodeSession(bytes: []const u8) !State {
+    var r = std.Io.Reader.fixed(bytes);
+    if (!std.mem.eql(u8, try r.take(4), "ZGW1")) return error.InvalidSession;
+    var next = State{};
+    next.len = try r.takeByte();
+    next.selected = try r.takeInt(u16, .little);
+    next.next_id = try r.takeInt(u16, .little);
+    next.filter = try r.takeByte();
+    next.sort = try readEnum(&r, @TypeOf(next.sort));
+    next.font_size = try r.takeByte();
+    if (next.len > max_tasks or next.next_id < 1 or next.next_id > 10000 or next.filter > 3 or
+        next.font_size < 80 or next.font_size > 140 or next.font_size % 10 != 0) return error.InvalidSession;
+    try readText(&r, &next.query);
+    for (next.tasks[0..next.len], 0..) |*task, i| {
+        task.id = try r.takeInt(u16, .little);
+        if (task.id == 0 or task.id >= next.next_id) return error.InvalidSession;
+        for (next.tasks[0..i]) |previous| if (previous.id == task.id) return error.InvalidSession;
+        var code: [16]u8 = undefined;
+        task.code = Text(16).from(try std.fmt.bufPrint(&code, "FW-{d}", .{100 + task.id}));
+        try readText(&r, &task.title);
+        try readText(&r, &task.notes);
+        task.status = try readEnum(&r, Status);
+        task.priority = try readEnum(&r, Priority);
+        task.owner = try r.takeByte();
+        if (task.owner >= owners.len) return error.InvalidSession;
+    }
+    if (if (next.len == 0) next.selected != 0 else indexOf(&next, next.selected) == null) return error.InvalidSession;
+    next.activity_len = try r.takeByte();
+    next.next_activity = try r.takeInt(u16, .little);
+    if (next.activity_len > max_activity or next.next_activity == 0 or next.next_activity > 10000) return error.InvalidSession;
+    for (next.activity[0..next.activity_len], 0..) |*item, i| {
+        item.id = try r.takeInt(u16, .little);
+        item.task = try r.takeInt(u16, .little);
+        const label = try r.takeByte();
+        const time = try r.takeByte();
+        if (item.id == 0 or item.id > 10000 or item.id == next.next_activity or
+            item.task == 0 or item.task >= next.next_id or label >= activity_labels.len or time >= activity_times.len) return error.InvalidSession;
+        for (next.activity[0..i]) |previous| if (previous.id == item.id) return error.InvalidSession;
+        item.label = activity_labels[label];
+        item.time = activity_times[time];
+        try readText(&r, &item.detail);
+    }
+    if (r.bufferedLen() != 0) return error.InvalidSession;
+    next.notice = "Workspace restored for this tab.";
+    return next;
+}
+pub export fn getSessionBuffer() usize {
+    return @intFromPtr(&session_buffer);
+}
+pub export fn getSessionCapacity() u32 {
+    return session_buffer.len;
+}
+pub export fn saveSession() u32 {
+    return encodeSession(&state, &session_buffer) catch 0;
+}
+// Call only before mount/init; invalid input leaves state untouched.
+pub export fn restoreSession(length: u32) u32 {
+    if (mounted or length > session_buffer.len) return 0;
+    const next = decodeSession(session_buffer[0..length]) catch return 0;
+    state = next;
+    session_prepared = true;
+    return 1;
 }
 
 fn inputForTest(kind: Input, value: []const u8) void {
@@ -494,4 +612,96 @@ test "workspace maximum escaped task collection admits full recovery" {
     try std.testing.expect(render(.{ .candidate = candidate, .mode = .full }) > 0);
     try std.testing.expectEqual(@as(usize, max_tasks), state.len);
     try std.testing.expect(resync() > 0);
+}
+
+test "workspace sessions round trip bounded owned state without focus or theme" {
+    var original = seed();
+    original.len = max_tasks;
+    original.next_id = max_tasks + 1;
+    original.selected = max_tasks;
+    original.filter = 2;
+    original.sort = .priority;
+    original.font_size = 140;
+    original.focus_revision = 88;
+    original.dark = true;
+    var title: [192]u8 = @splat('"');
+    var notes: [1024]u8 = @splat('"');
+    for (&original.tasks, 0..) |*task, i| task.* = .{
+        .id = @intCast(i + 1),
+        .title = Text(192).from(&title),
+        .notes = Text(1024).from(&notes),
+        .status = .active,
+        .priority = .low,
+        .owner = 2,
+    };
+    original.query = Text(192).from(&title);
+    original.activity_len = max_activity;
+    original.next_activity = max_activity + 1;
+    for (&original.activity, 0..) |*item, i| item.* = .{
+        .id = @intCast(i + 1),
+        .task = 24,
+        .label = "Updated task details",
+        .detail = Text(192).from(&title),
+    };
+    const length = try encodeSession(&original, &session_buffer);
+    try std.testing.expect(length <= session_buffer.len);
+    const restored = try decodeSession(session_buffer[0..length]);
+    @memset(&session_buffer, 0); // Decoded state must not borrow the exchange buffer.
+    try std.testing.expectEqual(@as(usize, 24), restored.len);
+    try std.testing.expectEqual(@as(u32, 25), restored.next_id);
+    try std.testing.expectEqual(@as(u32, 24), restored.selected);
+    try std.testing.expectEqualStrings(&notes, restored.tasks[23].notes.slice());
+    try std.testing.expectEqualStrings("FW-124", restored.tasks[23].code.slice());
+    try std.testing.expectEqualStrings(&title, restored.activity[4].detail.slice());
+    try std.testing.expectEqualStrings("Updated task details", restored.activity[4].label);
+    try std.testing.expectEqualStrings(&title, restored.query.slice());
+    try std.testing.expectEqual(original.sort, restored.sort);
+    try std.testing.expectEqual(original.filter, restored.filter);
+    try std.testing.expectEqual(original.font_size, restored.font_size);
+    try std.testing.expectEqual(@as(u32, 0), restored.focus_revision);
+    try std.testing.expect(!restored.dark);
+    try std.testing.expect(render(.{ .candidate = restored, .mode = .full }) > 0);
+    try std.testing.expect(resync() > 0);
+}
+
+test "workspace rejects malformed sessions atomically before mounting" {
+    _ = init();
+    mounted = false;
+    defer mounted = true;
+    const length = saveSession();
+    for ([_]u32{ 0, 3, 4, length - 1, length + 1, session_buffer.len + 1 }) |bad_length| {
+        try std.testing.expectEqual(@as(u32, 0), restoreSession(bad_length));
+        try std.testing.expectEqualStrings("Build the component library", state.tasks[2].title.slice());
+    }
+    for ([_]usize{ 0, 4, 9, 10, 11 }) |offset| {
+        _ = saveSession();
+        session_buffer[offset] = 255; // Version, count, filter, enum and text scale.
+        try std.testing.expectEqual(@as(u32, 0), restoreSession(length));
+    }
+    var bad = seed();
+    bad.tasks[1].id = bad.tasks[0].id;
+    try std.testing.expectEqual(@as(u32, 0), restoreSession(try encodeSession(&bad, &session_buffer)));
+    bad = seed();
+    bad.selected = 99;
+    try std.testing.expectEqual(@as(u32, 0), restoreSession(try encodeSession(&bad, &session_buffer)));
+    bad = seed();
+    bad.next_id = 3;
+    try std.testing.expectEqual(@as(u32, 0), restoreSession(try encodeSession(&bad, &session_buffer)));
+    bad = seed();
+    bad.tasks[0].owner = 3;
+    try std.testing.expectEqual(@as(u32, 0), restoreSession(try encodeSession(&bad, &session_buffer)));
+    bad = seed();
+    bad.tasks[0].title.bytes[0] = 255;
+    try std.testing.expectEqual(@as(u32, 0), restoreSession(try encodeSession(&bad, &session_buffer)));
+    bad = seed();
+    bad.next_activity = bad.activity[0].id;
+    try std.testing.expectEqual(@as(u32, 0), restoreSession(try encodeSession(&bad, &session_buffer)));
+    try std.testing.expectEqualStrings("Build the component library", state.tasks[2].title.slice());
+    var valid = seed();
+    valid.tasks[2].title = Text(192).from("Saved task 🧭");
+    try std.testing.expectEqual(@as(u32, 1), restoreSession(try encodeSession(&valid, &session_buffer)));
+    @memset(&session_buffer, 0);
+    try std.testing.expect(init() > 0);
+    try std.testing.expectEqualStrings("Saved task 🧭", state.tasks[2].title.slice());
+    try std.testing.expectEqual(@as(u32, 0), restoreSession(saveSession()));
 }

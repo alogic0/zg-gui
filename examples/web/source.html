@@ -32,7 +32,7 @@
     <pre><code>var next = state;
 // Apply the admitted edit to next.
 return render(.{ .candidate = next, .mode = .patch });</code></pre>
-    <p>Task data has no storage or backend. Reloading starts a fresh sample; only your theme preference is saved in this browser. Search folds ASCII case and matches UTF-8 text byte-for-byte otherwise. User edits allow 48 UTF-16 units for titles/search and 256 for notes, fitting their UTF-8 byte buffers.</p>
+    <p>The example saves a bounded, validated workspace snapshot in this tab’s sessionStorage. Tasks survive page navigation and reloads; Reset demo restores the sample. The browser stores the snapshot while Zig owns its format and validates restored data. Theme preference is saved separately. There is no backend or cross-device saving. Search folds ASCII case and matches UTF-8 text byte-for-byte otherwise. User edits allow 48 UTF-16 units for titles/search and 256 for notes, fitting their UTF-8 byte buffers.</p>
     <h2>3. Update the smallest owner</h2>
     <p>Changing a title updates its text and form value. Reordering emits move commands for retained keyed rows. The table, detail panel, and unrelated controls keep their DOM identity. Try typing in Notes, then use the Move task controls.</p>
     <p>Creation and deletion add or remove individual rows. Changing a filter removes excluded rows; their DOM objects are recreated when they return. Task data remains in Zig throughout.</p>

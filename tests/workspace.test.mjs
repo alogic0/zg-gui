@@ -197,7 +197,7 @@ test('workspace font controls scale text without losing edits, identity or focus
     assert.equal(await decrease.isDisabled(), true);
     await page.reload();
     await page.waitForFunction(() => window.workspace);
-    assert.equal(await size.textContent(), '100%');
+    assert.equal(await size.textContent(), '80%');
     assert.deepEqual(errors, []);
   } finally { await browser?.close(); await server.close(); }
 });

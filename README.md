@@ -32,10 +32,10 @@ the same Zig state. Light/dark themes and a responsive layout work on desktop
 and mobile. Use **A− / A+** in the top bar to adjust text size from 80% to 140%.
 The three overview cards share one compiled template component.
 
-No account, backend, external assets, or runtime npm dependencies. Changes stay
-in the current session; reload or **Reset demo** restores the sample. Your theme
-preference is saved across Showcase, Basics and Source. The example
-holds up to 24 tasks. Open **How this demo works** for a quick explanation and a
+No account, backend, external assets, or runtime npm dependencies. Workspace
+changes survive page navigation and reloads within the same browser tab.
+**Reset demo** restores the sample. Your theme preference is saved across
+Showcase, Basics and Source. The example holds up to 24 tasks. Open **How this demo works** for a quick explanation and a
 source walkthrough. Use the shared **Showcase / Basics / Source** navigation
 on any screen size. The introductory **/basics.html** demo includes guided
 experiments for live inputs, retained rows and independent component choices.

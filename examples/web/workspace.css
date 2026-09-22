@@ -143,8 +143,9 @@ tbody tr[data-selected="true"] td:first-child { box-shadow: inset 3px 0 var(--ac
 .notes-label .icon { width: calc(16px * var(--font-scale, 100) / 100); height: calc(16px * var(--font-scale, 100) / 100); color: var(--muted); }
 textarea { display: block; width: 100%; min-height: 158px; resize: vertical; color: var(--muted); background: var(--input); border: 1px solid var(--line); border-radius: 6px; padding: 12px; font-size: calc(12px * var(--font-scale, 100) / 100); line-height: 1.85; }
 .save-hint { font-size: calc(12px * var(--font-scale, 100) / 100); display: flex; align-items: center; gap: 5px; color: var(--muted); margin: 10px 0 19px; }
+.detail-panel > .save-hint { margin-bottom: 0; }
 .save-hint .live-dot { width: 4px; height: 4px; }
-.detail-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding-top: 15px; border-top: 1px solid var(--line); }
+.detail-actions { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding-top: 15px; border-top: 1px solid var(--line); }
 .detail-actions > div { display: flex; gap: 8px; }
 .detail-actions .icon-button .icon { width: calc(20px * var(--font-scale, 100) / 100); height: calc(20px * var(--font-scale, 100) / 100); stroke-width: 2; }
 .detail-actions .icon-button { min-width: 44px; min-height: 44px; font-size: calc(13px * var(--font-scale, 100) / 100); }

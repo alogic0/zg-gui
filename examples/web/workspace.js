@@ -1,4 +1,4 @@
-import { load } from './runtime.js';
+import { loadWorkspace } from './workspace-session.js';
 
 const root = document.querySelector('#app');
 try {
@@ -14,7 +14,7 @@ try {
       }
     });
   };
-  const app = await load({ root, url: './workspace.wasm' });
+  const app = await loadWorkspace({ root, url: './workspace.wasm' });
   const disposeTheme = window.demoTheme.bind({ root, app, action: 8 });
   // The example owns viewport navigation; task data and render focus stay in Zig.
   root.addEventListener('focusin', event => {
