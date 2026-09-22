@@ -20,19 +20,45 @@ test('standalone WASM application retains state, identity and focus', async () =
     const retained = await page.evaluate(() => {
       const field = document.querySelector('#name');
       const ancestor = document.querySelector('main');
+      const counter = document.querySelector('.counter');
+      const card = counter.closest('section');
+      const count = counter.querySelector('output');
       field.focus(); field.setSelectionRange(2, 5);
       window.demo.dispatch({ action: 1 });
       window.demo.dispatch({ action: 2 });
       window.demo.setInput({ kind: 2, value: 'true' });
+      window.demo.dispatch({ action: 5 });
+      window.demo.dispatch({ action: 1 });
+      window.demo.dispatch({ action: 6 });
+      window.demo.dispatch({ action: 1 });
+      window.demo.dispatch({ action: 7 });
+      window.demo.dispatch({ action: 7 });
       return field === document.querySelector('#name') && field.isConnected && document.activeElement === field
+        && counter === document.querySelector('.counter') && card === counter.closest('section')
+        && count === counter.querySelector('output')
         && field.selectionStart === 2 && field.selectionEnd === 5 && ancestor === document.querySelector('main');
     });
     assert.equal(retained, true);
     assert.equal(await page.locator('output').textContent(), '1');
-    await page.getByLabel('Dark theme').uncheck();
+    await page.getByRole('button', { name: 'Light theme', exact: true }).click();
     assert.equal(await page.locator('main').getAttribute('data-theme'), 'light');
+    const theme = page.getByRole('button', { name: 'Dark theme', exact: true });
+    await theme.focus();
+    await theme.press('Enter');
+    assert.equal(await page.locator('main').getAttribute('data-theme'), 'dark');
+    assert.equal(await page.getByRole('button', { name: 'Light theme', exact: true }).evaluate(node => node === document.activeElement), true);
+    await page.getByRole('button', { name: 'Light theme', exact: true }).click();
     await page.getByRole('button', { name: 'Increment', exact: true }).click();
     assert.equal(await page.locator('output').textContent(), '2');
+    await page.getByRole('button', { name: 'Decrement', exact: true }).click();
+    assert.equal(await page.locator('output').textContent(), '1');
+    await page.getByRole('button', { name: 'Reset', exact: true }).click();
+    assert.equal(await page.locator('output').textContent(), '0');
+    await page.getByRole('button', { name: 'Decrement', exact: true }).click();
+    assert.equal(await page.locator('output').textContent(), '0');
+    assert.equal(await page.locator('#details').isVisible(), true);
+    await page.getByRole('button', { name: 'Increment', exact: true }).click();
+    await page.getByRole('button', { name: 'Increment', exact: true }).click();
     await page.getByLabel('First row draft').fill('keep this browser draft');
     assert.equal(await page.evaluate(() => {
       const row = document.querySelector('[aria-label="First row draft"]').closest('li');
@@ -40,6 +66,9 @@ test('standalone WASM application retains state, identity and focus', async () =
       window.demo.dispatch({ action: 3 });
       window.demo.dispatch({ action: 4 });
       window.demo.dispatch({ action: 4 });
+      window.demo.dispatch({ action: 6 });
+      window.demo.dispatch({ action: 1 });
+      window.demo.dispatch({ action: 1 });
       const ids = Array.from(document.querySelectorAll('[data-node-id]'), node => node.dataset.nodeId);
       return row.isConnected && row === document.querySelector('[aria-label="First row draft"]').closest('li')
         && input === document.activeElement && input.value === 'keep this browser draft'
@@ -57,6 +86,8 @@ test('standalone WASM application retains state, identity and focus', async () =
     await page.setViewportSize({ width: 390, height: 844 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
     await page.screenshot({ path: new URL('../test-results/demo-mobile.png', import.meta.url).pathname, fullPage: true });
+    await page.setViewportSize({ width: 320, height: 844 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
     assert.deepEqual(failures, []);
     assert.equal(await page.evaluate(() => {
       window.demo.dispose();

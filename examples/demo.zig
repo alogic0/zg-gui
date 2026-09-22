@@ -56,12 +56,12 @@ fn render(input: struct { next_state: State, mode: gui.patch.RenderMode }) u32 {
         .name = s.name[0..s.name_len],
         .greeting = if (s.name_len == 0) "friend" else s.name[0..s.name_len],
         .theme = @as([]const u8, if (s.dark) "dark" else "light"),
-        .dark = s.dark,
+        .theme_label = @as([]const u8, if (s.dark) "Light theme" else "Dark theme"),
         .details = s.details,
         .count = s.count,
         .rows = rows[0..if (s.extra) @as(usize, 3) else 2],
-        .actions = .{ .increment = Action.increment, .details = Action.details, .reverse = Action.reverse, .extra = Action.extra },
-        .inputs = .{ .name = InputKind.name, .theme = InputKind.theme },
+        .actions = .{ .increment = Action.increment, .details = Action.details, .reverse = Action.reverse, .extra = Action.extra, .decrement = Action.decrement, .reset = Action.reset, .theme = Action.theme },
+        .inputs = .{ .name = InputKind.name },
     });
     if (html.failed or stream.failed) {
         // No partial stream, candidate state or snapshot is published.
@@ -128,13 +128,16 @@ pub export fn init() u32 {
 pub export fn resync() u32 {
     return render(.{ .next_state = state, .mode = .full });
 }
-const Action = enum(u32) { increment = 1, details = 2, reverse = 3, extra = 4 };
+const Action = enum(u32) { increment = 1, details = 2, reverse = 3, extra = 4, decrement, reset, theme };
 fn update(input: struct { action: u32, value: i32 }) u32 {
     _ = input.value;
     var next = state;
     const action = std.enums.fromInt(Action, input.action) orelse return render(.{ .next_state = next, .mode = .patch });
     switch (action) {
         .increment => next.count +|= 1,
+        .decrement => next.count -|= 1,
+        .reset => next.count = 0,
+        .theme => next.dark = !next.dark,
         .details => next.details = !next.details,
         .reverse => next.reversed = !next.reversed,
         .extra => next.extra = !next.extra,
@@ -196,6 +199,22 @@ test "counter and disclosure changes never replace their ancestor" {
     try std.testing.expectEqualStrings(try std.fmt.bufPrint(&expected, "T\t{d}\t\"1\"\n", .{template.nodes.count}), output[0..output_len]);
     _ = dispatch(2, 0);
     try std.testing.expectEqualStrings(try std.fmt.bufPrint(&expected, "A\t{d}\taria-expanded\ttrue\nR\t{d}\thidden\n", .{ template.nodes.details_trigger, template.nodes.details }), output[0..output_len]);
+}
+
+test "counter bounds and reset preserve unrelated state with leaf patches" {
+    _ = init();
+    try std.testing.expectEqual(@as(u32, 0), dispatch(@backingInt(Action.decrement), 0));
+    _ = render(.{ .next_state = .{ .count = std.math.maxInt(u32), .dark = true, .details = true, .reversed = true }, .mode = .full });
+    try std.testing.expectEqual(@as(u32, 0), dispatch(@backingInt(Action.increment), 0));
+    _ = dispatch(@backingInt(Action.decrement), 0);
+    try std.testing.expectEqual(std.math.maxInt(u32) - 1, state.count);
+    _ = dispatch(@backingInt(Action.reset), 0);
+    try std.testing.expectEqual(@as(u32, 0), state.count);
+    try std.testing.expect(state.dark and state.details and state.reversed);
+    var expected: [64]u8 = undefined;
+    try std.testing.expectEqualStrings(try std.fmt.bufPrint(&expected, "T\t{d}\t\"0\"\n", .{template.nodes.count}), output[0..output_len]);
+    try std.testing.expectEqual(@as(u32, 0), dispatch(@backingInt(Action.reset), 0));
+    try std.testing.expect(resync() > 0);
 }
 
 test "input admission preserves state on overflow and invalid UTF-8" {

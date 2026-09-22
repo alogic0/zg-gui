@@ -1,6 +1,9 @@
 <main class="demo" data-theme="$theme">
   <header>
-    <p class="eyebrow">ZG GUI · ZIG + WEBASSEMBLY</p>
+    <div class="section-heading">
+      <p class="eyebrow">ZG GUI · ZIG + WEBASSEMBLY</p>
+      <button class="secondary" :on-click="$actions.theme" :text="$theme_label"></button>
+    </div>
     <h1>Small updates.<br>Steady controls.</h1>
     <p>A standalone application built with the extracted GUI core.</p>
   </header>
@@ -10,17 +13,17 @@
     <label for="name">Workspace name</label>
     <input id="name" placeholder="Try typing here" :value="$name" :input="$inputs.name">
     <p class="preview">Hello, <span id="greeting" :text="$greeting"></span>.</p>
-    <label class="toggle">
-      <input type="checkbox" :checked="$dark" :input="$inputs.theme">
-      Dark theme
-    </label>
   </section>
 
   <section class="card">
     <h2>Keep things in place</h2>
     <div class="counter">
       <output :ref="count" :text="$count"></output>
-      <button :on-click="$actions.increment">Increment</button>
+      <div class="actions">
+        <button :on-click="$actions.increment">Increment</button>
+        <button class="secondary" :on-click="$actions.decrement">Decrement</button>
+        <button class="secondary" :on-click="$actions.reset">Reset</button>
+      </div>
     </div>
     <button class="secondary" aria-controls="details" :ref="details_trigger"
             :on-click="$actions.details" aria-expanded="$details">Show / hide details</button>

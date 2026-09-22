@@ -12,11 +12,10 @@ header > p:last-child, footer, .hint { color: var(--muted); }
 label { display: block; font-size: 14px; }
 input:not([type="checkbox"]) { width: 100%; padding: 11px 12px; margin-top: 7px; border: 1px solid var(--border); border-radius: 7px; background: transparent; font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid #398962; outline-offset: 3px; }
-.toggle { display: flex; align-items: center; gap: 8px; }
 button { padding: 11px 16px; border: 1px solid transparent; border-radius: 8px; background: #245c43; color: #fff; font: inherit; font-size: 14px; cursor: pointer; }
 button:hover { filter: brightness(1.12); }
 button.secondary { border-color: var(--border); color: var(--ink); background: transparent; }
-.counter { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.counter { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; margin-bottom: 24px; }
 output { font-size: 48px; font-variant-numeric: tabular-nums; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .section-heading h2 { margin: 0; }
