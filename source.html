@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Inside Fieldwork — zg-gui</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <script src="demo-theme.js"></script>
+  <link rel="stylesheet" href="demo-shared.css">
+  <link rel="stylesheet" href="workspace.css">
+</head>
+<body>
+  <main class="source-page">
+    <nav class="site-header" aria-label="Demo pages"><a class="site-brand" href="index.html">zg-gui<span>Zig + WebAssembly</span></a><div class="site-nav"><a href="index.html">Showcase</a><a href="basics.html">Basics</a><a href="source.html" aria-current="page">Source</a></div><button class="theme-toggle" data-source-theme aria-label="Use dark theme">Dark theme</button></nav>
+    <a href="index.html">← Back to the workspace</a>
+    <h1>From interaction to source.</h1>
+    <p>Fieldwork is a synthetic planning workspace built with zg-gui. Its tasks, filters, selection, and activity live in Zig. A small browser host applies the resulting DOM commands.</p>
+    <h2>1. Write a template</h2>
+    <p>Templates describe the shape of the interface. Bindings read a typed view; the native compiler generates Zig projection functions during the build.</p>
+    <pre><code>&lt;input id="task-title"
+       :value="$selected_title"
+       :input="$inputs.title"&gt;
+
+&lt;tbody :loop="$rows" :key="id" :limit="24"&gt;
+  &lt;tr data-task="$item.id"&gt;
+    &lt;td :text="$item.title"&gt;&lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;</code></pre>
+    <p>The overview cards invoke the same metric component three times. Each instance has independent bindings and generated node identities.</p>
+    <h2>2. Keep state and ownership explicit</h2>
+    <p>The example owns up to 24 tasks, five activity entries, fixed text buffers, and two 128 KiB rendering buffers. Edits are validated and copied into candidate state. A render only commits that state and its snapshot after both output writers succeed.</p>
+    <pre><code>var next = state;
+// Apply the admitted edit to next.
+return render(.{ .candidate = next, .mode = .patch });</code></pre>
+    <p>The example saves a bounded, validated workspace snapshot in this tab’s sessionStorage. Tasks survive page navigation and reloads; Reset demo restores the sample. The browser stores the snapshot while Zig owns its format and validates restored data. Theme preference is saved separately. There is no backend or cross-device saving. Search folds ASCII case and matches UTF-8 text byte-for-byte otherwise. User edits allow 48 UTF-16 units for titles/search and 256 for notes, fitting their UTF-8 byte buffers.</p>
+    <h2>3. Update the smallest owner</h2>
+    <p>Changing a title updates its text and form value. Reordering emits move commands for retained keyed rows. The table, detail panel, and unrelated controls keep their DOM identity. Try typing in Notes, then use the Move task controls.</p>
+    <p>Creation and deletion add or remove individual rows. Changing a filter removes excluded rows; their DOM objects are recreated when they return. Task data remains in Zig throughout.</p>
+    <section id="basics-state"><h2>Basics: live input</h2><p>Type a workspace name to see its greeting update. The example copies admitted text into Zig state and projects only the changed values.</p><p><a href="source/demo.zig" download>Read demo.zig</a> · <a href="source/demo.gui.html" download>Read the Basics template</a></p></section>
+    <section id="basics-counter"><h2>Basics: small updates</h2><p>Increment, Decrement and Reset change only the counter. Decrement stops at zero. Showing the details preserves the paragraph and surrounding controls.</p><p><a href="source/demo.zig" download>Read the state transitions</a></p></section>
+    <section id="basics-rows"><h2>Basics: retained rows</h2><p>Type a draft into a row, then reverse the visible collection or add a third row. Existing rows move with their inputs intact. Removing a row discards that row's browser-only draft. The same controls update both mapping tables without changing channel choices.</p><p><a href="source/demo.gui.html" download>Read the keyed list template</a></p></section>
+    <section id="basics-components"><h2>Basics: independent component instances</h2><p>Both integration panels use the same template, with independent channel values. The separate Remove Email option experiment changes the available options. If Email was selected, a message explains its temporary absence; restoring the option restores the remembered selection unless you chose SMS.</p><p><a href="source/controls.gui.html" download>Read the component template</a> · <a href="source/panels.gui.html" download>Read the two invocations</a></p></section>
+    <h2>Explore the workspace files</h2>
+    <ul>
+      <li><a href="source/workspace.zig" download>workspace.zig</a> — state, validation, view derivation, ABI, and native tests</li>
+      <li><a href="source/workspace.gui.html" download>workspace.gui.html</a> — the complete compiled layout</li>
+      <li><a href="source/workspace-metric.gui.html" download>workspace-metric.gui.html</a> — a reusable summary card</li>
+      <li><a href="basics.html">The basics demo</a> — a smaller place to start</li>
+    </ul>
+    <p>Run locally with <code>npm ci</code> and <code>npm run dev</code>, using the Zig compiler pinned in <code>.zigversion</code>. The generated <code>zig-out/web</code> directory is a static site, ready to serve beneath a repository subpath.</p>
+  </main>
+</body>
+</html>

@@ -1,0 +1,5 @@
+<article class="metric">
+  <div class="metric-top"><span :text="$label"></span><svg class="icon" aria-hidden="true"><use href="$icon"></use></svg></div>
+  <div class="metric-value" :text="$value"></div>
+  <div class="metric-bottom"><p :text="$note"></p><div class="mini-track" :visible="$show_progress"><span :style-vars="$progress"></span></div><svg class="metric-chart" viewBox="0 0 60 26" role="img" aria-label="$chart_label" :visible="$show_chart"><rect x="0" y="$chart.planned_y" width="14" height="$chart.planned_height" rx="2" fill="#c7cdec"></rect><rect x="22" y="$chart.active_y" width="14" height="$chart.active_height" rx="2" fill="#7885e8"></rect><rect x="44" y="$chart.done_y" width="14" height="$chart.done_height" rx="2" fill="#88b9a1"></rect></svg></div>
+</article>
