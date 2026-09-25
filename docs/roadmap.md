@@ -88,3 +88,6 @@ Delimited integer formatting and typed HTML helpers are delivered under
 
 HTML writer streaming, form element helpers, and zero-allocation data
 formatters are delivered under [request 048](requests/048-html-writer-streaming-and-helpers.md).
+
+Cross-engine browser contract verification (Chromium & Firefox Gecko) is
+delivered under [request 049](requests/049-multi-engine-browser-contracts.md).

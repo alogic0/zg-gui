@@ -1,15 +1,29 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test, before, after } from 'node:test';
 import { mkdir, stat } from 'node:fs/promises';
-import { chromium } from 'playwright';
+import { chromium, firefox, webkit } from 'playwright';
 import { serve } from '../tools/server.mjs';
 
+const browserEngines = { chromium, firefox, webkit };
+const engineName = (process.env.ZG_BROWSER || 'chromium').toLowerCase();
+const browserType = browserEngines[engineName] || chromium;
+
+let server;
+let browser;
+
+before(async () => {
+  server = await serve({ directory: new URL('../zig-out/web', import.meta.url).pathname });
+  browser = await browserType.launch({ headless: true });
+});
+
+after(async () => {
+  if (browser) await browser.close();
+  if (server) await server.close();
+});
+
 test('standalone WASM application retains state, identity and focus', async () => {
-  const server = await serve({ directory: new URL('../zig-out/web', import.meta.url).pathname });
-  let browser;
+  const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
   try {
-    browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
     const failures = [];
     page.on('pageerror', error => failures.push(error.message));
     page.on('console', message => { if (message.type() === 'error') failures.push(message.text()); });
@@ -98,15 +112,12 @@ test('standalone WASM application retains state, identity and focus', async () =
     }), true);
     const artifact = await stat(new URL('../zig-out/web/demo.wasm', import.meta.url));
     console.log(`Standalone demo WASM: ${artifact.size} bytes`);
-  } finally { await browser?.close(); await server.close(); }
+  } finally { await page.close(); }
 });
 
 test('runtime resynchronizes an invalid patch and can remount after disposal', async () => {
-  const server = await serve({ directory: new URL('../zig-out/web', import.meta.url).pathname });
-  let browser;
+  const page = await browser.newPage();
   try {
-    browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage();
     await page.goto(server.url + '/basics.html');
     await page.waitForFunction(() => window.demo);
     const result = await page.evaluate(async () => {
@@ -134,15 +145,12 @@ test('runtime resynchronizes an invalid patch and can remount after disposal', a
     });
     assert.equal(result.duplicate && result.recovered && result.freshMemory && result.singleHandler, true);
     console.log(`Demo initial memory: ${result.pages - 1} WASM pages; after test growth: ${result.pages}`);
-  } finally { await browser?.close(); await server.close(); }
+  } finally { await page.close(); }
 });
 
 test('invoked components retain table rows, SVG namespaces and controlled select values', async () => {
-  const server = await serve({ directory: new URL('../zig-out/web', import.meta.url).pathname });
-  let browser;
+  const page = await browser.newPage();
   try {
-    browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage();
     const failures = [];
     page.on('pageerror', error => failures.push(error.message));
     await page.goto(server.url + '/basics.html');
@@ -206,5 +214,5 @@ test('invoked components retain table rows, SVG namespaces and controlled select
     assert.deepEqual(result, { rowsDoNotChangeOptions: true, reversedAll: true, removedSelection: true, restored: true, svgCorrect: true, rowsCorrect: true,
       unique: true, icon: 'icons.svg#link-active', selectRetained: true });
     assert.deepEqual(failures, []);
-  } finally { await browser?.close(); await server.close(); }
+  } finally { await page.close(); }
 });
