@@ -1,6 +1,14 @@
 import { createNodeRegistry } from './node-registry.js';
 import { localDatetime, localTimeLabel, applyInitialTimeFormats } from './local-datetime.js';
 
+const decoder = new TextDecoder('utf-8');
+function toText(payload) {
+  if (typeof payload === 'string') return payload;
+  if (payload instanceof Uint8Array) return decoder.decode(payload);
+  if (payload instanceof ArrayBuffer) return decoder.decode(new Uint8Array(payload));
+  return String(payload);
+}
+
 // Only this module writes the DOM after initialization. Hooks bind host-owned
 // capabilities to explicitly introduced subtrees; they do not choose UI state.
 export function createDomHost({ root, onStructure = () => {} }) {
@@ -67,7 +75,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
   function applyDeclaredProviders(scope) { onStructure(scope); }
 
   function initialize(html) {
-    root.innerHTML = html;
+    root.innerHTML = toText(html);
     nodes.rebuild();
     applySelectValues(root);
     applyDeclaredStyles(root);
@@ -142,7 +150,8 @@ export function createDomHost({ root, onStructure = () => {} }) {
 
   function applyPatchStream(stream) {
     patchTextFocus = null;
-    for (const line of stream.split("\n")) {
+    const text = toText(stream);
+    for (const line of text.split("\n")) {
       if (!line) continue;
       const fields = line.split("\t");
       const operation = fields[0];
@@ -201,7 +210,10 @@ export function createDomHost({ root, onStructure = () => {} }) {
             && !(target instanceof window.HTMLSelectElement)) {
             throw new Error(`Zig value patch node ${fields[1]} is not a form control`);
           }
-          target.value = target.dataset.valueFormat === 'instant-local' ? localDatetime(fragment) : fragment;
+          const formatted = target.dataset.valueFormat === 'instant-local' ? localDatetime(fragment) : fragment;
+          if (target.value !== formatted) {
+            target.value = formatted;
+          }
           continue;
         }
         if (operation === "T") {

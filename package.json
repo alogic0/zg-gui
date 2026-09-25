@@ -3,7 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./web/runtime.js", "./dom": "./web/dom.js", "./node-registry": "./web/node-registry.js" },
+  "exports": {
+    ".": "./web/runtime.js",
+    "./dom": "./web/dom.js",
+    "./node-registry": "./web/node-registry.js",
+    "./worker-host": "./web/worker-host.js",
+    "./projection-worker": "./web/projection-worker.js"
+  },
   "scripts": {
     "build": "zig build",
     "dev": "zig build && node tools/server.mjs",

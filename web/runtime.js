@@ -99,9 +99,60 @@ export function mount({ root, wasm, onError = error => console.error(error), onS
   return api;
 }
 
-export async function load({ root, url, imports = {}, onError, onStructure }) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`WASM fetch failed: ${response.status}`);
-  const { instance } = await WebAssembly.instantiate(await response.arrayBuffer(), imports);
+export async function load({ root, url, wasmBytes, imports = {}, onError, onStructure }) {
+  let bytes = wasmBytes;
+  if (!bytes && url) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`WASM fetch failed: ${response.status}`);
+    bytes = await response.arrayBuffer();
+  }
+  const { instance } = await WebAssembly.instantiate(bytes, imports);
   return mount({ root, wasm: instance.exports, onError, onStructure });
 }
+
+export async function createApp({
+  root,
+  wasmUrl,
+  wasmBytes,
+  wasmModule,
+  worker = false,
+  workerUrl,
+  imports = {},
+  onError = error => console.error(error),
+  onStructure,
+}) {
+  const window = root.ownerDocument?.defaultView || globalThis;
+  const hasWorkerSupport = typeof window.Worker === 'function';
+
+  if (worker && hasWorkerSupport) {
+    try {
+      const { mountWorker } = await import('./worker-host.js');
+      const app = mountWorker({
+        root,
+        workerUrl,
+        wasmUrl,
+        wasmBytes,
+        wasmModule,
+        imports,
+        onError,
+        onStructure,
+      });
+      await app.ready;
+      return app;
+    } catch (workerError) {
+      console.warn('Web Worker startup failed; falling back to main-thread execution', workerError);
+    }
+  }
+
+  let bytes = wasmBytes;
+  if (!bytes && !wasmModule && wasmUrl) {
+    const response = await fetch(wasmUrl);
+    if (!response.ok) throw new Error(`WASM fetch failed: ${response.status}`);
+    bytes = await response.arrayBuffer();
+  }
+  const { instance } = wasmModule
+    ? await WebAssembly.instantiate(wasmModule, imports)
+    : await WebAssembly.instantiate(bytes, imports);
+  return mount({ root, wasm: instance.exports, onError, onStructure });
+}
+

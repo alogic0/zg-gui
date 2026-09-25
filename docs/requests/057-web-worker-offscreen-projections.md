@@ -1,6 +1,6 @@
 # Request 057: Web Worker offscreen projections
 
-Status: proposed roadmap capability; specification and contract defined.
+Status: implemented and verified.
 
 ## Reusable problem
 
@@ -56,12 +56,12 @@ main-thread DOM host.
 
 ## Acceptance checklist
 
-- [ ] Specify Worker message protocol and binary patch buffer transfer format.
-- [ ] Implement Worker-based projection runner and main-thread `WorkerDomHost`.
-- [ ] Implement zero-copy buffer transfer with double-buffering/recycling to prevent allocations.
-- [ ] Implement input event forwarding with optimistic text/control handling.
-- [ ] Measure throughput and frame rates under high-frequency updates (e.g. 60 FPS state sweeps).
-- [ ] Verify memory stability and absence of memory leaks or buffer fragmentation across 10,000+
+- [x] Specify Worker message protocol and binary patch buffer transfer format.
+- [x] Implement Worker-based projection runner and main-thread `WorkerDomHost`.
+- [x] Implement zero-copy buffer transfer with double-buffering/recycling to prevent allocations.
+- [x] Implement input event forwarding with optimistic text/control handling.
+- [x] Measure throughput and frame rates under high-frequency updates (e.g. 60 FPS state sweeps).
+- [x] Verify memory stability and absence of memory leaks or buffer fragmentation across 10,000+
       consecutive transfers.
-- [ ] Verify identical DOM rendering output between main-thread and worker-thread execution.
-- [ ] Verify multi-engine browser compatibility (Chromium, Firefox Gecko, WebKit).
+- [x] Verify identical DOM rendering output between main-thread and worker-thread execution.
+- [x] Verify multi-engine browser compatibility (Chromium, Firefox Gecko, WebKit).

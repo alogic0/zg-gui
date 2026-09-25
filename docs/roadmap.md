@@ -119,5 +119,5 @@ are delivered under [request 054](requests/054-large-list-snapshots.md).
   and derived capacity scaling.
 - [x] [CSS transitions and exit hooks](requests/056-css-transitions-and-exit-hooks.md):
   Coordinating DOM element detachment with CSS transition/animation lifecycles before recycling node IDs.
-- [ ] [Web Worker offscreen projections](requests/057-web-worker-offscreen-projections.md):
+- [x] [Web Worker offscreen projections](requests/057-web-worker-offscreen-projections.md):
   Transferring binary patch buffers zero-copy from a background Web Worker to the main thread DOM host.
