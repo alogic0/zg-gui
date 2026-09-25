@@ -127,7 +127,7 @@ zero-copy Web Worker offscreen projections are delivered under
 - [x] [Declarative form validation and dirty tracking](requests/060-form-validation.md):
   Coordinating client-side validation states, dirty/touched flags, and ARIA accessibility feedback with Zig models.
 
-## Active milestone: Accessible Modals, ARIA Live Regions, and Global Hotkeys
+## Delivered milestone: Accessible Modals, ARIA Live Regions, and Global Hotkeys
 
 - [x] [Modal dialogs and focus trapping](requests/061-modal-dialogs-and-focus-trapping.md):
   Declarative dialog focus trapping (:trap-focus, :dialog), Tab/Shift-Tab cycling, background inerting, Escape key dismissal, and focus restoration to the trigger element.
