@@ -119,6 +119,60 @@ export function createDomHost({ root, onStructure = () => {} }) {
     }
   }
 
+  const observedElements = new Set();
+  let resizeObserver = null;
+
+  function parseBreakpoints(spec) {
+    return spec.split(',').map(part => {
+      const [name, widthStr] = part.split(':').map(s => s.trim());
+      const width = Number(widthStr);
+      return { name, width: Number.isFinite(width) ? width : 0 };
+    }).sort((a, b) => a.width - b.width);
+  }
+
+  function handleResizeEntries(entries) {
+    for (const entry of entries) {
+      const target = entry.target;
+      if (!(target instanceof window.HTMLElement)) continue;
+      const spec = target.getAttribute('data-observe-size');
+      if (!spec) continue;
+      const breakpoints = parseBreakpoints(spec);
+      const width = entry.contentRect.width;
+      let matchedSize = 'standard';
+      if (breakpoints.length === 1) {
+        matchedSize = width < breakpoints[0].width ? breakpoints[0].name : 'standard';
+      } else if (breakpoints.length >= 2) {
+        if (width < breakpoints[0].width) {
+          matchedSize = breakpoints[0].name;
+        } else if (width >= breakpoints[breakpoints.length - 1].width) {
+          matchedSize = breakpoints[breakpoints.length - 1].name;
+        } else {
+          matchedSize = 'standard';
+        }
+      }
+      if (target.getAttribute('data-size') !== matchedSize) {
+        target.setAttribute('data-size', matchedSize);
+      }
+    }
+  }
+
+  function applyObservedSizes(scope) {
+    if (typeof window.ResizeObserver !== 'function') return;
+    if (!resizeObserver) {
+      resizeObserver = new window.ResizeObserver(handleResizeEntries);
+    }
+    const selector = '[data-observe-size]';
+    const elements = scope.matches?.(selector) ? [scope] : [];
+    elements.push(...scope.querySelectorAll(selector));
+    for (const el of elements) {
+      if (!observedElements.has(el)) {
+        observedElements.add(el);
+        resizeObserver.observe(el);
+      }
+    }
+  }
+
+
   function handleControlBlur(event) {
     const target = event.target;
     if (!target || !root.contains(target)) return;
@@ -289,6 +343,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
       applyInitialTimeFormats(root);
       applyWindowScrollers(root);
       applyFormStates(root);
+      applyObservedSizes(root);
       onStructure(root);
 
       if (activeInRoot && activeIsText && draftValue !== null && active.value !== draftValue) {
@@ -311,6 +366,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
     applyInitialTimeFormats(root);
     applyWindowScrollers(root);
     applyFormStates(root);
+    applyObservedSizes(root);
     onStructure(root);
   }
 
@@ -493,6 +549,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
             applyInitialTimeFormats(child);
             applyWindowScrollers(child);
             applyFormStates(child);
+            applyObservedSizes(child);
             child = nextChild;
           }
           continue;
@@ -519,6 +576,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
         applyInitialTimeFormats(target);
         applyWindowScrollers(target);
         applyFormStates(target);
+        applyObservedSizes(target);
         if (activeId || activeTestId) {
           const replacement = activeId
             ? document.getElementById(activeId)
@@ -600,6 +658,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
         target.setAttribute(attribute, fields[3]);
         if (attribute === "data-select-value" || attribute === "data-select-values" || (attribute === "value" && target instanceof window.HTMLOptionElement)) applySelectValues(target);
         if (attribute === "data-style-vars") applyDeclaredStyles(target);
+        if (attribute === "data-observe-size") applyObservedSizes(target);
         if (attribute === "data-trap-focus" && fields[3] === "true") {
           previousActiveElement = document.activeElement;
           const focusables = getFocusableElements(target);
@@ -644,9 +703,107 @@ export function createDomHost({ root, onStructure = () => {} }) {
     root.removeEventListener('change', handleControlInput, { capture: true });
     root.removeEventListener('keydown', handleKeyDown, { capture: true });
     root.removeEventListener('focusin', handleFocusIn, { capture: true });
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+      resizeObserver = null;
+      observedElements.clear();
+    }
     for (const [node] of exiting) abortExit(node);
     nodes.dispose();
   }
 
   return Object.freeze({ initialize, hydrate, applyPatchStream, dispose });
 }
+
+export function createFrameSyncHost({ root, origin: expectedOrigin = '*', port = null } = {}) {
+  const dom = createDomHost({ root });
+  const window = root.ownerDocument?.defaultView || globalThis.window;
+
+  function handleMessage(event) {
+    if (expectedOrigin && expectedOrigin !== '*' && event.origin !== expectedOrigin) {
+      return;
+    }
+    const data = event.data;
+    if (!data || typeof data !== 'object') return;
+    if (data.type === 'zg:patch-stream') {
+      const buffer = data.buffer;
+      if (buffer instanceof ArrayBuffer || ArrayBuffer.isView(buffer) || typeof buffer === 'string') {
+        dom.applyPatchStream(buffer);
+      }
+    } else if (data.type === 'zg:initialize') {
+      dom.initialize(data.html, data.options);
+    }
+  }
+
+  if (port) {
+    port.onmessage = handleMessage;
+    if (typeof port.start === 'function') port.start();
+  } else if (window && typeof window.addEventListener === 'function') {
+    window.addEventListener('message', handleMessage);
+  }
+
+  function dispose() {
+    if (port) {
+      port.onmessage = null;
+      if (typeof port.close === 'function') port.close();
+    } else if (window && typeof window.removeEventListener === 'function') {
+      window.removeEventListener('message', handleMessage);
+    }
+    dom.dispose();
+  }
+
+  return Object.freeze({ dom, dispose });
+}
+
+if (typeof globalThis.window !== 'undefined' && typeof globalThis.window.customElements !== 'undefined' && !globalThis.window.customElements.get('zg-view')) {
+  globalThis.window.customElements.define('zg-view', class ZgView extends globalThis.window.HTMLElement {
+    constructor() {
+      super();
+      this._dom = null;
+      this._shadowRoot = null;
+    }
+
+    connectedCallback() {
+      const shadowAttr = this.getAttribute('shadow');
+      const useShadow = shadowAttr === 'open' || shadowAttr === 'closed';
+      const container = useShadow
+        ? (this._shadowRoot || this.attachShadow({ mode: shadowAttr }))
+        : this;
+      this._shadowRoot = useShadow ? container : null;
+      this._dom = createDomHost({ root: container });
+      const initialHtml = this.getAttribute('data-html');
+      if (initialHtml) {
+        this._dom.initialize(initialHtml);
+      }
+    }
+
+    disconnectedCallback() {
+      this._dom?.dispose();
+      this._dom = null;
+    }
+
+    initialize(html, options) {
+      if (!this._dom) {
+        this.connectedCallback();
+      }
+      return this._dom.initialize(html, options);
+    }
+
+    hydrate(html) {
+      if (!this._dom) {
+        this.connectedCallback();
+      }
+      return this._dom.hydrate(html);
+    }
+
+    applyPatchStream(stream) {
+      return this._dom?.applyPatchStream(stream);
+    }
+
+    dispose() {
+      this._dom?.dispose();
+      this._dom = null;
+    }
+  });
+}
+

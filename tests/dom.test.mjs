@@ -1040,7 +1040,113 @@ for (const [engineName, engine] of [['chromium', chromium], ['firefox', firefox]
       await server.close();
     }
   });
+
+  test(`web components, frame sync host, and container queries (${engineName})`, async () => {
+    const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+    let browser;
+    try {
+      browser = await engine.launch({ headless: true });
+      const page = await browser.newPage();
+      await page.goto(server.url + '/dom.js');
+
+      const result = await page.evaluate(async () => {
+        const { createDomHost, createFrameSyncHost } = await import('/dom.js');
+
+        // 1. Test <zg-view> Custom Element (Shadow DOM)
+        const zgView = document.createElement('zg-view');
+        zgView.setAttribute('shadow', 'open');
+        document.body.append(zgView);
+        zgView.initialize('<section data-node-id="1"><span data-node-id="2">Initial Shadow</span></section>');
+
+        const shadowSpan = zgView.shadowRoot?.querySelector('[data-node-id="2"]');
+        const customElementShadowMounted = shadowSpan?.textContent === 'Initial Shadow';
+
+        zgView.applyPatchStream('T\t2\t"Updated Shadow"\n');
+        const customElementShadowPatched = shadowSpan?.textContent === 'Updated Shadow';
+
+        zgView.remove();
+        const customElementDisposed = zgView._dom === null;
+
+        // 2. Test <zg-view> Custom Element (Light DOM)
+        const lightView = document.createElement('zg-view');
+        document.body.append(lightView);
+        lightView.initialize('<section data-node-id="1"><span data-node-id="2">Light DOM</span></section>');
+        const lightSpan = lightView.querySelector('[data-node-id="2"]');
+        const lightDomMounted = lightSpan?.textContent === 'Light DOM';
+        lightView.remove();
+
+        // 3. Test createFrameSyncHost with MessageChannel (Zero-Copy Transfer)
+        const frameRoot = document.createElement('div');
+        document.body.append(frameRoot);
+        const channel = new MessageChannel();
+        const frameHost = createFrameSyncHost({ root: frameRoot, port: channel.port1 });
+
+        await new Promise(resolve => {
+          channel.port2.postMessage({
+            type: 'zg:initialize',
+            html: '<div data-node-id="1"><span data-node-id="2">Frame Init</span></div>',
+          });
+          setTimeout(resolve, 50);
+        });
+
+        const frameSpan = frameRoot.querySelector('[data-node-id="2"]');
+        const frameHostInitialized = frameSpan?.textContent === 'Frame Init';
+
+        const patchText = 'T\t2\t"Frame Synced"\n';
+        const buffer = new TextEncoder().encode(patchText).buffer;
+        await new Promise(resolve => {
+          channel.port2.postMessage({
+            type: 'zg:patch-stream',
+            buffer,
+          }, [buffer]);
+          setTimeout(resolve, 50);
+        });
+
+        const frameHostPatched = frameSpan?.textContent === 'Frame Synced';
+        const zeroCopyTransferred = buffer.byteLength === 0; // Transferred ArrayBuffer is detached
+
+        frameHost.dispose();
+        frameRoot.remove();
+
+        // 4. Test Container Query / Size Observation
+        const observeRoot = document.createElement('div');
+        document.body.append(observeRoot);
+        const dom = createDomHost({ root: observeRoot });
+        dom.initialize('<div id="card" data-node-id="1" data-observe-size="compact:400,expanded:800" style="width:300px;height:50px;">Card</div>');
+
+        const card = observeRoot.querySelector('#card');
+        // Allow ResizeObserver delivery beat
+        await new Promise(resolve => setTimeout(resolve, 100));
+        const compactObserved = card.getAttribute('data-size') === 'compact';
+
+        card.style.width = '900px';
+        await new Promise(resolve => setTimeout(resolve, 100));
+        const expandedObserved = card.getAttribute('data-size') === 'expanded';
+
+        dom.dispose();
+        observeRoot.remove();
+
+        return {
+          customElementShadowMounted,
+          customElementShadowPatched,
+          customElementDisposed,
+          lightDomMounted,
+          frameHostInitialized,
+          frameHostPatched,
+          zeroCopyTransferred,
+          compactObserved,
+          expandedObserved,
+        };
+      });
+
+      assert.ok(Object.values(result).every(Boolean), JSON.stringify(result));
+    } finally {
+      await browser?.close();
+      await server.close();
+    }
+  });
 }
+
 
 
 

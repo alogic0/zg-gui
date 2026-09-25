@@ -434,6 +434,11 @@ const Compiler = struct {
                         }
                     }
                     continue;
+                } else if (std.mem.eql(u8, n, ":observe-size") or std.mem.eql(u8, n, ":container")) {
+                    const raw = try c.value(a);
+                    const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+                    if (trimmed.len == 0) return c.reject(a.name.start, ":observe-size requires breakpoint specifications");
+                    continue;
                 } else if (!oneOf(n, ":on-click :style-vars")) {
                     return c.reject(a.name.start, "unknown GUI directive");
                 }
@@ -703,6 +708,12 @@ const Compiler = struct {
                     }
                 }
                 try c.literal(" data-trap-focus=\"true\" aria-modal=\"true\"");
+                continue;
+            }
+            if (std.mem.eql(u8, n, ":observe-size") or std.mem.eql(u8, n, ":container")) {
+                const raw = try c.value(a);
+                const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+                try c.literal(try std.fmt.allocPrint(c.a, " data-observe-size=\"{s}\"", .{trimmed}));
                 continue;
             }
             if (oneOf(n, ":ref :key :limit :loop :text :if :slot :value :values :error-id")) continue;
@@ -1275,6 +1286,23 @@ test "dialog and trap-focus directives emit data-trap-focus and aria-modal attri
     });
     defer std.testing.allocator.free(dynamic_code);
     try std.testing.expect(std.mem.indexOf(u8, dynamic_code, "binding.trapFocus(p, .{ .node = node, .value = binding.get(view, \"open\"") != null);
+}
+
+test "observe-size and container directives emit data-observe-size attribute and validate parameters" {
+    var d = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{
+        .source = "<div :observe-size=\"compact:400,expanded:800\"><p>Responsive Card</p></div>",
+        .name = "observe.gui.html",
+        .diagnostic = &d,
+    });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "data-observe-size=\\\"compact:400,expanded:800\\\"") != null);
+
+    try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{
+        .source = "<div :observe-size=\"\">Bad</div>",
+        .name = "bad_size.gui.html",
+        .diagnostic = &d,
+    }));
 }
 
 

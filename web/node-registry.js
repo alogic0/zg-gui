@@ -25,8 +25,8 @@ export function createNodeRegistry({ root, MutationObserver = root.ownerDocument
     identities.set(node, id);
   }
   function visit(subtree, action) {
-    if (subtree.nodeType !== 1) return;
-    if (subtree !== root) action(subtree);
+    if (subtree.nodeType !== 1 && subtree.nodeType !== 11) return;
+    if (subtree !== root && subtree.nodeType === 1) action(subtree);
     for (const node of subtree.querySelectorAll('[data-node-id]')) action(node);
   }
   function add(subtree) { visit(subtree, addOne); }

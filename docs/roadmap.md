@@ -135,3 +135,13 @@ zero-copy Web Worker offscreen projections are delivered under
   Declarative screen-reader announcement channel (:live="polite|assertive") synchronized with DOM patch streams.
 - [x] [Declarative hotkeys and roving tabindex](requests/063-declarative-hotkeys.md):
   Global keyboard shortcuts (:hotkey) and roving tabindex (:roving-tabindex) navigation for accessible toolbars, tablists, and menus.
+
+## Delivered milestone: Web Components, Cross-Frame Binary Sync, and Container Queries
+
+- [x] [Web Component Custom Elements Interop (<zg-view>)](requests/064-web-component-custom-elements.md):
+  Autonomous custom element registration `<zg-view>` with optional Shadow DOM encapsulation (`mode: "open" | "closed"`), attribute reflection, and lifecycle detachment cleanups.
+- [x] [Cross-Frame Binary Patch Synchronization](requests/065-cross-frame-binary-patch-sync.md):
+  Zero-copy binary patch transfers across `postMessage` / `MessagePort` channels with `ArrayBuffer` transfer lists and origin validation.
+- [x] [Zero-Allocation Container Queries & Size Observation](requests/066-container-queries-and-size-observation.md):
+  Declarative `:observe-size` and `:container` directives coordinating `ResizeObserver` breakpoint reflection (`data-size="compact|standard|expanded"`) without heap allocation.
+
