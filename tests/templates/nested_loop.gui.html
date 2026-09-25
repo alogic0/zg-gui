@@ -1,0 +1,10 @@
+<main :ref="root">
+  <ul :ref="categories" :loop="$categories" :key="id" :limit="3">
+    <li data-cat-id="$item.id">
+      <span :text="$item.name"></span>
+      <ol :loop="$item.items" :key="id" :limit="4">
+        <li data-item-id="$item.id"><span :text="$item.title"></span> in <span :text="$outer.name"></span></li>
+      </ol>
+    </li>
+  </ul>
+</main>

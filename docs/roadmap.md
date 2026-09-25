@@ -36,7 +36,7 @@ Explicit radio choice values are implemented and verified in
 
 - [x] Reusable template invocation with typed inputs, stable instance namespaces
   and derived combined snapshot capacity.
-- [ ] Nested keyed loops with explicit ownership and admission limits.
+- [x] Nested keyed loops with explicit ownership and admission limits.
 - [ ] Stable compact keys for arbitrary external identifiers.
 - [ ] Typed multiple selection, change events and recovery.
 - [ ] Large-list snapshot measurements and evidence-based improvements.
@@ -94,3 +94,6 @@ delivered under [request 049](requests/049-multi-engine-browser-contracts.md).
 
 Static HTML template rendering and dual-target SSR code generation are
 delivered under [request 050](requests/050-template-html-codegen.md).
+
+Nested keyed loops with explicit ownership and admission limits are
+delivered under [request 051](requests/051-nested-keyed-loops.md).

@@ -25,10 +25,11 @@ there is no separate generation command to remember for this example.
 ## Bindings
 
 Values such as `$name` and `$user.name` read fields from the supplied Zig view.
-`$item.label` reads the current loop item. Bindings must be quoted and occupy
-the whole attribute value. Arithmetic, method calls, indexing and string
-interpolation belong in Zig; expose their results as view fields. A leading
-literal dollar sign in a static attribute can be written as `&#36;`.
+`$item.label` reads the current loop item. In nested loops, `$outer.name` reads
+the enclosing outer loop item. Bindings must be quoted and occupy the whole
+attribute value. Arithmetic, method calls, indexing and string interpolation
+belong in Zig; expose their results as view fields. A leading literal dollar
+sign in a static attribute can be written as `&#36;`.
 
 | Syntax | Type and generated behavior |
 | --- | --- |
@@ -123,10 +124,13 @@ cache. Generated code should not be hand-edited or checked in.
 ## Current language boundary
 
 This is a GUI-specific subset, not the complete SuperHTML/Scripty language.
-There is no raw HTML injection, `:else`, nested keyed loop, runtime expression
-evaluation, or implicit persistence. `:if` owns children;
-use `:visible` when hidden descendants must retain drafts and focus identity.
-Refs inside loops are rejected because their IDs depend on the current key.
+There is no raw HTML injection, `:else`, 3-level loops, runtime expression
+evaluation, or implicit persistence. Keyed loops support 2-level nesting with
+derived capacity bounds and collision-free identities; inside nested loops, use
+`$item` for the inner element and `$outer` for the enclosing outer element.
+`:if` owns children; use `:visible` when hidden descendants must retain drafts
+and focus identity. Refs inside loops are rejected because their IDs depend on
+the current key.
 
 Description lists support `dl`, `dt`, and `dd`, including direct div groups.
 Terms/descriptions must be direct children of the list or its div group. Groups

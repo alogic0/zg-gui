@@ -89,6 +89,7 @@ pub fn build(b: *std.Build) void {
     const table_row_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/table_row.gui.html"), .fragment_context = .tbody });
     const table_cells_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/table_cells.gui.html"), .fragment_context = .tr });
     const table_slot_row_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/table_slot_row.gui.html"), .fragment_context = .tbody });
+    const nested_loop_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/nested_loop.gui.html") });
     const test_gui = b.createModule(.{ .root_source_file = b.path("src/root.zig"), .target = b.graph.host, .optimize = .debug });
     const generated_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -97,6 +98,7 @@ pub fn build(b: *std.Build) void {
             .optimize = .debug,
             .imports = &.{
                 .{ .name = "zg_gui", .module = test_gui },
+                .{ .name = "nested_loop_fixture", .module = b.createModule(.{ .root_source_file = nested_loop_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "table_cells", .module = b.createModule(.{ .root_source_file = table_cells_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "table_slot_row", .module = b.createModule(.{ .root_source_file = table_slot_row_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "radio_fixture", .module = b.createModule(.{ .root_source_file = radio_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },

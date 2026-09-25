@@ -1306,3 +1306,199 @@ test "table spans patch cells only and retry output refusal" {
     var expected: [128]u8 = undefined;
     try std.testing.expectEqualStrings(try std.fmt.bufPrint(&expected, "A\t{d}\tcolspan\t6\nR\t{d}\trowspan\n", .{ template.nodes.heading, template.nodes.cell }), html.slice());
 }
+
+test "nested keyed loops support static rendering, patches, outer context, and reordering" {
+    const template = @import("nested_loop_fixture");
+    const Item = struct { id: u32, title: []const u8 };
+    const Category = struct { id: u32, name: []const u8, items: []const Item = &.{} };
+    const Model = struct { categories: []const Category = &.{} };
+
+    const cat_a_items: []const Item = &.{
+        .{ .id = 1, .title = "Alpha Task" },
+        .{ .id = 2, .title = "Beta Task" },
+    };
+    const cat_b_items: []const Item = &.{
+        .{ .id = 10, .title = "Gamma Task" },
+    };
+    const initial_model = Model{
+        .categories = &.{
+            .{ .id = 100, .name = "Engineering", .items = cat_a_items },
+            .{ .id = 200, .name = "Design", .items = cat_b_items },
+        },
+    };
+
+    // 1. Static HTML rendering (Clean SSR)
+    {
+        var bytes: [4096]u8 = undefined;
+        var w = gui.html.Writer{ .buffer = &bytes };
+        template.renderHtml(&w, initial_model);
+        try std.testing.expect(!w.failed);
+        const html = w.slice();
+        try std.testing.expect(std.mem.indexOf(u8, html, "<main") != null);
+        try std.testing.expect(std.mem.indexOf(u8, html, "data-node-id") == null);
+        try std.testing.expect(std.mem.indexOf(u8, html, "Engineering") != null);
+        try std.testing.expect(std.mem.indexOf(u8, html, "<span>Alpha Task</span> in <span>Engineering</span>") != null);
+        try std.testing.expect(std.mem.indexOf(u8, html, "<span>Beta Task</span> in <span>Engineering</span>") != null);
+        try std.testing.expect(std.mem.indexOf(u8, html, "Design") != null);
+        try std.testing.expect(std.mem.indexOf(u8, html, "<span>Gamma Task</span> in <span>Design</span>") != null);
+    }
+
+    // 2. Static HTML rendering with hydration node IDs (Hydrated SSR)
+    {
+        var bytes: [4096]u8 = undefined;
+        var w = gui.html.Writer{ .buffer = &bytes };
+        template.renderHtmlWithNodes(&w, initial_model);
+        try std.testing.expect(!w.failed);
+        const html = w.slice();
+        try std.testing.expect(std.mem.indexOf(u8, html, "data-node-id=\"1\"") != null);
+        try std.testing.expect(std.mem.indexOf(u8, html, "data-node-id=\"2\"") != null);
+        try std.testing.expect(std.mem.indexOf(u8, html, "data-cat-id=\"100\"") != null);
+        try std.testing.expect(std.mem.indexOf(u8, html, "data-item-id=\"1\"") != null);
+    }
+
+    // 3. Incremental WASM Projection and Patch Verification
+    const Projection = gui.Projection(template.snapshot_capacity);
+    var html_bytes: [8192]u8 = undefined;
+    var patch_bytes: [8192]u8 = undefined;
+    var initial_snapshot = Projection.Snapshot{};
+    var next_snapshot = Projection.Snapshot{};
+
+    // Initial full render
+    var html = gui.html.Writer{ .buffer = &html_bytes };
+    var p = Projection{ .html = &html, .next = &initial_snapshot };
+    template.project(&p, initial_model);
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(initial_snapshot.len > 0);
+
+    // Verify all node IDs in initial snapshot are distinct
+    for (initial_snapshot.entries[0..initial_snapshot.len], 0..) |entry, i| {
+        for (initial_snapshot.entries[0..i]) |other| {
+            if (entry.node == other.node and entry.property == other.property) {
+                try std.testing.expect(false);
+            }
+        }
+    }
+
+    // 4. Patch: Reorder inner items within a category
+    {
+        var patch_writer = gui.html.Writer{ .buffer = &patch_bytes };
+        var patches = gui.patch.Writer{ .output = &patch_writer };
+        var scratch_bytes: [256]u8 = undefined;
+        var scratch = gui.html.Writer{ .buffer = &scratch_bytes };
+
+        const reordered_items: []const Item = &.{
+            .{ .id = 2, .title = "Beta Task" },
+            .{ .id = 1, .title = "Alpha Task" },
+        };
+        const reordered_model = Model{
+            .categories = &.{
+                .{ .id = 100, .name = "Engineering", .items = reordered_items },
+                .{ .id = 200, .name = "Design", .items = cat_b_items },
+            },
+        };
+
+        p = .{
+            .html = &scratch,
+            .next = &next_snapshot,
+            .previous = &initial_snapshot,
+            .patches = &patches,
+            .writing = false,
+        };
+        template.project(&p, reordered_model);
+        try std.testing.expect(!scratch.failed);
+        const patch_str = patch_writer.slice();
+        // Inner item move command emitted
+        try std.testing.expect(std.mem.indexOf(u8, patch_str, "M\t") != null);
+        // No full list replacement or deletion
+        try std.testing.expect(std.mem.indexOf(u8, patch_str, "H\t") == null);
+        try std.testing.expect(std.mem.indexOf(u8, patch_str, "D\t") == null);
+    }
+
+    // 5. Patch: Reorder outer categories (Engineering & Design swapped)
+    {
+        var patch_writer = gui.html.Writer{ .buffer = &patch_bytes };
+        var patches = gui.patch.Writer{ .output = &patch_writer };
+        var scratch_bytes: [256]u8 = undefined;
+        var scratch = gui.html.Writer{ .buffer = &scratch_bytes };
+        var after_outer = Projection.Snapshot{};
+
+        const swapped_model = Model{
+            .categories = &.{
+                .{ .id = 200, .name = "Design", .items = cat_b_items },
+                .{ .id = 100, .name = "Engineering", .items = cat_a_items },
+            },
+        };
+
+        p = .{
+            .html = &scratch,
+            .next = &after_outer,
+            .previous = &initial_snapshot,
+            .patches = &patches,
+            .writing = false,
+        };
+        template.project(&p, swapped_model);
+        try std.testing.expect(!scratch.failed);
+        const patch_str = patch_writer.slice();
+        // Outer category move command emitted
+        try std.testing.expect(std.mem.indexOf(u8, patch_str, "M\t") != null);
+        try std.testing.expect(std.mem.indexOf(u8, patch_str, "H\t") == null);
+    }
+
+    // 6. Patch: Update outer context and inner properties
+    {
+        var patch_writer = gui.html.Writer{ .buffer = &patch_bytes };
+        var patches = gui.patch.Writer{ .output = &patch_writer };
+        var scratch_bytes: [256]u8 = undefined;
+        var scratch = gui.html.Writer{ .buffer = &scratch_bytes };
+        var after_rename = Projection.Snapshot{};
+
+        const renamed_model = Model{
+            .categories = &.{
+                .{ .id = 100, .name = "Product Engineering", .items = cat_a_items },
+                .{ .id = 200, .name = "Design", .items = cat_b_items },
+            },
+        };
+
+        p = .{
+            .html = &scratch,
+            .next = &after_rename,
+            .previous = &initial_snapshot,
+            .patches = &patches,
+            .writing = false,
+        };
+        template.project(&p, renamed_model);
+        try std.testing.expect(!scratch.failed);
+        const patch_str = patch_writer.slice();
+        // Text changes emitted for both the category span and the inner spans referencing $outer.name
+        try std.testing.expect(std.mem.indexOf(u8, patch_str, "Product Engineering") != null);
+    }
+
+    // 7. Admission limits: Rejecting excess rows or duplicates
+    {
+        // Exceeding inner limit (limit = 4, provide 5)
+        const too_many_items: []const Item = &.{
+            .{ .id = 1, .title = "A" },
+            .{ .id = 2, .title = "B" },
+            .{ .id = 3, .title = "C" },
+            .{ .id = 4, .title = "D" },
+            .{ .id = 5, .title = "E" },
+        };
+        var scratch_bytes: [256]u8 = undefined;
+        var scratch = gui.html.Writer{ .buffer = &scratch_bytes };
+        var bad_snapshot = Projection.Snapshot{};
+        p = Projection{ .html = &scratch, .next = &bad_snapshot };
+        template.project(&p, Model{ .categories = &.{.{ .id = 1, .name = "Cat", .items = too_many_items }} });
+        try std.testing.expect(scratch.failed);
+
+        // Duplicate inner keys
+        const duplicate_items: []const Item = &.{
+            .{ .id = 1, .title = "A" },
+            .{ .id = 1, .title = "B" },
+        };
+        scratch = gui.html.Writer{ .buffer = &scratch_bytes };
+        bad_snapshot = .{};
+        p = Projection{ .html = &scratch, .next = &bad_snapshot };
+        template.project(&p, Model{ .categories = &.{.{ .id = 1, .name = "Cat", .items = duplicate_items }} });
+        try std.testing.expect(scratch.failed);
+    }
+}

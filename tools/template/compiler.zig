@@ -26,10 +26,10 @@ const Node = struct {
     end: usize,
     slot: u32,
     loop_limit: ?usize = null,
-    in_loop: bool = false,
+    loop_depth: u32 = 0,
     factor: usize = 1,
 };
-const Emission = struct { idx: usize, in_loop: bool, factor: usize };
+const Emission = struct { idx: usize, loop_depth: u32, factor: usize };
 const Code = struct {
     allocator: Allocator,
     bytes: std.ArrayList(u8) = .empty,
@@ -68,7 +68,7 @@ pub fn compile(allocator: Allocator, input: Input) Error![]u8 {
     expanded.source = document.source;
     var compiler = Compiler{ .a = arena.allocator(), .input = expanded, .document = document, .code = .{ .allocator = arena.allocator() } };
     try compiler.parse();
-    for (compiler.roots.items) |idx| try compiler.validate(.{ .idx = idx, .in_loop = false });
+    for (compiler.roots.items) |idx| try compiler.validate(.{ .idx = idx, .loop_depth = 0 });
     try compiler.generate();
     return mergeStaticRuns(allocator, compiler.code.bytes.items);
 }
@@ -237,15 +237,16 @@ const Compiler = struct {
         return max;
     }
 
-    fn binding(c: *Compiler, input: struct { attr: Attr, in_loop: bool }) Error!void {
+    fn binding(c: *Compiler, input: struct { attr: Attr, loop_depth: u32 }) Error!void {
         const v = try c.value(input.attr);
         if (v.len < 2 or v[0] != '$' or !validPath(v[1..])) return c.reject(input.attr.name.start, "expected $field.path; expressions belong in the Zig view");
-        if ((std.mem.eql(u8, v, "$item") or std.mem.startsWith(u8, v, "$item.")) and !input.in_loop) return c.reject(input.attr.name.start, "$item is only available inside a loop");
+        if ((std.mem.eql(u8, v, "$item") or std.mem.startsWith(u8, v, "$item.")) and input.loop_depth == 0) return c.reject(input.attr.name.start, "$item is only available inside a loop");
+        if ((std.mem.eql(u8, v, "$outer") or std.mem.startsWith(u8, v, "$outer.")) and input.loop_depth < 2) return c.reject(input.attr.name.start, "$outer is only available inside a nested loop");
     }
 
-    fn validate(c: *Compiler, input: struct { idx: usize, in_loop: bool, in_condition: bool = false, factor: usize = 1 }) Error!void {
+    fn validate(c: *Compiler, input: struct { idx: usize, loop_depth: u32 = 0, in_condition: bool = false, factor: usize = 1 }) Error!void {
         const node = &c.nodes.items[input.idx];
-        node.in_loop = input.in_loop;
+        node.loop_depth = input.loop_depth;
         node.factor = input.factor;
         const tag_name = c.name(input.idx);
         const is_void = node.tag.isVoid(c.input.source, .html);
@@ -271,7 +272,7 @@ const Compiler = struct {
             }
             if (std.mem.eql(u8, n, ":ref")) {
                 const ref = try c.value(a);
-                if (!validPath(ref) or input.in_loop) return c.reject(a.name.start, ":ref requires a simple name outside loops");
+                if (!validPath(ref) or input.loop_depth > 0) return c.reject(a.name.start, ":ref requires a simple name outside loops");
                 for (c.nodes.items[0..input.idx], 0..) |_, previous| {
                     if (c.attr(.{ .idx = previous, .name = ":ref" })) |other| {
                         if (std.mem.eql(u8, ref, try c.value(other))) return c.reject(a.name.start, "duplicate :ref");
@@ -280,9 +281,9 @@ const Compiler = struct {
                 continue;
             }
             if (std.mem.eql(u8, n, ":slot")) {
-                if (input.in_loop or input.in_condition)
+                if (input.loop_depth > 0 or input.in_condition)
                     return c.reject(a.name.start, ":slot is not supported inside loops or conditions");
-                try c.binding(.{ .attr = a, .in_loop = false });
+                try c.binding(.{ .attr = a, .loop_depth = 0 });
                 continue;
             }
             if (std.mem.eql(u8, n, ":limit")) {
@@ -315,12 +316,12 @@ const Compiler = struct {
                 } else if (!oneOf(n, ":on-click :style-vars")) {
                     return c.reject(a.name.start, "unknown GUI directive");
                 }
-                try c.binding(.{ .attr = a, .in_loop = input.in_loop });
+                try c.binding(.{ .attr = a, .loop_depth = input.loop_depth });
             } else {
                 if (!(attributeName(n) or (isSvg(tag_name) and oneOf(n, "viewBox preserveAspectRatio"))) or std.mem.startsWith(u8, n, "on") or oneOf(n, "data-node-id data-event data-input-kind data-select-value")) return c.reject(a.name.start, "reserved or unsupported attribute name");
                 if (a.value) |v| if (std.mem.startsWith(u8, v.span.slice(c.input.source), "$")) {
                     if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (oneOf(tag_name, "img iframe") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter progress") and std.mem.eql(u8, n, "value")) or (std.mem.eql(u8, tag_name, "progress") and std.mem.eql(u8, n, "max")) or (oneOf(tag_name, "input select textarea") and std.mem.eql(u8, n, "required")) or (std.mem.eql(u8, tag_name, "input") and oneOf(n, "min max step type")) or (oneOf(tag_name, "input select textarea") and oneOf(n, "name autocomplete")) or (oneOf(tag_name, "td th") and oneOf(n, "colspan rowspan")) or (std.mem.eql(u8, tag_name, "form") and std.mem.eql(u8, n, "action")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
-                    try c.binding(.{ .attr = a, .in_loop = input.in_loop });
+                    try c.binding(.{ .attr = a, .loop_depth = input.loop_depth });
                 };
             }
         }
@@ -384,13 +385,13 @@ const Compiler = struct {
             }
         }
         if (has_loop) {
-            if (input.in_loop) return c.reject(node.tag.span.start, "nested loops are not supported");
+            if (input.loop_depth >= 2) return c.reject(node.tag.span.start, "nested loops exceed supported depth");
             if (node.loop_limit == null or c.attr(.{ .idx = input.idx, .name = ":key" }) == null) return c.reject(node.tag.span.start, ":loop requires :key and :limit");
             if (node.children.items.len != 1) return c.reject(node.tag.span.start, "loop container requires exactly one child element");
             const child = c.nodes.items[node.children.items[0]];
             if (std.mem.trim(u8, c.input.source[node.tag.span.end..child.tag.span.start], " \t\r\n").len != 0 or std.mem.trim(u8, c.input.source[child.end..node.close_start], " \t\r\n").len != 0) return c.reject(node.tag.span.start, "loop container permits only whitespace around its child element");
         } else if (node.loop_limit != null or c.attr(.{ .idx = input.idx, .name = ":key" }) != null) return c.reject(node.tag.span.start, ":key and :limit require :loop");
-        for (node.children.items) |child| try c.validate(.{ .idx = child, .in_loop = input.in_loop or has_loop, .in_condition = input.in_condition or has_if, .factor = input.factor * (node.loop_limit orelse 1) });
+        for (node.children.items) |child| try c.validate(.{ .idx = child, .loop_depth = if (has_loop) input.loop_depth + 1 else input.loop_depth, .in_condition = input.in_condition or has_if, .factor = input.factor * (node.loop_limit orelse 1) });
     }
 
     fn literal(c: *Compiler, value_: []const u8) Error!void {
@@ -401,23 +402,34 @@ const Compiler = struct {
     }
     fn expression(c: *Compiler, a: Attr) Error!void {
         const v = (try c.value(a))[1..];
-        const item = std.mem.startsWith(u8, v, "item.");
+        const is_item = std.mem.eql(u8, v, "item") or std.mem.startsWith(u8, v, "item.");
+        const is_outer = std.mem.eql(u8, v, "outer") or std.mem.startsWith(u8, v, "outer.");
         if (std.mem.eql(u8, v, "item")) {
             try c.code.add("item");
             return;
         }
-        try c.code.print("binding.get({s}, ", .{if (item) "item" else "view"});
-        try c.code.string(if (item) v[5..] else v);
+        if (std.mem.eql(u8, v, "outer")) {
+            try c.code.add("outer_item");
+            return;
+        }
+        const target: []const u8 = if (is_item) "item" else if (is_outer) "outer_item" else "view";
+        const path: []const u8 = if (is_item) v[5..] else if (is_outer) v[6..] else v;
+        try c.code.print("binding.get({s}, ", .{target});
+        try c.code.string(path);
         try c.code.add(", ");
         const location = c.document.location(a.name.start).diagnostic("");
         try c.code.string(try std.fmt.allocPrint(c.a, "{s}:{d}:{d}", .{ location.name, location.line, location.column }));
         try c.code.add(")");
     }
-    fn id(c: *Compiler, input: struct { slot: u32, in_loop: bool }) Error!void {
+    fn id(c: *Compiler, input: struct { slot: u32, loop_depth: u32 }) Error!void {
         try c.code.add("(space.node(");
-        if (input.in_loop) {
+        if (input.loop_depth == 2) {
+            try c.code.print("(binding.nestedKeyedId(.{{ .outer_key = outer_key, .inner_key = key, .slot = {d}, .stride = {d} }}) catch {{ p.html.failed = true; return; }})", .{ input.slot, c.nodes.items.len });
+        } else if (input.loop_depth == 1) {
             try c.code.print("(binding.keyedId(.{{ .key = key, .slot = {d}, .stride = {d} }}) catch {{ p.html.failed = true; return; }})", .{ input.slot, c.nodes.items.len });
-        } else try c.code.print("{d}", .{input.slot});
+        } else {
+            try c.code.print("{d}", .{input.slot});
+        }
         try c.code.add(") catch { p.html.failed = true; return; })");
     }
 
@@ -431,25 +443,45 @@ const Compiler = struct {
             const loop = c.attr(.{ .idx = input.idx, .name = ":loop" }).?;
             const key = c.attr(.{ .idx = input.idx, .name = ":key" }).?;
             const child = node.children.items[0];
+            const is_nested = input.loop_depth == 1;
             c.entries += input.factor; // Order.
             try c.code.add("{\nconst items = ");
             try c.expression(loop);
-            try c.code.print(";\nif (items.len > {d}) {{ p.html.failed = true; return; }}\nvar ids: [{d}]u32 = undefined;\nfor (items, 0..) |item, i| {{\nconst key: u32 = binding.get(item, ", .{ limit, limit });
-            try c.code.string(try c.value(key));
-            try c.code.add(", \"loop key\");\nids[i] = ");
-            try c.id(.{ .slot = c.nodes.items[child].slot, .in_loop = true });
-            try c.code.add(";\nfor (ids[0..i]) |previous| if (previous == ids[i]) { p.html.failed = true; return; };\n}\n");
-            try c.code.print("p.keyedList(.{{ .owner = space.node({d}) catch unreachable, .nodes = ids[0..items.len] }});\nfor (items, 0..) |item, i| {{\nconst key: u32 = binding.get(item, ", .{node.slot});
-            try c.code.string(try c.value(key));
-            try c.code.print(", \"loop key\");\nconst child = p.beginChild(.{{ .owner = space.node({d}) catch unreachable, .node = ids[i] }});\n", .{node.slot});
-            c.entries += limit * input.factor; // Parent identities.
-            try c.code.print("element_{d}(p, view, space, item, key);\n", .{c.nodes.items[child].slot});
-            try c.code.print("p.endChild(child);\n}}\np.order(.{{ .owner = space.node({d}) catch unreachable, .nodes = ids[0..items.len] }});\n}}\n", .{node.slot});
+            try c.code.print(";\nif (items.len > {d}) {{ p.html.failed = true; return; }}\nvar ids: [{d}]u32 = undefined;\n", .{ limit, limit });
+            if (is_nested) {
+                try c.code.add("for (items, 0..) |inner_item, i| {\nconst inner_key: u32 = binding.get(inner_item, ");
+                try c.code.string(try c.value(key));
+                try c.code.print(", \"loop key\");\nids[i] = (space.node((binding.nestedKeyedId(.{{ .outer_key = key, .inner_key = inner_key, .slot = {d}, .stride = {d} }}) catch {{ p.html.failed = true; return; }})) catch {{ p.html.failed = true; return; }});\n", .{ c.nodes.items[child].slot, c.nodes.items.len });
+                try c.code.add("for (ids[0..i]) |previous| if (previous == ids[i]) { p.html.failed = true; return; };\n}\n");
+                try c.code.add("p.keyedList(.{ .owner = node, .nodes = ids[0..items.len] });\nfor (items, 0..) |inner_item, i| {\nconst inner_key: u32 = binding.get(inner_item, ");
+                try c.code.string(try c.value(key));
+                try c.code.add(", \"loop key\");\nconst child = p.beginChild(.{ .owner = node, .node = ids[i] });\n");
+                c.entries += limit * input.factor; // Parent identities.
+                try c.code.print("element_{d}(p, view, space, inner_item, inner_key, item, key);\n", .{c.nodes.items[child].slot});
+                try c.code.add("p.endChild(child);\n}\np.order(.{ .owner = node, .nodes = ids[0..items.len] });\n}\n");
+            } else {
+                try c.code.add("for (items, 0..) |item, i| {\nconst key: u32 = binding.get(item, ");
+                try c.code.string(try c.value(key));
+                try c.code.print(", \"loop key\");\nids[i] = (space.node((binding.keyedId(.{{ .key = key, .slot = {d}, .stride = {d} }}) catch {{ p.html.failed = true; return; }})) catch {{ p.html.failed = true; return; }});\n", .{ c.nodes.items[child].slot, c.nodes.items.len });
+                try c.code.add("for (ids[0..i]) |previous| if (previous == ids[i]) { p.html.failed = true; return; };\n}\n");
+                try c.code.print("p.keyedList(.{{ .owner = space.node({d}) catch unreachable, .nodes = ids[0..items.len] }});\nfor (items, 0..) |item, i| {{\nconst key: u32 = binding.get(item, ", .{node.slot});
+                try c.code.string(try c.value(key));
+                try c.code.print(", \"loop key\");\nconst child = p.beginChild(.{{ .owner = space.node({d}) catch unreachable, .node = ids[i] }});\n", .{node.slot});
+                c.entries += limit * input.factor; // Parent identities.
+                try c.code.print("element_{d}(p, view, space, item, key);\n", .{c.nodes.items[child].slot});
+                try c.code.print("p.endChild(child);\n}}\np.order(.{{ .owner = space.node({d}) catch unreachable, .nodes = ids[0..items.len] }});\n}}\n", .{node.slot});
+            }
         } else {
             var previous: usize = node.tag.span.end;
             for (node.children.items) |child| {
                 try c.literal(c.input.source[previous..c.nodes.items[child].tag.span.start]);
-                try c.code.print("element_{d}(p, view, space{s});\n", .{ c.nodes.items[child].slot, if (input.in_loop) ", item, key" else "" });
+                if (input.loop_depth == 2) {
+                    try c.code.print("element_{d}(p, view, space, item, key, outer_item, outer_key);\n", .{c.nodes.items[child].slot});
+                } else if (input.loop_depth == 1) {
+                    try c.code.print("element_{d}(p, view, space, item, key);\n", .{c.nodes.items[child].slot});
+                } else {
+                    try c.code.print("element_{d}(p, view, space);\n", .{c.nodes.items[child].slot});
+                }
                 previous = c.nodes.items[child].end;
             }
             try c.literal(c.input.source[previous..node.close_start]);
@@ -459,8 +491,14 @@ const Compiler = struct {
     fn element(c: *Compiler, input: Emission) Error!void {
         const node = c.nodes.items[input.idx];
         const tag_name = c.name(input.idx);
-        try c.code.print("fn element_{d}(p: anytype, view: anytype, space: binding.Namespace{s}) void {{\n_ = &view;\n{s}const node: u32 = ", .{ node.slot, if (input.in_loop) ", item: anytype, key: u32" else "", if (input.in_loop) "_ = &item;\n" else "" });
-        try c.id(.{ .slot = node.slot, .in_loop = input.in_loop });
+        if (input.loop_depth == 2) {
+            try c.code.print("fn element_{d}(p: anytype, view: anytype, space: binding.Namespace, item: anytype, key: u32, outer_item: anytype, outer_key: u32) void {{\n_ = &view;\n_ = &item;\n_ = &outer_item;\nconst node: u32 = ", .{node.slot});
+        } else if (input.loop_depth == 1) {
+            try c.code.print("fn element_{d}(p: anytype, view: anytype, space: binding.Namespace, item: anytype, key: u32) void {{\n_ = &view;\n_ = &item;\nconst node: u32 = ", .{node.slot});
+        } else {
+            try c.code.print("fn element_{d}(p: anytype, view: anytype, space: binding.Namespace) void {{\n_ = &view;\nconst node: u32 = ", .{node.slot});
+        }
+        try c.id(.{ .slot = node.slot, .loop_depth = input.loop_depth });
         try c.code.add(";\n");
         try c.literal(try std.fmt.allocPrint(c.a, "<{s}", .{tag_name}));
         try c.code.add("p.node(node);\n");
@@ -636,7 +674,7 @@ const Compiler = struct {
         }
         try c.literal(c.input.source[previous..]);
         try c.code.add("}\n");
-        for (c.nodes.items, 0..) |node, idx| try c.element(.{ .idx = idx, .in_loop = node.in_loop, .factor = node.factor });
+        for (c.nodes.items, 0..) |node, idx| try c.element(.{ .idx = idx, .loop_depth = node.loop_depth, .factor = node.factor });
         try c.code.print("pub const snapshot_capacity: usize = {d};\n}};\n", .{@max(c.entries, 1)});
     }
 };
@@ -694,13 +732,33 @@ test "malformed structures unsupported directives and injected expressions fail 
         "<p><div></div></p>",                       "<div><span></div>",                                                        "<div>",                                                                                                                      "<div/>",
         "<p :text=\"$name + dangerous()\"></p>",    "<p :html=\"$markup\"></p>",                                                "<p :text=\"$item.name\"></p>",                                                                                               "<input :text=\"$name\">",
         "<p :text=\"$name\">content</p>",           "<div :visible=\"$show\" hidden></div>",                                    "<button data-event=\"2\">click</button>",                                                                                    "<p CLASS=\"one\"></p>",
-        "<div :loop=\"$rows\"><span></span></div>", "<div :loop=\"$rows\" :key=\"id\" :limit=\"2\"><span></span><b></b></div>", "<div :loop=\"$rows\" :key=\"id\" :limit=\"2\"><div :loop=\"$item.rows\" :key=\"id\" :limit=\"2\"><span></span></div></div>", "<p :ref=\"same\"></p><p :ref=\"same\"></p>",
+        "<div :loop=\"$rows\"><span></span></div>", "<div :loop=\"$rows\" :key=\"id\" :limit=\"2\"><span></span><b></b></div>", "<div :loop=\"$rows\" :key=\"id\" :limit=\"2\"><div :loop=\"$item.rows\" :key=\"id\" :limit=\"2\"><div :loop=\"$item.sub\" :key=\"id\" :limit=\"2\"><span></span></div></div></div>", "<p :ref=\"same\"></p><p :ref=\"same\"></p>",
+        "<div :text=\"$outer.name\"></div>",
     }) |source| {
         var d = Diagnostic{};
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad.gui.html", .diagnostic = &d }));
         try std.testing.expect(d.message.len > 0);
         try std.testing.expect(d.offset < source.len);
     }
+}
+
+test "compiler emits nested keyed loops with outer context and derived capacity" {
+    var d = Diagnostic{};
+    const source =
+        \\<ul :loop="$departments" :key="id" :limit="3">
+        \\  <li>
+        \\    <span :text="$item.name"></span>
+        \\    <ol :loop="$item.members" :key="id" :limit="4">
+        \\      <li><span :text="$item.role"></span> (<span :text="$outer.name"></span>)</li>
+        \\    </ol>
+        \\  </li>
+        \\</ul>
+    ;
+    const code = try compile(std.testing.allocator, .{ .source = source, .name = "nested.gui.html", .diagnostic = &d });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "nestedKeyedId") != null);
+    try std.testing.expect(std.mem.indexOf(u8, code, "outer_item") != null);
+    try std.testing.expect(std.mem.indexOf(u8, code, "snapshot_capacity: usize = 46") != null);
 }
 
 fn allocationProbe(a: Allocator) !void {

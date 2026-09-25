@@ -272,10 +272,50 @@ pub fn keyedId(input: struct { key: u32, slot: u32, stride: u32 }) error{Invalid
     return std.math.cast(u32, id) orelse error.InvalidKey;
 }
 
+pub fn nestedKeyedId(input: struct { outer_key: u32, inner_key: u32, slot: u32, stride: u32 }) error{InvalidKey}!u32 {
+    if (input.slot == 0 or input.slot > input.stride) return error.InvalidKey;
+    const sum = @as(u64, input.outer_key) + input.inner_key;
+    if (sum >= 65536) return error.InvalidKey;
+    const tri = (sum * (sum + 1)) / 2;
+    const composite = tri + input.inner_key;
+    const id = (composite + 1) * input.stride + input.slot;
+    return std.math.cast(u32, id) orelse error.InvalidKey;
+}
+
 test "keyed IDs separate template slots from repeated keys without overflow" {
     try std.testing.expectEqual(@as(u32, 12), try keyedId(.{ .key = 0, .slot = 2, .stride = 10 }));
     try std.testing.expectEqual(@as(u32, 22), try keyedId(.{ .key = 1, .slot = 2, .stride = 10 }));
     try std.testing.expectError(error.InvalidKey, keyedId(.{ .key = std.math.maxInt(u32), .slot = 2, .stride = 10 }));
+}
+
+test "nested keyed IDs derive collision-free identities for distinct outer and inner key pairs" {
+    try std.testing.expectEqual(@as(u32, 13), try nestedKeyedId(.{ .outer_key = 0, .inner_key = 0, .slot = 3, .stride = 10 }));
+    try std.testing.expectEqual(@as(u32, 23), try nestedKeyedId(.{ .outer_key = 1, .inner_key = 0, .slot = 3, .stride = 10 }));
+    try std.testing.expectEqual(@as(u32, 33), try nestedKeyedId(.{ .outer_key = 0, .inner_key = 1, .slot = 3, .stride = 10 }));
+    try std.testing.expectEqual(@as(u32, 53), try nestedKeyedId(.{ .outer_key = 1, .inner_key = 1, .slot = 3, .stride = 10 }));
+
+    // Rejection on invalid slots
+    try std.testing.expectError(error.InvalidKey, nestedKeyedId(.{ .outer_key = 0, .inner_key = 0, .slot = 0, .stride = 10 }));
+    try std.testing.expectError(error.InvalidKey, nestedKeyedId(.{ .outer_key = 0, .inner_key = 0, .slot = 11, .stride = 10 }));
+
+    // Rejection on large keys exceeding admission bound
+    try std.testing.expectError(error.InvalidKey, nestedKeyedId(.{ .outer_key = 70000, .inner_key = 0, .slot = 1, .stride = 10 }));
+    try std.testing.expectError(error.InvalidKey, nestedKeyedId(.{ .outer_key = 0, .inner_key = 70000, .slot = 1, .stride = 10 }));
+    try std.testing.expectError(error.InvalidKey, nestedKeyedId(.{ .outer_key = std.math.maxInt(u32), .inner_key = 1, .slot = 1, .stride = 10 }));
+
+    // Non-collision verification across dense matrix
+    var seen = std.AutoHashMap(u32, void).init(std.testing.allocator);
+    defer seen.deinit();
+    const stride: u32 = 16;
+    for (0..20) |o| {
+        for (0..20) |i| {
+            for (1..stride + 1) |slot| {
+                const id = try nestedKeyedId(.{ .outer_key = @intCast(o), .inner_key = @intCast(i), .slot = @intCast(slot), .stride = stride });
+                const res = try seen.getOrPut(id);
+                try std.testing.expect(!res.found_existing);
+            }
+        }
+    }
 }
 
 test "typed lookup follows view fields and preserves borrowed strings" {
