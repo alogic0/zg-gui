@@ -82,3 +82,6 @@ leaf/retry verification.
 
 Dynamic tab order is delivered under [request 021](requests/021-tabindex.md).
 Consumers retain keyboard and focus policy.
+
+Delimited integer formatting and typed HTML helpers are delivered under
+[request 047](requests/047-delimited-integer-formatting.md).
