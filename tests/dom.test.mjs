@@ -1145,6 +1145,132 @@ for (const [engineName, engine] of [['chromium', chromium], ['firefox', firefox]
       await server.close();
     }
   });
+
+  test(`FLIP layout transitions, island hydration, and optimistic rollback (${engineName})`, async () => {
+    const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+    let browser;
+    try {
+      browser = await engine.launch({ headless: true });
+      const page = await browser.newPage();
+      await page.goto(server.url + '/dom.js');
+
+      const result = await page.evaluate(async () => {
+        const { createDomHost } = await import('/dom.js');
+
+        // 1. FLIP Layout Transitions
+        const flipRoot = document.createElement('div');
+        document.body.append(flipRoot);
+        const dom1 = createDomHost({ root: flipRoot });
+        dom1.initialize(`
+          <div data-node-id="1">
+            <div data-node-id="2" data-layout-id="item-a" style="height:30px;">Item A</div>
+            <div data-node-id="3" data-layout-id="item-b" style="height:30px;">Item B</div>
+          </div>
+        `);
+        const itemA = flipRoot.querySelector('[data-layout-id="item-a"]');
+        const itemB = flipRoot.querySelector('[data-layout-id="item-b"]');
+        const initialBefore = itemA.nextElementSibling === itemB;
+
+        // Reorder via move patch
+        dom1.applyPatchStream('M\t3\t2\tbefore\n');
+        const reordered = itemB.nextElementSibling === itemA;
+        dom1.dispose();
+        flipRoot.remove();
+
+        // 2. Island Hydration (visible and idle)
+        const islandRoot = document.createElement('div');
+        document.body.prepend(islandRoot);
+        const dom2 = createDomHost({ root: islandRoot });
+
+        let hydratedCount = 0;
+        islandRoot.addEventListener('zg:hydrate', () => { hydratedCount++; });
+
+        dom2.initialize(`
+          <div data-node-id="1">
+            <div data-node-id="2" data-hydrate="visible" style="height:40px;">Visible Island</div>
+            <div data-node-id="3" data-hydrate="idle" style="height:40px;">Idle Island</div>
+          </div>
+        `);
+        // Wait for idle/intersection dispatch through RAF beat
+        await new Promise(resolve => window.requestAnimationFrame(() => setTimeout(resolve, 150)));
+
+        const visibleIsland = islandRoot.querySelector('[data-hydrate="visible"]');
+        const idleIsland = islandRoot.querySelector('[data-hydrate="idle"]');
+        const visibleHydrated = visibleIsland?.getAttribute('data-hydrated') === 'true';
+        const idleHydrated = idleIsland?.getAttribute('data-hydrated') === 'true';
+        dom2.dispose();
+        islandRoot.remove();
+
+        // 3. Optimistic UI & Rollback Buffer
+        const optRoot = document.createElement('div');
+        document.body.append(optRoot);
+        const dom3 = createDomHost({ root: optRoot });
+        dom3.initialize(`
+          <div data-node-id="1">
+            <button data-node-id="2" data-optimistic="bookmark" class="btn">Save</button>
+          </div>
+        `);
+        const btn = optRoot.querySelector('button');
+
+        // Apply optimistic update
+        dom3.applyOptimistic(btn, {
+          actionId: 'action-101',
+          updates: {
+            className: 'btn btn-active',
+            textContent: 'Saving...',
+            attributes: { 'aria-busy': 'true' }
+          }
+        });
+
+        const pendingState = btn.getAttribute('data-optimistic-state') === 'pending';
+        const pendingText = btn.textContent === 'Saving...';
+        const pendingClass = btn.className.includes('btn-active');
+        const pendingBusy = btn.getAttribute('aria-busy') === 'true';
+
+        // Rollback optimistic update
+        dom3.rollbackOptimistic('action-101');
+        const revertedState = btn.getAttribute('data-optimistic-state') === 'reverted';
+        const revertedText = btn.textContent === 'Save';
+        const revertedClass = btn.className === 'btn';
+        const revertedBusy = !btn.hasAttribute('aria-busy');
+
+        // Test confirm flow
+        dom3.applyOptimistic(btn, {
+          actionId: 'action-102',
+          updates: { textContent: 'Confirmed!' }
+        });
+        dom3.confirmOptimistic('action-102');
+        const confirmedState = btn.getAttribute('data-optimistic-state') === 'confirmed';
+        const confirmedText = btn.textContent === 'Confirmed!';
+
+        dom3.dispose();
+        optRoot.remove();
+
+        return {
+          initialBefore,
+          reordered,
+          visibleHydrated,
+          idleHydrated,
+          hydratedCount: hydratedCount >= 1,
+          pendingState,
+          pendingText,
+          pendingClass,
+          pendingBusy,
+          revertedState,
+          revertedText,
+          revertedClass,
+          revertedBusy,
+          confirmedState,
+          confirmedText,
+        };
+      });
+
+      assert.ok(Object.values(result).every(Boolean), JSON.stringify(result));
+    } finally {
+      await browser?.close();
+      await server.close();
+    }
+  });
 }
 
 

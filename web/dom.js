@@ -172,6 +172,155 @@ export function createDomHost({ root, onStructure = () => {} }) {
     }
   }
 
+  let intersectionObserver = null;
+  const hydratedIslands = new WeakSet();
+
+  function activateIsland(island) {
+    if (hydratedIslands.has(island)) return;
+    hydratedIslands.add(island);
+    island.setAttribute('data-hydrated', 'true');
+    island.dispatchEvent(new window.CustomEvent('zg:hydrate', { bubbles: true, detail: { island } }));
+  }
+
+  function applyIslandHydration(scope) {
+    if (typeof window.IntersectionObserver === 'undefined') return;
+    const selector = '[data-hydrate]';
+    const islands = scope.matches?.(selector) ? [scope] : [];
+    islands.push(...scope.querySelectorAll(selector));
+    for (const island of islands) {
+      if (hydratedIslands.has(island) || island.getAttribute('data-hydrated') === 'true') continue;
+      const mode = island.getAttribute('data-hydrate');
+      if (mode === 'visible') {
+        if (!intersectionObserver) {
+          intersectionObserver = new window.IntersectionObserver((entries) => {
+            for (const entry of entries) {
+              if (entry.isIntersecting) {
+                const target = entry.target;
+                intersectionObserver.unobserve(target);
+                activateIsland(target);
+              }
+            }
+          }, { rootMargin: '100px' });
+        }
+        intersectionObserver.observe(island);
+      } else if (mode === 'idle') {
+        const scheduleIdle = window.requestIdleCallback || ((cb) => setTimeout(cb, 50));
+        scheduleIdle(() => activateIsland(island));
+      }
+    }
+  }
+
+  const layoutElements = new Set();
+  function registerLayoutElements(scope) {
+    const selector = '[data-layout-id]';
+    const elements = scope.matches?.(selector) ? [scope] : [];
+    elements.push(...scope.querySelectorAll(selector));
+    for (const el of elements) layoutElements.add(el);
+  }
+
+  const flipFirst = new Map();
+  function captureFlipFirst() {
+    if (layoutElements.size === 0) return;
+    for (const el of layoutElements) {
+      if (!el.isConnected) {
+        layoutElements.delete(el);
+        continue;
+      }
+      const id = el.getAttribute('data-layout-id');
+      if (id) {
+        const rect = el.getBoundingClientRect();
+        flipFirst.set(id, { left: rect.left, top: rect.top });
+      }
+    }
+  }
+
+  function playFlipTransitions() {
+    if (flipFirst.size === 0) return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      flipFirst.clear();
+      return;
+    }
+    for (const el of layoutElements) {
+      if (!el.isConnected) {
+        layoutElements.delete(el);
+        continue;
+      }
+      const id = el.getAttribute('data-layout-id');
+      const first = flipFirst.get(id);
+      if (!first) continue;
+      const last = el.getBoundingClientRect();
+      const dx = first.left - last.left;
+      const dy = first.top - last.top;
+      if (dx !== 0 || dy !== 0) {
+        el.style.transform = `translate(${dx}px, ${dy}px)`;
+        el.style.transition = 'none';
+        window.requestAnimationFrame(() => {
+          el.style.transition = 'transform 200ms cubic-bezier(0.2, 0, 0, 1)';
+          el.style.transform = '';
+          const onEnd = (e) => {
+            if (e.target === el) {
+              el.style.transition = '';
+              el.removeEventListener('transitionend', onEnd);
+            }
+          };
+          el.addEventListener('transitionend', onEnd);
+        });
+      }
+    }
+    flipFirst.clear();
+  }
+
+  const optimisticBuffer = new Map();
+
+  function applyOptimistic(target, { actionId, updates = {} } = {}) {
+    if (!(target instanceof window.HTMLElement)) throw new Error('Target must be an HTMLElement');
+    if (!actionId) throw new Error('actionId is required for optimistic updates');
+    const attrs = [];
+    for (let i = 0; i < target.attributes.length; i++) {
+      const a = target.attributes[i];
+      attrs.push({ name: a.name, value: a.value });
+    }
+    optimisticBuffer.set(actionId, {
+      target,
+      textContent: target.textContent,
+      className: target.className,
+      attributes: attrs,
+    });
+    target.setAttribute('data-optimistic-state', 'pending');
+    if (updates.textContent !== undefined) target.textContent = updates.textContent;
+    if (updates.className !== undefined) target.className = updates.className;
+    if (updates.attributes) {
+      for (const [k, v] of Object.entries(updates.attributes)) {
+        if (v === null) target.removeAttribute(k);
+        else target.setAttribute(k, v);
+      }
+    }
+  }
+
+  function confirmOptimistic(actionId) {
+    const entry = optimisticBuffer.get(actionId);
+    if (!entry) return false;
+    entry.target.setAttribute('data-optimistic-state', 'confirmed');
+    optimisticBuffer.delete(actionId);
+    return true;
+  }
+
+  function rollbackOptimistic(actionId) {
+    const entry = optimisticBuffer.get(actionId);
+    if (!entry) return false;
+    const { target, textContent, className, attributes } = entry;
+    while (target.attributes.length > 0) {
+      target.removeAttribute(target.attributes[0].name);
+    }
+    for (const attr of attributes) {
+      target.setAttribute(attr.name, attr.value);
+    }
+    target.className = className;
+    target.textContent = textContent;
+    target.setAttribute('data-optimistic-state', 'reverted');
+    optimisticBuffer.delete(actionId);
+    return true;
+  }
 
   function handleControlBlur(event) {
     const target = event.target;
@@ -344,6 +493,9 @@ export function createDomHost({ root, onStructure = () => {} }) {
       applyWindowScrollers(root);
       applyFormStates(root);
       applyObservedSizes(root);
+      applyIslandHydration(root);
+      layoutElements.clear();
+      registerLayoutElements(root);
       onStructure(root);
 
       if (activeInRoot && activeIsText && draftValue !== null && active.value !== draftValue) {
@@ -367,6 +519,9 @@ export function createDomHost({ root, onStructure = () => {} }) {
     applyWindowScrollers(root);
     applyFormStates(root);
     applyObservedSizes(root);
+    applyIslandHydration(root);
+    layoutElements.clear();
+    registerLayoutElements(root);
     onStructure(root);
   }
 
@@ -436,6 +591,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
   }
 
   function applyPatchStream(stream) {
+    captureFlipFirst();
     patchTextFocus = null;
     const text = toText(stream);
     for (const line of text.split("\n")) {
@@ -550,6 +706,8 @@ export function createDomHost({ root, onStructure = () => {} }) {
             applyWindowScrollers(child);
             applyFormStates(child);
             applyObservedSizes(child);
+            applyIslandHydration(child);
+            registerLayoutElements(child);
             child = nextChild;
           }
           continue;
@@ -577,6 +735,8 @@ export function createDomHost({ root, onStructure = () => {} }) {
         applyWindowScrollers(target);
         applyFormStates(target);
         applyObservedSizes(target);
+        applyIslandHydration(target);
+        registerLayoutElements(target);
         if (activeId || activeTestId) {
           const replacement = activeId
             ? document.getElementById(activeId)
@@ -695,6 +855,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
       patchTextFocus.setSelectionRange(patchTextFocus.value.length, patchTextFocus.value.length);
     }
     patchTextFocus = null;
+    playFlipTransitions();
   }
 
   function dispose() {
@@ -708,11 +869,27 @@ export function createDomHost({ root, onStructure = () => {} }) {
       resizeObserver = null;
       observedElements.clear();
     }
+    if (intersectionObserver) {
+      intersectionObserver.disconnect();
+      intersectionObserver = null;
+    }
+    flipFirst.clear();
+    layoutElements.clear();
+    optimisticBuffer.clear();
     for (const [node] of exiting) abortExit(node);
     nodes.dispose();
   }
 
-  return Object.freeze({ initialize, hydrate, applyPatchStream, dispose });
+  return Object.freeze({
+    initialize,
+    hydrate,
+    applyPatchStream,
+    dispose,
+    applyOptimistic,
+    confirmOptimistic,
+    rollbackOptimistic,
+    animateLayout: playFlipTransitions,
+  });
 }
 
 export function createFrameSyncHost({ root, origin: expectedOrigin = '*', port = null } = {}) {
@@ -798,6 +975,22 @@ if (typeof globalThis.window !== 'undefined' && typeof globalThis.window.customE
 
     applyPatchStream(stream) {
       return this._dom?.applyPatchStream(stream);
+    }
+
+    applyOptimistic(target, options) {
+      return this._dom?.applyOptimistic(target, options);
+    }
+
+    confirmOptimistic(actionId) {
+      return this._dom?.confirmOptimistic(actionId);
+    }
+
+    rollbackOptimistic(actionId) {
+      return this._dom?.rollbackOptimistic(actionId);
+    }
+
+    animateLayout() {
+      return this._dom?.animateLayout();
     }
 
     dispose() {

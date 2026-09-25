@@ -439,6 +439,21 @@ const Compiler = struct {
                     const trimmed = std.mem.trim(u8, raw, " \t\r\n");
                     if (trimmed.len == 0) return c.reject(a.name.start, ":observe-size requires breakpoint specifications");
                     continue;
+                } else if (std.mem.eql(u8, n, ":layout-id")) {
+                    const raw = try c.value(a);
+                    const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+                    if (trimmed.len == 0) return c.reject(a.name.start, ":layout-id requires an identifier");
+                    continue;
+                } else if (std.mem.eql(u8, n, ":hydrate")) {
+                    const raw = try c.value(a);
+                    const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+                    if (!std.mem.eql(u8, trimmed, "visible") and !std.mem.eql(u8, trimmed, "idle")) return c.reject(a.name.start, ":hydrate must be 'visible' or 'idle'");
+                    continue;
+                } else if (std.mem.eql(u8, n, ":optimistic")) {
+                    const raw = try c.value(a);
+                    const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+                    if (trimmed.len == 0) return c.reject(a.name.start, ":optimistic requires an action or spec");
+                    continue;
                 } else if (!oneOf(n, ":on-click :style-vars")) {
                     return c.reject(a.name.start, "unknown GUI directive");
                 }
@@ -714,6 +729,24 @@ const Compiler = struct {
                 const raw = try c.value(a);
                 const trimmed = std.mem.trim(u8, raw, " \t\r\n");
                 try c.literal(try std.fmt.allocPrint(c.a, " data-observe-size=\"{s}\"", .{trimmed}));
+                continue;
+            }
+            if (std.mem.eql(u8, n, ":layout-id")) {
+                const raw = try c.value(a);
+                const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+                try c.literal(try std.fmt.allocPrint(c.a, " data-layout-id=\"{s}\"", .{trimmed}));
+                continue;
+            }
+            if (std.mem.eql(u8, n, ":hydrate")) {
+                const raw = try c.value(a);
+                const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+                try c.literal(try std.fmt.allocPrint(c.a, " data-hydrate=\"{s}\"", .{trimmed}));
+                continue;
+            }
+            if (std.mem.eql(u8, n, ":optimistic")) {
+                const raw = try c.value(a);
+                const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+                try c.literal(try std.fmt.allocPrint(c.a, " data-optimistic=\"{s}\"", .{trimmed}));
                 continue;
             }
             if (oneOf(n, ":ref :key :limit :loop :text :if :slot :value :values :error-id")) continue;
@@ -1304,6 +1337,36 @@ test "observe-size and container directives emit data-observe-size attribute and
         .diagnostic = &d,
     }));
 }
+
+test "layout-id, hydrate, and optimistic directives emit attributes and validate options" {
+    var d = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{
+        .source = "<div :layout-id=\"card-1\" :hydrate=\"visible\"><button :optimistic=\"toggle-bookmark\">Save</button></div>",
+        .name = "milestone9.gui.html",
+        .diagnostic = &d,
+    });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "data-layout-id=\\\"card-1\\\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, code, "data-hydrate=\\\"visible\\\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, code, "data-optimistic=\\\"toggle-bookmark\\\"") != null);
+
+    try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{
+        .source = "<div :layout-id=\"\">Bad</div>",
+        .name = "bad_layout.gui.html",
+        .diagnostic = &d,
+    }));
+    try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{
+        .source = "<div :hydrate=\"invalid\">Bad</div>",
+        .name = "bad_hydrate.gui.html",
+        .diagnostic = &d,
+    }));
+    try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{
+        .source = "<button :optimistic=\"\">Bad</button>",
+        .name = "bad_optimistic.gui.html",
+        .diagnostic = &d,
+    }));
+}
+
 
 
 fn componentAllocationProbe(a: Allocator) !void {
