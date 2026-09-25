@@ -169,6 +169,111 @@ pub fn boolean(value: bool) []const u8 {
     return if (value) "true" else "false";
 }
 
+pub const StaticRenderer = struct {
+    html: *Html,
+    emit_node_ids: bool = false,
+
+    pub const List = struct {};
+    pub const Child = struct {};
+
+    pub fn add(self: *StaticRenderer, value: []const u8) void {
+        self.html.add(value);
+    }
+    pub fn print(self: *StaticRenderer, comptime format: []const u8, args: anytype) void {
+        self.html.print(format, args);
+    }
+    pub fn escaped(self: *StaticRenderer, value: []const u8) void {
+        self.html.escaped(value);
+    }
+    pub fn node(self: *StaticRenderer, id: u32) void {
+        if (self.emit_node_ids) {
+            self.print(" data-node-id=\"{d}\"", .{id});
+        }
+    }
+    pub fn attr(self: *StaticRenderer, input: struct { node: u32, name: []const u8, value: ?[]const u8 }) void {
+        _ = input.node;
+        if (input.value) |value| {
+            self.html.attribute(input.name, value);
+        }
+    }
+    pub fn visible(self: *StaticRenderer, input: struct { node: u32, value: bool }) void {
+        _ = input.node;
+        if (!input.value) {
+            self.html.add(" hidden");
+        }
+    }
+    pub fn text(self: *StaticRenderer, input: struct { node: u32, value: []const u8 }) void {
+        _ = input.node;
+        self.html.escaped(input.value);
+    }
+    pub fn textElement(self: *StaticRenderer, comptime tag: []const u8, input: struct { node: u32, value: []const u8 }) void {
+        self.add("<" ++ tag);
+        self.node(input.node);
+        self.add(">");
+        self.text(input);
+        self.add("</" ++ tag ++ ">");
+    }
+    pub fn formValue(self: *StaticRenderer, input: struct { node: u32, text_value: []const u8 }) void {
+        _ = input.node;
+        self.html.attribute("value", input.text_value);
+    }
+    pub fn focus(self: *StaticRenderer, input: anytype) void {
+        _ = self;
+        _ = input;
+    }
+    pub fn checked(self: *StaticRenderer, input: struct { node: u32, value: bool }) void {
+        _ = input.node;
+        self.html.booleanAttribute("checked", input.value);
+    }
+    pub fn selectedValue(self: *StaticRenderer, input: anytype) void {
+        _ = self;
+        _ = input;
+    }
+    pub fn textareaValue(self: *StaticRenderer, input: struct { node: u32, value: []const u8 }) void {
+        _ = input.node;
+        const value = input.value;
+        if (value.len > 0 and (value[0] == '\n' or value[0] == '\r')) self.add("\n");
+        self.escaped(value);
+    }
+    pub fn beginList(self: *StaticRenderer, input: anytype) List {
+        _ = self;
+        _ = input;
+        return .{};
+    }
+    pub fn endList(self: *StaticRenderer, list: List) void {
+        _ = self;
+        _ = list;
+    }
+    pub fn keyedList(self: *StaticRenderer, input: anytype) void {
+        _ = self;
+        _ = input;
+    }
+    pub fn beginChild(self: *StaticRenderer, input: anytype) Child {
+        _ = self;
+        _ = input;
+        return .{};
+    }
+    pub fn endChild(self: *StaticRenderer, child: Child) void {
+        _ = self;
+        _ = child;
+    }
+    pub fn order(self: *StaticRenderer, input: anytype) void {
+        _ = self;
+        _ = input;
+    }
+};
+
+pub fn renderHtml(writer: *Html, template_module: anytype, model: anytype) void {
+    var renderer = StaticRenderer{ .html = writer };
+    template_module.project(&renderer, model);
+}
+
+pub fn renderHtmlWithNodes(writer: *Html, template_module: anytype, model: anytype) void {
+    var renderer = StaticRenderer{ .html = writer, .emit_node_ids = true };
+    template_module.project(&renderer, model);
+}
+
+
 test "textarea HTML protects leading newlines without changing value patches" {
     const P = Projection(1);
     var bytes: [128]u8 = undefined;

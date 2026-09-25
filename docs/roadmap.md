@@ -91,3 +91,6 @@ formatters are delivered under [request 048](requests/048-html-writer-streaming-
 
 Cross-engine browser contract verification (Chromium & Firefox Gecko) is
 delivered under [request 049](requests/049-multi-engine-browser-contracts.md).
+
+Static HTML template rendering and dual-target SSR code generation are
+delivered under [request 050](requests/050-template-html-codegen.md).
