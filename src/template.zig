@@ -669,6 +669,16 @@ pub fn invalidWithId(p: anytype, comptime error_id: []const u8, input: anytype) 
     p.attr(.{ .node = input.node, .name = "aria-describedby", .value = if (inv) error_id else null });
 }
 
+pub fn trapFocus(p: anytype, input: anytype) void {
+    const active = switch (@typeInfo(@TypeOf(input.value))) {
+        .bool => input.value,
+        .optional => input.value != null and (if (@typeInfo(@TypeOf(input.value.?)) == .bool) input.value.? else true),
+        else => @compileError(":trap-focus requires a bool or optional"),
+    };
+    p.attr(.{ .node = input.node, .name = "data-trap-focus", .value = if (active) "true" else null });
+    p.attr(.{ .node = input.node, .name = "aria-modal", .value = if (active) "true" else null });
+}
+
 test "optional style groups clear only their attribute and retry failed output" {
     const gui = @import("root.zig");
     const P = gui.Projection(1);

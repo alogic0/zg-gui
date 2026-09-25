@@ -409,6 +409,31 @@ const Compiler = struct {
                 } else if (std.mem.eql(u8, n, ":window")) {
                     _ = try c.windowConfig(a);
                     continue;
+                } else if (std.mem.eql(u8, n, ":live")) {
+                    const raw = try c.value(a);
+                    const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+                    if (!oneOf(trimmed, "polite assertive off")) return c.reject(a.name.start, ":live requires 'polite', 'assertive' or 'off'");
+                    continue;
+                } else if (std.mem.eql(u8, n, ":hotkey")) {
+                    const raw = try c.value(a);
+                    const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+                    if (trimmed.len == 0) return c.reject(a.name.start, ":hotkey requires a key combination");
+                    continue;
+                } else if (std.mem.eql(u8, n, ":roving-tabindex")) {
+                    const raw = try c.value(a);
+                    const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+                    if (trimmed.len > 0 and !oneOf(trimmed, "horizontal vertical")) return c.reject(a.name.start, ":roving-tabindex requires 'horizontal' or 'vertical'");
+                    continue;
+                } else if (std.mem.eql(u8, n, ":trap-focus") or std.mem.eql(u8, n, ":dialog")) {
+                    if (a.value) |v| {
+                        if (v.quote == .none) return c.reject(v.span.start, "bindings must use quoted values");
+                        const val = v.span.slice(c.input.source);
+                        if (std.mem.startsWith(u8, val, "$")) {
+                            try c.binding(.{ .attr = a, .loop_depth = input.loop_depth });
+                            continue;
+                        }
+                    }
+                    continue;
                 } else if (!oneOf(n, ":on-click :style-vars")) {
                     return c.reject(a.name.start, "unknown GUI directive");
                 }
@@ -645,6 +670,39 @@ const Compiler = struct {
             if (std.mem.eql(u8, n, ":window")) {
                 const w = try c.windowConfig(a);
                 try c.literal(try std.fmt.allocPrint(c.a, " data-window-item-height=\"{d}\" data-window-overscan=\"{d}\"", .{ w.item_height, w.overscan }));
+                continue;
+            }
+            if (std.mem.eql(u8, n, ":live")) {
+                const raw = try c.value(a);
+                const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+                try c.literal(try std.fmt.allocPrint(c.a, " aria-live=\"{s}\" aria-atomic=\"true\"", .{trimmed}));
+                continue;
+            }
+            if (std.mem.eql(u8, n, ":hotkey")) {
+                const raw = try c.value(a);
+                const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+                try c.literal(try std.fmt.allocPrint(c.a, " data-hotkey=\"{s}\"", .{trimmed}));
+                continue;
+            }
+            if (std.mem.eql(u8, n, ":roving-tabindex")) {
+                const raw = try c.value(a);
+                const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+                const orientation = if (trimmed.len > 0) trimmed else "horizontal";
+                try c.literal(try std.fmt.allocPrint(c.a, " data-roving-tabindex=\"{s}\"", .{orientation}));
+                continue;
+            }
+            if (std.mem.eql(u8, n, ":trap-focus") or std.mem.eql(u8, n, ":dialog")) {
+                if (a.value) |v| {
+                    const val = v.span.slice(c.input.source);
+                    if (std.mem.startsWith(u8, val, "$")) {
+                        c.entries += 2 * input.factor;
+                        try c.code.add("binding.trapFocus(p, .{ .node = node, .value = ");
+                        try c.expression(a);
+                        try c.code.add(" });\n");
+                        continue;
+                    }
+                }
+                try c.literal(" data-trap-focus=\"true\" aria-modal=\"true\"");
                 continue;
             }
             if (oneOf(n, ":ref :key :limit :loop :text :if :slot :value :values :error-id")) continue;
@@ -1143,6 +1201,80 @@ test "validation directives emit aria-invalid and error-id bindings and validate
     }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad.gui.html", .diagnostic = &d }));
     }
+}
+
+test "live directives emit aria-live and aria-atomic attributes and validate levels" {
+    var d = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{
+        .source = "<div :live=\"polite\"><span :text=\"$msg\"></span></div>",
+        .name = "live.gui.html",
+        .diagnostic = &d,
+    });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "aria-live=\\\"polite\\\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, code, "aria-atomic=\\\"true\\\"") != null);
+
+    const assertive_code = try compile(std.testing.allocator, .{
+        .source = "<div :live=\"assertive\"><span :text=\"$alert\"></span></div>",
+        .name = "assertive.gui.html",
+        .diagnostic = &d,
+    });
+    defer std.testing.allocator.free(assertive_code);
+    try std.testing.expect(std.mem.indexOf(u8, assertive_code, "aria-live=\\\"assertive\\\"") != null);
+
+    for ([_][]const u8{
+        "<div :live=\"\">Bad</div>",
+        "<div :live=\"loud\">Bad</div>",
+        "<div :live=\"123\">Bad</div>",
+    }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad_live.gui.html", .diagnostic = &d }));
+    }
+}
+
+test "hotkey and roving-tabindex directives emit data attributes and validate options" {
+    var d = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{
+        .source = "<button type=\"button\" :hotkey=\"ctrl+k\">Search</button>",
+        .name = "hotkey.gui.html",
+        .diagnostic = &d,
+    });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "data-hotkey=\\\"ctrl+k\\\"") != null);
+
+    const roving_code = try compile(std.testing.allocator, .{
+        .source = "<nav role=\"tablist\" :roving-tabindex=\"vertical\"><button role=\"tab\">Tab 1</button></nav>",
+        .name = "roving.gui.html",
+        .diagnostic = &d,
+    });
+    defer std.testing.allocator.free(roving_code);
+    try std.testing.expect(std.mem.indexOf(u8, roving_code, "data-roving-tabindex=\\\"vertical\\\"") != null);
+
+    for ([_][]const u8{
+        "<button :hotkey=\"\">Bad</button>",
+        "<nav :roving-tabindex=\"diagonal\"><button>Bad</button></nav>",
+    }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad.gui.html", .diagnostic = &d }));
+    }
+}
+
+test "dialog and trap-focus directives emit data-trap-focus and aria-modal attributes and bindings" {
+    var d = Diagnostic{};
+    const static_code = try compile(std.testing.allocator, .{
+        .source = "<div role=\"dialog\" :trap-focus=\"true\"><button type=\"button\">Close</button></div>",
+        .name = "static_trap.gui.html",
+        .diagnostic = &d,
+    });
+    defer std.testing.allocator.free(static_code);
+    try std.testing.expect(std.mem.indexOf(u8, static_code, "data-trap-focus=\\\"true\\\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, static_code, "aria-modal=\\\"true\\\"") != null);
+
+    const dynamic_code = try compile(std.testing.allocator, .{
+        .source = "<div role=\"dialog\" :trap-focus=\"$open\"><button type=\"button\">Close</button></div>",
+        .name = "dynamic_trap.gui.html",
+        .diagnostic = &d,
+    });
+    defer std.testing.allocator.free(dynamic_code);
+    try std.testing.expect(std.mem.indexOf(u8, dynamic_code, "binding.trapFocus(p, .{ .node = node, .value = binding.get(view, \"open\"") != null);
 }
 
 

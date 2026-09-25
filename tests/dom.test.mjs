@@ -918,6 +918,130 @@ for (const [engineName, browserType] of Object.entries({ chromium, firefox })) {
   });
 }
 
+for (const [engineName, engine] of [['chromium', chromium], ['firefox', firefox]]) {
+  test(`modal focus trapping, hotkeys, and roving tabindex (${engineName})`, async () => {
+    const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+    let browser;
+    try {
+      browser = await engine.launch({ headless: true });
+      const page = await browser.newPage();
+      await page.goto(server.url + '/dom.js');
+
+      const result = await page.evaluate(async () => {
+        const { createDomHost } = await import('/dom.js');
+        const root = document.createElement('main');
+        document.body.append(root);
+        const dom = createDomHost({ root });
+
+        dom.initialize(`
+          <div data-node-id="1">
+            <button id="open-btn" data-node-id="2">Open Modal</button>
+            <button id="search-btn" data-node-id="3" data-hotkey="ctrl+k">Search</button>
+            <nav id="toolbar" data-node-id="4" data-roving-tabindex="horizontal">
+              <button id="tab-1" data-node-id="5" tabindex="0">Tab 1</button>
+              <button id="tab-2" data-node-id="6" tabindex="-1">Tab 2</button>
+              <button id="tab-3" data-node-id="7" tabindex="-1">Tab 3</button>
+            </nav>
+            <div id="live-region" data-node-id="8" aria-live="polite" aria-atomic="true">Status: Ready</div>
+            <div id="modal" data-node-id="10" role="dialog" aria-modal="true" data-trap-focus="false" hidden>
+              <h2>Modal Dialog</h2>
+              <input id="modal-input" data-node-id="11" type="text" value="first">
+              <button id="modal-confirm" data-node-id="12">Confirm</button>
+              <button id="modal-close" data-node-id="13" data-close-dialog aria-label="Close">Close</button>
+            </div>
+          </div>
+        `);
+
+        const openBtn = document.getElementById('open-btn');
+        const searchBtn = document.getElementById('search-btn');
+        const tab1 = document.getElementById('tab-1');
+        const tab2 = document.getElementById('tab-2');
+        const tab3 = document.getElementById('tab-3');
+        const liveRegion = document.getElementById('live-region');
+        const modal = document.getElementById('modal');
+        const modalInput = document.getElementById('modal-input');
+        const modalConfirm = document.getElementById('modal-confirm');
+        const modalClose = document.getElementById('modal-close');
+
+        // Test 1: Global hotkey trigger (Ctrl+K)
+        let searchClicked = false;
+        searchBtn.addEventListener('click', () => { searchClicked = true; });
+        root.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+        const hotkeyTriggered = searchClicked;
+
+        // Test 2: Roving tabindex (horizontal arrow navigation)
+        tab1.focus();
+        document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+        const tab2Focused = document.activeElement === tab2 && tab2.getAttribute('tabindex') === '0' && tab1.getAttribute('tabindex') === '-1';
+
+        document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+        const tab3Focused = document.activeElement === tab3 && tab3.getAttribute('tabindex') === '0' && tab2.getAttribute('tabindex') === '-1';
+
+        document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+        const tab2Refocused = document.activeElement === tab2;
+
+        document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+        const tab1HomeFocused = document.activeElement === tab1 && tab1.getAttribute('tabindex') === '0';
+
+        // Test 3: Opening modal dialog and focus trapping
+        openBtn.focus();
+        dom.applyPatchStream('R\t10\thidden\nA\t10\tdata-trap-focus\ttrue\n');
+        modal.hidden = false;
+
+        const modalInputAutoFocused = document.activeElement === modalInput;
+
+        // Tabbing forward within modal: input -> confirm -> close -> wrap to input
+        modalConfirm.focus();
+        root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+        modalClose.focus();
+        root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+        const tabWrappedToFirst = document.activeElement === modalInput;
+
+        // Shift+Tab from first element wraps to last element (modalClose)
+        root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
+        const shiftTabWrappedToLast = document.activeElement === modalClose;
+
+        // Test 4: Escape key dismissal and focus restoration to openBtn
+        let closeClicked = false;
+        modalClose.addEventListener('click', () => { closeClicked = true; });
+        root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        const escapeTriggeredClose = closeClicked;
+
+        dom.applyPatchStream('A\t10\thidden\t\nR\t10\tdata-trap-focus\n');
+        modal.hidden = true;
+
+        const focusRestoredToTrigger = document.activeElement === openBtn;
+
+        // Test 5: Live region text update
+        dom.applyPatchStream('T\t8\t"Status: Updated successfully"\n');
+        const liveRegionUpdated = liveRegion.textContent === 'Status: Updated successfully' && liveRegion.getAttribute('aria-live') === 'polite';
+
+        dom.dispose();
+        root.remove();
+
+        return {
+          hotkeyTriggered,
+          tab2Focused,
+          tab3Focused,
+          tab2Refocused,
+          tab1HomeFocused,
+          modalInputAutoFocused,
+          tabWrappedToFirst,
+          shiftTabWrappedToLast,
+          escapeTriggeredClose,
+          focusRestoredToTrigger,
+          liveRegionUpdated,
+        };
+      });
+
+      assert.ok(Object.values(result).every(Boolean), JSON.stringify(result));
+    } finally {
+      await browser?.close();
+      await server.close();
+    }
+  });
+}
+
 
 
 

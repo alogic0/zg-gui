@@ -118,11 +118,20 @@ zero-copy Web Worker offscreen projections are delivered under
 [request 056](requests/056-css-transitions-and-exit-hooks.md), and
 [request 057](requests/057-web-worker-offscreen-projections.md).
 
-## Active milestone: Hydration, Virtualization, and Form Validation
-
+## Delivered milestone: Hydration, Virtualization, and Form Validation
+ 
 - [x] [Hydration and SSR-to-WASM handover](requests/058-hydration-and-ssr-handover.md):
   Adopting pre-rendered static SSR DOM elements on client boot without re-creating nodes or discarding active input focus and draft state.
 - [x] [Virtual scrolling and windowed projections](requests/059-virtual-scrolling.md):
   Declarative viewport windowing for 10,000+ item collections with zero heap allocation and overscan slicing.
 - [x] [Declarative form validation and dirty tracking](requests/060-form-validation.md):
   Coordinating client-side validation states, dirty/touched flags, and ARIA accessibility feedback with Zig models.
+
+## Active milestone: Accessible Modals, ARIA Live Regions, and Global Hotkeys
+
+- [x] [Modal dialogs and focus trapping](requests/061-modal-dialogs-and-focus-trapping.md):
+  Declarative dialog focus trapping (:trap-focus, :dialog), Tab/Shift-Tab cycling, background inerting, Escape key dismissal, and focus restoration to the trigger element.
+- [x] [ARIA live regions](requests/062-aria-live-regions.md):
+  Declarative screen-reader announcement channel (:live="polite|assertive") synchronized with DOM patch streams.
+- [x] [Declarative hotkeys and roving tabindex](requests/063-declarative-hotkeys.md):
+  Global keyboard shortcuts (:hotkey) and roving tabindex (:roving-tabindex) navigation for accessible toolbars, tablists, and menus.

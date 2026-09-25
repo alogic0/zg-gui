@@ -138,9 +138,139 @@ export function createDomHost({ root, onStructure = () => {} }) {
     }
   }
 
+  let previousActiveElement = null;
+
+  function getFocusableElements(container) {
+    const selector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    return Array.from(container.querySelectorAll(selector)).filter(el => {
+      return el instanceof window.HTMLElement && !el.hidden && !el.closest('[hidden]') && el.style.display !== 'none' && el.style.visibility !== 'hidden';
+    });
+  }
+
+  function handleKeyDown(event) {
+    if (!event || !event.key) return;
+
+    // 1. Focus trapping inside active modal/dialog
+    const activeTrap = root.querySelector('[data-trap-focus="true"], dialog[open]');
+    if (activeTrap && !activeTrap.hidden && !activeTrap.closest('[hidden]')) {
+      if (event.key === 'Tab') {
+        const focusables = getFocusableElements(activeTrap);
+        if (focusables.length > 0) {
+          const first = focusables[0];
+          const last = focusables[focusables.length - 1];
+          const current = document.activeElement;
+          if (event.shiftKey) {
+            if (current === first || !activeTrap.contains(current)) {
+              event.preventDefault();
+              last.focus();
+              return;
+            }
+          } else {
+            if (current === last || !activeTrap.contains(current)) {
+              event.preventDefault();
+              first.focus();
+              return;
+            }
+          }
+        }
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        const closeBtn = activeTrap.querySelector('[data-close-dialog], button[aria-label*="close" i], button.close');
+        if (closeBtn instanceof window.HTMLElement) {
+          closeBtn.click();
+        } else {
+          activeTrap.dispatchEvent(new window.CustomEvent('dialog-close', { bubbles: true }));
+        }
+        if (previousActiveElement instanceof window.HTMLElement && previousActiveElement.isConnected) {
+          previousActiveElement.focus({ preventScroll: true });
+          previousActiveElement = null;
+        }
+        return;
+      }
+    }
+
+    // 2. Roving tabindex navigation in containers (menus, toolbars, tablists)
+    const targetElement = (document.activeElement && root.contains(document.activeElement) ? document.activeElement : null) || event.target;
+    const rovingContainer = targetElement?.closest?.('[data-roving-tabindex]');
+    if (rovingContainer && root.contains(rovingContainer)) {
+      const orientation = rovingContainer.getAttribute('data-roving-tabindex') || 'horizontal';
+      const isHorizontal = orientation === 'horizontal';
+      const isNext = (isHorizontal && event.key === 'ArrowRight') || (!isHorizontal && event.key === 'ArrowDown');
+      const isPrev = (isHorizontal && event.key === 'ArrowLeft') || (!isHorizontal && event.key === 'ArrowUp');
+      const isHome = event.key === 'Home';
+      const isEnd = event.key === 'End';
+
+      if (isNext || isPrev || isHome || isEnd) {
+        const items = Array.from(rovingContainer.querySelectorAll('[role="tab"], [role="menuitem"], button, [data-roving-item]'))
+          .filter(el => el instanceof window.HTMLElement && !el.hidden && !el.hasAttribute('disabled') && !el.closest('[hidden]'));
+        if (items.length > 0) {
+          event.preventDefault();
+          const currentIndex = items.indexOf(document.activeElement);
+          let targetIndex = 0;
+          if (isHome) {
+            targetIndex = 0;
+          } else if (isEnd) {
+            targetIndex = items.length - 1;
+          } else if (isNext) {
+            targetIndex = currentIndex >= 0 ? (currentIndex + 1) % items.length : 0;
+          } else if (isPrev) {
+            targetIndex = currentIndex > 0 ? currentIndex - 1 : items.length - 1;
+          }
+          for (const item of items) {
+            item.setAttribute('tabindex', '-1');
+          }
+          items[targetIndex].setAttribute('tabindex', '0');
+          items[targetIndex].focus({ preventScroll: true });
+          return;
+        }
+      }
+    }
+
+    // 3. Declarative hotkeys ([data-hotkey])
+    const isTextEditing = (event.target instanceof window.HTMLInputElement && ['text', 'search', 'tel', 'url', 'password', 'email', 'number'].includes(event.target.type))
+      || event.target instanceof window.HTMLTextAreaElement
+      || event.target?.isContentEditable;
+
+    const parts = [];
+    if (event.ctrlKey || event.metaKey) parts.push('ctrl');
+    if (event.altKey) parts.push('alt');
+    if (event.shiftKey && event.key.length > 1) parts.push('shift');
+    parts.push(event.key.toLowerCase());
+    const combo = parts.join('+');
+
+    if (!isTextEditing || event.ctrlKey || event.metaKey || event.altKey || event.key === 'Escape') {
+      const candidates = Array.from(root.querySelectorAll('[data-hotkey]')).filter(el => {
+        return el instanceof window.HTMLElement && !el.hidden && !el.closest('[hidden]') && !el.hasAttribute('disabled');
+      });
+      for (const candidate of candidates) {
+        const declared = (candidate.getAttribute('data-hotkey') || '').toLowerCase().split(',').map(s => s.trim());
+        if (declared.includes(combo)) {
+          event.preventDefault();
+          candidate.click();
+          return;
+        }
+      }
+    }
+  }
+
+  function handleFocusIn(event) {
+    const target = event.target;
+    if (!target) return;
+    const activeTrap = root.querySelector('[data-trap-focus="true"], dialog[open]');
+    if (activeTrap && !activeTrap.hidden && !activeTrap.closest('[hidden]')) {
+      if (activeTrap.contains(target)) {
+        if (!previousActiveElement && event.relatedTarget && root.contains(event.relatedTarget) && !activeTrap.contains(event.relatedTarget)) {
+          previousActiveElement = event.relatedTarget;
+        }
+      }
+    }
+  }
+
   root.addEventListener('blur', handleControlBlur, { capture: true });
   root.addEventListener('input', handleControlInput, { capture: true });
   root.addEventListener('change', handleControlInput, { capture: true });
+  root.addEventListener('keydown', handleKeyDown, { capture: true });
+  root.addEventListener('focusin', handleFocusIn, { capture: true });
 
   function hydrate(html) {
     const hasExistingNodes = root.firstElementChild && root.querySelector('[data-node-id]');
@@ -470,6 +600,16 @@ export function createDomHost({ root, onStructure = () => {} }) {
         target.setAttribute(attribute, fields[3]);
         if (attribute === "data-select-value" || attribute === "data-select-values" || (attribute === "value" && target instanceof window.HTMLOptionElement)) applySelectValues(target);
         if (attribute === "data-style-vars") applyDeclaredStyles(target);
+        if (attribute === "data-trap-focus" && fields[3] === "true") {
+          previousActiveElement = document.activeElement;
+          const focusables = getFocusableElements(target);
+          if (focusables.length > 0) {
+            focusables[0].focus({ preventScroll: true });
+          } else if (target instanceof window.HTMLElement) {
+            target.setAttribute('tabindex', '-1');
+            target.focus({ preventScroll: true });
+          }
+        }
       } else if (operation === "R" && fields.length === 3) {
         if (attribute === "data-style-vars") {
           for (const declaration of (target.getAttribute(attribute) || '').split(';')) {
@@ -481,6 +621,12 @@ export function createDomHost({ root, onStructure = () => {} }) {
         }
         target.removeAttribute(attribute);
         if (attribute === "value" && target instanceof window.HTMLOptionElement) applySelectValues(target);
+        if (attribute === "data-trap-focus") {
+          if (previousActiveElement instanceof window.HTMLElement && previousActiveElement.isConnected) {
+            previousActiveElement.focus({ preventScroll: true });
+            previousActiveElement = null;
+          }
+        }
       } else {
         throw new Error(`Unknown or malformed Zig patch operation: ${line}`);
       }
@@ -496,6 +642,8 @@ export function createDomHost({ root, onStructure = () => {} }) {
     root.removeEventListener('blur', handleControlBlur, { capture: true });
     root.removeEventListener('input', handleControlInput, { capture: true });
     root.removeEventListener('change', handleControlInput, { capture: true });
+    root.removeEventListener('keydown', handleKeyDown, { capture: true });
+    root.removeEventListener('focusin', handleFocusIn, { capture: true });
     for (const [node] of exiting) abortExit(node);
     nodes.dispose();
   }
