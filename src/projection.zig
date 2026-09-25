@@ -40,9 +40,13 @@ pub fn Projection(comptime capacity: usize) type {
             const dirty = self.changed(.{ .node = input.node, .property = input.name, .value = input.value });
             if (self.writing) {
                 if (input.value) |value| {
-                    self.print(" {s}=\"", .{input.name});
-                    self.escaped(value);
-                    self.add("\"");
+                    if (value.len == 0 and isBooleanAttribute(input.name)) {
+                        self.html.booleanAttribute(input.name, true);
+                    } else {
+                        self.print(" {s}=\"", .{input.name});
+                        self.escaped(value);
+                        self.add("\"");
+                    }
                 }
             } else if (dirty) if (self.patches) |writer| {
                 if (input.value) |value| writer.attribute(.{ .node = input.node, .name = input.name, .value = value }) else writer.removeAttribute(.{ .node = input.node, .name = input.name });
@@ -169,6 +173,16 @@ pub fn boolean(value: bool) []const u8 {
     return if (value) "true" else "false";
 }
 
+pub fn isBooleanAttribute(name: []const u8) bool {
+    return std.mem.eql(u8, name, "disabled") or
+        std.mem.eql(u8, name, "readonly") or
+        std.mem.eql(u8, name, "inert") or
+        std.mem.eql(u8, name, "autofocus") or
+        std.mem.eql(u8, name, "required") or
+        std.mem.eql(u8, name, "selected") or
+        std.mem.eql(u8, name, "checked");
+}
+
 pub const StaticRenderer = struct {
     html: *Html,
     emit_node_ids: bool = false,
@@ -193,7 +207,11 @@ pub const StaticRenderer = struct {
     pub fn attr(self: *StaticRenderer, input: struct { node: u32, name: []const u8, value: ?[]const u8 }) void {
         _ = input.node;
         if (input.value) |value| {
-            self.html.attribute(input.name, value);
+            if (value.len == 0 and isBooleanAttribute(input.name)) {
+                self.html.booleanAttribute(input.name, true);
+            } else {
+                self.html.attribute(input.name, value);
+            }
         }
     }
     pub fn visible(self: *StaticRenderer, input: struct { node: u32, value: bool }) void {

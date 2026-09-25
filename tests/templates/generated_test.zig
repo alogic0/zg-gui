@@ -45,7 +45,7 @@ const Harness = struct {
 test "static HTML rendering produces clean markup without snapshot or patch overhead" {
     var bytes: [8192]u8 = undefined;
     var writer = gui.html.Writer{ .buffer = &bytes };
-    const model = View{ .count = 7, .name = "Static <Page>" };
+    const model = View{ .count = 7, .name = "Static <Page>", .disabled = true };
 
     // Clean SSR markup (no data-node-id)
     view.renderHtml(&writer, model);
@@ -53,6 +53,8 @@ test "static HTML rendering produces clean markup without snapshot or patch over
     const html_clean = writer.slice();
     try std.testing.expect(std.mem.indexOf(u8, html_clean, "Static &lt;Page&gt;") != null);
     try std.testing.expect(std.mem.indexOf(u8, html_clean, "data-node-id=") == null);
+    try std.testing.expect(std.mem.indexOf(u8, html_clean, " disabled") != null);
+    try std.testing.expect(std.mem.indexOf(u8, html_clean, "disabled=\"\"") == null);
 
     // Hydration-ready SSR markup (with data-node-id)
     writer.len = 0;
@@ -61,6 +63,8 @@ test "static HTML rendering produces clean markup without snapshot or patch over
     const html_hydrated = writer.slice();
     try std.testing.expect(std.mem.indexOf(u8, html_hydrated, "Static &lt;Page&gt;") != null);
     try std.testing.expect(std.mem.indexOf(u8, html_hydrated, "data-node-id=") != null);
+    try std.testing.expect(std.mem.indexOf(u8, html_hydrated, " disabled") != null);
+    try std.testing.expect(std.mem.indexOf(u8, html_hydrated, "disabled=\"\"") == null);
 }
 
 test "generated leaf bindings escape HTML and never replace a containing region" {

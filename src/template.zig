@@ -103,7 +103,8 @@ pub noinline fn attribute(p: anytype, comptime name: []const u8, input: anytype)
     }
 
     if (comptime std.mem.eql(u8, name, "disabled") or std.mem.eql(u8, name, "readonly") or
-        std.mem.eql(u8, name, "inert") or std.mem.eql(u8, name, "autofocus") or std.mem.eql(u8, name, "required"))
+        std.mem.eql(u8, name, "inert") or std.mem.eql(u8, name, "autofocus") or std.mem.eql(u8, name, "required") or
+        std.mem.eql(u8, name, "selected") or std.mem.eql(u8, name, "checked"))
     {
         if (@TypeOf(input.value) != bool) @compileError("Boolean HTML attributes require bool bindings");
         p.attr(.{ .node = input.node, .name = name, .value = if (input.value) "" else null });
