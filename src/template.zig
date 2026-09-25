@@ -115,7 +115,7 @@ pub noinline fn attribute(p: anytype, comptime name: []const u8, input: anytype)
         p.html.failed = true;
         return;
     };
-    if (comptime std.mem.eql(u8, name, "value") or std.mem.eql(u8, name, "data-select-value")) {
+    if (comptime std.mem.eql(u8, name, "value") or std.mem.eql(u8, name, "data-select-value") or std.mem.eql(u8, name, "data-select-values")) {
         if (std.mem.indexOfAny(u8, value, "\t\r\n") != null) {
             p.html.failed = true;
             return;
@@ -264,6 +264,69 @@ pub noinline fn event(p: anytype, comptime name: []const u8, input: anytype) voi
         return;
     }
     attribute(p, name, .{ .node = input.node, .value = value });
+}
+
+pub fn containsValue(values: anytype, target: []const u8) bool {
+    for (values) |item| {
+        var bytes: [128]u8 = undefined;
+        const s = string(&bytes, item) orelse continue;
+        if (std.mem.eql(u8, s, target)) return true;
+    }
+    return false;
+}
+
+pub fn checkedInValues(p: anytype, input: anytype) void {
+    var target_bytes: [128]u8 = undefined;
+    const target_str = string(&target_bytes, input.value) orelse {
+        p.html.failed = true;
+        return;
+    };
+    const is_checked = containsValue(input.values, target_str);
+    p.checked(.{ .node = input.node, .value = is_checked });
+}
+
+pub fn selectedInValues(p: anytype, input: anytype) void {
+    var target_bytes: [128]u8 = undefined;
+    const target_str = string(&target_bytes, input.value) orelse {
+        p.html.failed = true;
+        return;
+    };
+    const is_selected = containsValue(input.values, target_str);
+    p.attr(.{ .node = input.node, .name = "selected", .value = if (is_selected) "" else null });
+}
+
+pub fn selectedValues(p: anytype, input: anytype) void {
+    var buffer: [2048]u8 = undefined;
+    var len: usize = 0;
+    for (input.values, 0..) |item, i| {
+        var item_buf: [128]u8 = undefined;
+        const str = string(&item_buf, item) orelse {
+            p.html.failed = true;
+            return;
+        };
+        if (std.mem.indexOfScalar(u8, str, 0x1f) != null or std.mem.indexOfAny(u8, str, "\t\r\n") != null) {
+            p.html.failed = true;
+            return;
+        }
+        const needed = (if (i == 0) @as(usize, 0) else 1) + str.len;
+        if (len + needed > buffer.len) {
+            p.html.failed = true;
+            return;
+        }
+        if (i > 0) {
+            buffer[len] = 0x1f;
+            len += 1;
+        }
+        @memcpy(buffer[len .. len + str.len], str);
+        len += str.len;
+    }
+    const serialized = buffer[0..len];
+    attribute(p, "data-select-values", .{ .node = input.node, .value = serialized });
+    p.selectedValues(.{ .node = input.node, .values = serialized });
+}
+
+pub fn iterateValues(payload: []const u8) std.mem.SplitIterator(u8, .scalar) {
+    return std.mem.splitScalar(u8, payload, 0x1f);
 }
 
 pub fn keyedId(input: struct { key: u32, slot: u32, stride: u32 }) error{InvalidKey}!u32 {
@@ -429,6 +492,38 @@ test "select values reject lossy attribute control characters and optional icons
     var p = P{ .html = &html, .next = &snapshot };
     attribute(&p, "href", .{ .node = 1, .value = @as(?[]const u8, null) });
     try std.testing.expect(!html.failed);
+}
+
+test "multiple selection serializes bounded values and preserves membership" {
+    const gui = @import("root.zig");
+    const P = gui.Projection(2);
+    var bytes: [512]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var snapshot = P.Snapshot{};
+    var p = P{ .html = &html, .next = &snapshot };
+
+    const selected: []const []const u8 = &.{ "alpha", "beta" };
+    try std.testing.expect(containsValue(selected, "alpha"));
+    try std.testing.expect(containsValue(selected, "beta"));
+    try std.testing.expect(!containsValue(selected, "gamma"));
+
+    selectedValues(&p, .{ .node = 10, .values = selected });
+    try std.testing.expect(!html.failed);
+    try std.testing.expectEqualStrings(" data-select-values=\"alpha\x1fbeta\"", html.slice());
+
+    var it = iterateValues("alpha\x1fbeta\x1fgamma");
+    try std.testing.expectEqualStrings("alpha", it.next().?);
+    try std.testing.expectEqualStrings("beta", it.next().?);
+    try std.testing.expectEqualStrings("gamma", it.next().?);
+    try std.testing.expect(it.next() == null);
+
+    // Rejection on invalid control character
+    html = .{ .buffer = &bytes };
+    snapshot = .{};
+    p = P{ .html = &html, .next = &snapshot };
+    const bad_values: []const []const u8 = &.{ "ok", "bad\x1fval" };
+    selectedValues(&p, .{ .node = 10, .values = bad_values });
+    try std.testing.expect(html.failed);
 }
 
 /// Validate even static component views, whose fields are not otherwise read.

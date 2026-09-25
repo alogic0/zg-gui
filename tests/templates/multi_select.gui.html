@@ -1,0 +1,12 @@
+<section>
+  <select multiple :ref="channels" :values="$selected" :input="$channel_input"
+          :loop="$options" :key="id" :limit="4">
+    <option value="$item.value" :text="$item.label"></option>
+  </select>
+  <fieldset>
+    <legend>Notification channels</legend>
+    <label><input type="checkbox" value="email" :values="$selected" :input="$channel_input"> Email</label>
+    <label><input type="checkbox" value="sms" :values="$selected" :input="$channel_input"> SMS</label>
+    <label><input type="checkbox" value="push" :values="$selected" :input="$channel_input"> Push</label>
+  </fieldset>
+</section>

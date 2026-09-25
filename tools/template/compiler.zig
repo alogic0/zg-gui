@@ -262,6 +262,7 @@ const Compiler = struct {
 
         var has_text = false;
         var has_value = false;
+        var has_values = false;
         var has_if = false;
         var has_visible = false;
         var has_loop = false;
@@ -306,6 +307,17 @@ const Compiler = struct {
                 } else if (std.mem.eql(u8, n, ":value")) {
                     has_value = true;
                     if (!oneOf(tag_name, "input textarea select")) return c.reject(a.name.start, ":value requires input, textarea or select");
+                } else if (std.mem.eql(u8, n, ":values")) {
+                    has_values = true;
+                    if (!oneOf(tag_name, "select input option")) return c.reject(a.name.start, ":values requires select, input or option");
+                    if (std.mem.eql(u8, tag_name, "input")) {
+                        const type_attr = c.attr(.{ .idx = input.idx, .name = "type" }) orelse return c.reject(a.name.start, ":values on input requires a checkbox");
+                        if (!std.mem.eql(u8, try c.value(type_attr), "checkbox")) return c.reject(a.name.start, ":values on input requires a checkbox");
+                        if (c.attr(.{ .idx = input.idx, .name = "value" }) == null and c.attr(.{ .idx = input.idx, .name = ":value" }) == null) return c.reject(a.name.start, "checkbox with :values requires an explicit value or :value");
+                    }
+                    if (std.mem.eql(u8, tag_name, "select")) {
+                        if (c.attr(.{ .idx = input.idx, .name = "multiple" }) == null) return c.reject(a.name.start, ":values on select requires multiple");
+                    }
                 } else if (std.mem.eql(u8, n, ":visible")) {
                     has_visible = true;
                 } else if (std.mem.eql(u8, n, ":checked")) {
@@ -318,7 +330,7 @@ const Compiler = struct {
                 }
                 try c.binding(.{ .attr = a, .loop_depth = input.loop_depth });
             } else {
-                if (!(attributeName(n) or (isSvg(tag_name) and oneOf(n, "viewBox preserveAspectRatio"))) or std.mem.startsWith(u8, n, "on") or oneOf(n, "data-node-id data-event data-input-kind data-select-value")) return c.reject(a.name.start, "reserved or unsupported attribute name");
+                if (!(attributeName(n) or (isSvg(tag_name) and oneOf(n, "viewBox preserveAspectRatio"))) or std.mem.startsWith(u8, n, "on") or oneOf(n, "data-node-id data-event data-input-kind data-select-value data-select-values")) return c.reject(a.name.start, "reserved or unsupported attribute name");
                 if (a.value) |v| if (std.mem.startsWith(u8, v.span.slice(c.input.source), "$")) {
                     if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (oneOf(tag_name, "img iframe") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter progress") and std.mem.eql(u8, n, "value")) or (std.mem.eql(u8, tag_name, "progress") and std.mem.eql(u8, n, "max")) or (oneOf(tag_name, "input select textarea") and std.mem.eql(u8, n, "required")) or (std.mem.eql(u8, tag_name, "input") and oneOf(n, "min max step type")) or (oneOf(tag_name, "input select textarea") and oneOf(n, "name autocomplete")) or (oneOf(tag_name, "td th") and oneOf(n, "colspan rowspan")) or (std.mem.eql(u8, tag_name, "form") and std.mem.eql(u8, n, "action")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
                     try c.binding(.{ .attr = a, .loop_depth = input.loop_depth });
@@ -347,7 +359,7 @@ const Compiler = struct {
             }
         }
         if (c.attr(.{ .idx = input.idx, .name = ":slot" })) |a| {
-            if (!oneOf(tag_name, "div section aside nav dl dd ul ol li p span option thead tbody tfoot tr select optgroup") or has_text or (has_value and !std.mem.eql(u8, tag_name, "select")) or has_if or has_loop or
+            if (!oneOf(tag_name, "div section aside nav dl dd ul ol li p span option thead tbody tfoot tr select optgroup") or has_text or ((has_value or has_values) and !std.mem.eql(u8, tag_name, "select")) or has_if or has_loop or
                 std.mem.trim(u8, c.input.source[node.tag.span.end..node.close_start], " \t\r\n").len != 0)
                 return c.reject(a.name.start, ":slot requires an empty flow, list, table-section or select container with no other child owner");
         }
@@ -360,15 +372,22 @@ const Compiler = struct {
             }
             if (std.mem.trim(u8, c.input.source[previous..node.close_start], " \t\r\n").len != 0) return c.reject(previous, "only whitespace is allowed between structural children");
         }
-        if (std.mem.eql(u8, tag_name, "select") and c.attr(.{ .idx = input.idx, .name = "multiple" }) != null) return c.reject(node.tag.span.start, "multiple selection requires a dedicated value model");
+        if (std.mem.eql(u8, tag_name, "select")) {
+            const is_multiple = c.attr(.{ .idx = input.idx, .name = "multiple" }) != null;
+            if (is_multiple and has_value) return c.reject(node.tag.span.start, "multiple select requires :values, not :value");
+            if (!is_multiple and has_values) return c.reject(node.tag.span.start, "single select requires :value, not :values");
+            if (is_multiple and !has_values) return c.reject(node.tag.span.start, "multiple select requires :values binding");
+        }
         if (c.attr(.{ .idx = input.idx, .name = "data-object-image" })) |marker| {
             if (!std.mem.eql(u8, tag_name, "img") or !std.mem.eql(u8, try c.value(marker), "true")) return c.reject(marker.name.start, "object images require an explicit true marker on img");
         }
-        if (has_text and (is_void or has_value or has_if or has_loop or std.mem.eql(u8, tag_name, "textarea"))) return c.reject(node.tag.span.start, ":text conflicts with this element or its content owner");
+        if (has_text and (is_void or has_value or has_values or has_if or has_loop or std.mem.eql(u8, tag_name, "textarea"))) return c.reject(node.tag.span.start, ":text conflicts with this element or its content owner");
         if ((has_text or (has_value and std.mem.eql(u8, tag_name, "textarea"))) and std.mem.trim(u8, c.input.source[node.tag.span.end..node.close_start], " \t\r\n").len > 0) return c.reject(node.tag.span.start, "text/value bindings require empty content");
-        if ((has_if and (is_void or has_visible or has_value)) or (has_loop and (is_void or (has_value and !std.mem.eql(u8, tag_name, "select"))))) return c.reject(node.tag.span.start, "conflicting structural or visibility directives");
+        if ((has_if and (is_void or has_visible or has_value or has_values)) or (has_loop and (is_void or ((has_value or has_values) and !std.mem.eql(u8, tag_name, "select"))))) return c.reject(node.tag.span.start, "conflicting structural or visibility directives");
         if (c.attr(.{ .idx = input.idx, .name = ":style-vars" }) != null and c.attr(.{ .idx = input.idx, .name = "data-style-vars" }) != null) return c.reject(node.tag.span.start, ":style-vars conflicts with data-style-vars");
         if (has_value and c.attr(.{ .idx = input.idx, .name = "value" }) != null) return c.reject(node.tag.span.start, ":value conflicts with value");
+        if (has_values and std.mem.eql(u8, tag_name, "select") and c.attr(.{ .idx = input.idx, .name = "value" }) != null) return c.reject(node.tag.span.start, ":values conflicts with value");
+        if (has_values and c.attr(.{ .idx = input.idx, .name = ":checked" }) != null) return c.reject(node.tag.span.start, ":values conflicts with :checked");
         if (has_value) if (c.attr(.{ .idx = input.idx, .name = "type" })) |a| {
             if (a.value != null and std.mem.eql(u8, a.value.?.span.slice(c.input.source), "file")) return c.reject(a.name.start, "file input values cannot be controlled by a template");
         };
@@ -504,6 +523,7 @@ const Compiler = struct {
         try c.code.add("p.node(node);\n");
         const text_attr = c.attr(.{ .idx = input.idx, .name = ":text" });
         const value_attr = c.attr(.{ .idx = input.idx, .name = ":value" });
+        const values_attr = c.attr(.{ .idx = input.idx, .name = ":values" });
         const if_attr = c.attr(.{ .idx = input.idx, .name = ":if" });
         const dynamic_max = if (std.mem.eql(u8, tag_name, "progress")) blk: {
             const maximum = c.attr(.{ .idx = input.idx, .name = "max" }).?;
@@ -525,7 +545,7 @@ const Compiler = struct {
         for (node.attrs) |a| {
             const n = a.name.slice(c.input.source);
             if (dynamic_max != null and oneOf(n, "max value")) continue;
-            if (oneOf(n, ":ref :key :limit :loop :text :if :slot :value")) continue;
+            if (oneOf(n, ":ref :key :limit :loop :text :if :slot :value :values")) continue;
             if (std.mem.eql(u8, n, ":checked") or std.mem.eql(u8, n, ":visible")) {
                 c.entries += input.factor;
                 try c.code.print("p.{s}(.{{ .node = node, .value = ", .{n[1..]});
@@ -589,6 +609,36 @@ const Compiler = struct {
             c.entries += input.factor;
             try c.code.add("p.formValue(.{ .node = node, .text_value = ");
             try c.expression(value_attr.?);
+            try c.code.add(" });\n");
+        }
+        if (values_attr != null and std.mem.eql(u8, tag_name, "input")) {
+            c.entries += input.factor;
+            try c.code.add("binding.checkedInValues(p, .{ .node = node, .value = ");
+            if (c.attr(.{ .idx = input.idx, .name = ":value" })) |va| {
+                try c.expression(va);
+            } else if (c.attr(.{ .idx = input.idx, .name = "value" })) |val| {
+                try c.code.string(try c.value(val));
+            }
+            try c.code.add(", .values = ");
+            try c.expression(values_attr.?);
+            try c.code.add(" });\n");
+        }
+        if (values_attr != null and std.mem.eql(u8, tag_name, "option")) {
+            c.entries += input.factor;
+            try c.code.add("binding.selectedInValues(p, .{ .node = node, .value = ");
+            if (c.attr(.{ .idx = input.idx, .name = ":value" })) |va| {
+                try c.expression(va);
+            } else if (c.attr(.{ .idx = input.idx, .name = "value" })) |val| {
+                try c.code.string(try c.value(val));
+            }
+            try c.code.add(", .values = ");
+            try c.expression(values_attr.?);
+            try c.code.add(" });\n");
+        }
+        if (values_attr != null and std.mem.eql(u8, tag_name, "select")) {
+            c.entries += 2 * input.factor;
+            try c.code.add("binding.selectedValues(p, .{ .node = node, .values = ");
+            try c.expression(values_attr.?);
             try c.code.add(" });\n");
         }
         if (c.attr(.{ .idx = input.idx, .name = ":input" }) != null) {
@@ -702,7 +752,7 @@ fn attributeName(value: []const u8) bool {
 fn dynamicAttribute(name: []const u8) bool {
     return oneOf(name, "class lang dir disabled readonly autofocus inert role title placeholder alt id for datetime draggable tabindex aria-label style selected") or
         (std.mem.startsWith(u8, name, "aria-") and dashedName(name[5..])) or
-        (std.mem.startsWith(u8, name, "data-") and dashedName(name[5..]) and !oneOf(name, "data-node-id data-event data-input-kind data-value-format data-text-format data-style-vars data-select-value"));
+        (std.mem.startsWith(u8, name, "data-") and dashedName(name[5..]) and !oneOf(name, "data-node-id data-event data-input-kind data-value-format data-text-format data-style-vars data-select-value data-select-values"));
 }
 fn dashedName(value: []const u8) bool {
     var it = std.mem.splitScalar(u8, value, '-');

@@ -47,11 +47,22 @@ export function createDomHost({ root, onStructure = () => {} }) {
 
   // Zig declares the controlled value; structural option changes must restore it.
   function applySelectValues(scope) {
-    const nodes = scope.matches?.('select[data-select-value]') ? [scope] : [];
-    nodes.push(...scope.querySelectorAll('select[data-select-value]'));
-    const parent = scope.closest?.('select[data-select-value]');
+    const selector = 'select[data-select-value], select[data-select-values]';
+    const nodes = scope.matches?.(selector) ? [scope] : [];
+    nodes.push(...scope.querySelectorAll(selector));
+    const parent = scope.closest?.(selector);
     if (parent && !nodes.includes(parent)) nodes.push(parent);
-    for (const select of nodes) select.value = select.dataset.selectValue;
+    for (const select of nodes) {
+      if (select.multiple && select.dataset.selectValues !== undefined) {
+        const raw = select.dataset.selectValues;
+        const values = new Set(raw ? raw.split('\x1f') : []);
+        for (const opt of select.options) {
+          opt.selected = values.has(opt.value);
+        }
+      } else if (select.dataset.selectValue !== undefined) {
+        select.value = select.dataset.selectValue;
+      }
+    }
   }
   function applyDeclaredProviders(scope) { onStructure(scope); }
 
@@ -234,7 +245,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
           }
         }
         target.setAttribute(attribute, fields[3]);
-        if (attribute === "data-select-value" || (attribute === "value" && target instanceof window.HTMLOptionElement)) applySelectValues(target);
+        if (attribute === "data-select-value" || attribute === "data-select-values" || (attribute === "value" && target instanceof window.HTMLOptionElement)) applySelectValues(target);
         if (attribute === "data-style-vars") applyDeclaredStyles(target);
       } else if (operation === "R" && fields.length === 3) {
         if (attribute === "data-style-vars") {

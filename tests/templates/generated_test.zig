@@ -1502,3 +1502,81 @@ test "nested keyed loops support static rendering, patches, outer context, and r
         try std.testing.expect(scratch.failed);
     }
 }
+
+test "multiple selection and checkbox group array bindings synchronize state and emit patches" {
+    const multi_select = @import("multi_select_fixture");
+    const Projection = gui.Projection(multi_select.snapshot_capacity);
+
+    const Option = struct { id: u32, value: []const u8, label: []const u8 };
+    const ChannelAction = enum(u32) { update = 1 };
+    const Model = struct {
+        selected: []const []const u8,
+        channel_input: ChannelAction = .update,
+        options: []const Option,
+    };
+
+    const options: []const Option = &.{
+        .{ .id = 1, .value = "email", .label = "Email notification" },
+        .{ .id = 2, .value = "sms", .label = "SMS alert" },
+        .{ .id = 3, .value = "push", .label = "Push notification" },
+    };
+
+    const initial_model = Model{
+        .selected = &.{ "email", "sms" },
+        .options = options,
+    };
+
+    // 1. Static HTML rendering
+    var ssr_bytes: [2048]u8 = undefined;
+    var ssr_writer = gui.html.Writer{ .buffer = &ssr_bytes };
+    multi_select.renderHtml(&ssr_writer, initial_model);
+    try std.testing.expect(!ssr_writer.failed);
+    const ssr_clean = ssr_writer.slice();
+    try std.testing.expect(std.mem.indexOf(u8, ssr_clean, "<select multiple") != null);
+    try std.testing.expect(std.mem.indexOf(u8, ssr_clean, "data-select-values=\"email\x1fsms\"") != null);
+    // email and sms checkboxes are checked, push is not
+    try std.testing.expect(std.mem.indexOf(u8, ssr_clean, "<input type=\"checkbox\" value=\"email\" data-input-kind=\"1\" checked") != null);
+    try std.testing.expect(std.mem.indexOf(u8, ssr_clean, "<input type=\"checkbox\" value=\"sms\" data-input-kind=\"1\" checked") != null);
+    try std.testing.expect(std.mem.indexOf(u8, ssr_clean, "<input type=\"checkbox\" value=\"push\" data-input-kind=\"1\" checked") == null);
+    try std.testing.expect(std.mem.indexOf(u8, ssr_clean, "<input type=\"checkbox\" value=\"push\" data-input-kind=\"1\" data-value-format=\"checked\">") != null);
+
+    // 2. Full WASM initial projection
+    var full_bytes: [2048]u8 = undefined;
+    var full_writer = gui.html.Writer{ .buffer = &full_bytes };
+    var initial_snapshot = Projection.Snapshot{};
+    var p = Projection{ .html = &full_writer, .next = &initial_snapshot, .writing = true };
+    multi_select.project(&p, initial_model);
+    try std.testing.expect(!full_writer.failed);
+    const full_output = full_writer.slice();
+    try std.testing.expect(std.mem.indexOf(u8, full_output, "data-select-values=\"email\x1fsms\"") != null);
+
+    // 3. Patch projection: Deselecting sms and selecting push
+    var patch_bytes: [2048]u8 = undefined;
+    var patch_writer = gui.html.Writer{ .buffer = &patch_bytes };
+    var patches = gui.patch.Writer{ .output = &patch_writer };
+    var scratch_bytes: [256]u8 = undefined;
+    var scratch = gui.html.Writer{ .buffer = &scratch_bytes };
+    var after_snapshot = Projection.Snapshot{};
+
+    const updated_model = Model{
+        .selected = &.{ "email", "push" },
+        .options = options,
+    };
+
+    p = .{
+        .html = &scratch,
+        .next = &after_snapshot,
+        .previous = &initial_snapshot,
+        .patches = &patches,
+        .writing = false,
+    };
+    multi_select.project(&p, updated_model);
+    try std.testing.expect(!scratch.failed);
+    const patch_output = patch_writer.slice();
+
+    // Attribute update on select for data-select-values
+    try std.testing.expect(std.mem.indexOf(u8, patch_output, "A\t") != null);
+    try std.testing.expect(std.mem.indexOf(u8, patch_output, "data-select-values") != null);
+    // Checkbox patches: sms becomes false, push becomes true
+    try std.testing.expect(std.mem.indexOf(u8, patch_output, "C\t") != null);
+}

@@ -26,6 +26,9 @@ export function localTimeLabel(value, { format = 'instant-local' } = {}) {
   return `${day}${year}, ${two(date.getHours() % 12 || 12)}:${two(date.getMinutes())} ${date.getHours() >= 12 ? 'PM' : 'AM'}`;
 }
 export function declaredInputValue(input) {
+  if (input.tagName === 'SELECT' && input.multiple) {
+    return Array.from(input.selectedOptions, o => o.value).join('\x1f');
+  }
   const value = input.dataset.valueFormat === 'checked' ? String(input.checked) : String(input.value || '');
   return (input.dataset.inputPrefix || '') + (input.dataset.valueFormat === 'instant-local' ? instantFromLocal(value) : value);
 }

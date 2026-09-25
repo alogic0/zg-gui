@@ -110,6 +110,36 @@ test('select option replacement retains owner focus and controlled selection', a
   } finally { await browser?.close(); await server.close(); }
 });
 
+test('multiple selection retains focus and synchronizes option selected states', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    assert.equal(await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const { declaredInputValue } = await import('/local-datetime.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const dom = createDomHost({ root });
+      dom.initialize('<section data-node-id="1"><select multiple data-node-id="2" data-select-values="a\x1fc"><option value="a">A</option><option value="b">B</option><option value="c">C</option></select><input data-node-id="3" value="peer"></section>');
+      const panel = root.firstChild, select = panel.querySelector('select'), options = select.options;
+      select.focus();
+      if (!options[0].selected || options[1].selected || !options[2].selected || document.activeElement !== select) return false;
+      if (declaredInputValue(select) !== 'a\x1fc') return false;
+
+      // Patch data-select-values to select b and c only
+      dom.applyPatchStream('A\t2\tdata-select-values\tb\x1fc\n');
+      if (options[0].selected || !options[1].selected || !options[2].selected || document.activeElement !== select) return false;
+      if (declaredInputValue(select) !== 'b\x1fc') return false;
+
+      // Option replacement retains multiple selection
+      dom.applyPatchStream('H\t2\t' + JSON.stringify('<option value="b">B</option><option value="c">C</option><option value="d">D</option>') + '\n');
+      return options[0].selected && options[1].selected && !options[2].selected && document.activeElement === select;
+    }), true);
+  } finally { await browser?.close(); await server.close(); }
+});
+
 test('explicit radio values retain choice payload, identity and focus', async () => {
   const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
   let browser;

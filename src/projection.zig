@@ -103,6 +103,10 @@ pub fn Projection(comptime capacity: usize) type {
             const dirty = self.changed(.{ .node = id, .property = "#value", .value = value });
             if (!self.writing and dirty) if (self.patches) |writer| writer.formValue(.{ .node = id, .value = value });
         }
+        pub fn selectedValues(self: *Self, input: struct { node: u32, values: []const u8 }) void {
+            const id = input.node;
+            _ = self.changed(.{ .node = id, .property = "#values", .value = input.values });
+        }
         pub fn textareaValue(self: *Self, input: struct { node: u32, value: []const u8 }) void {
             const id = input.node;
             const value = input.value;
@@ -244,6 +248,10 @@ pub const StaticRenderer = struct {
         self.html.booleanAttribute("checked", input.value);
     }
     pub fn selectedValue(self: *StaticRenderer, input: anytype) void {
+        _ = self;
+        _ = input;
+    }
+    pub fn selectedValues(self: *StaticRenderer, input: anytype) void {
         _ = self;
         _ = input;
     }
