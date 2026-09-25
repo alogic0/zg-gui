@@ -40,7 +40,8 @@ Explicit radio choice values are implemented and verified in
 - [x] Stable compact keys for arbitrary external identifiers.
 - [x] Typed multiple selection, change events and recovery.
 - [x] Large-list snapshot measurements and evidence-based improvements.
-- [ ] Component invocation inside keyed loops with derived item namespaces.
+- [x] Component invocation inside keyed loops with derived item namespaces; see
+  [request 055](requests/055-components-in-keyed-loops.md).
 - [ ] CSS transition lifecycles and deferred DOM detachment hooks.
 - [ ] Web Worker offscreen projections and zero-copy binary patch transfers.
 
@@ -57,7 +58,7 @@ policy. Examples and tests use general-purpose controls and local fixtures.
 
 Reusable components are implemented and verified in
 [request 001](requests/001-template-components.md). Component invocation
-inside keyed loops is scheduled under [request 055](requests/055-components-in-keyed-loops.md).
+inside keyed loops is implemented and verified under [request 055](requests/055-components-in-keyed-loops.md).
 Follow the [provider workflow](contributing.md) for new capabilities.
 
 - [x] [Integer style-variable bindings](requests/010-integer-style-variables.md):

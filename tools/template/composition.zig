@@ -28,7 +28,7 @@ pub const Location = struct {
     }
 };
 const Segment = struct { start: usize, end: usize, location: Location, exact: bool };
-pub const Instance = struct { view: []const u8, ref: []const u8, location: Location };
+pub const Instance = struct { view: []const u8, ref: []const u8, location: Location, in_loop: bool = false };
 pub const Document = struct {
     source: []const u8,
     segments: []const Segment,
@@ -88,7 +88,7 @@ const Expander = struct {
         if (input.scope.len == 0) return input.value;
         return std.fmt.allocPrint(e.a, "{s}.{s}", .{ input.scope, input.value });
     }
-    fn file(e: *Expander, input: struct { file: Source, view: []const u8 = "", ref: []const u8 = "" }) Error!void {
+    fn file(e: *Expander, input: struct { file: Source, view: []const u8 = "", ref: []const u8 = "", in_loop: bool = false }) Error!void {
         const source = input.file.source;
         const origin = Location{ .file = input.file, .offset = 0 };
         if (source.len > max_source_bytes) return e.reject(origin, "template exceeds 256 KiB");
@@ -109,6 +109,7 @@ const Expander = struct {
                     continue;
                 }
                 elements += 1;
+                const in_loop = input.in_loop or loop_count != 0;
                 var attrs: std.ArrayList(html.Tokenizer.Attr) = .empty;
                 var scan = html.Tokenizer{ .language = .html, .return_attrs = true, .idx = tag.span.start };
                 while (scan.next(source[0..tag.span.end])) |part| switch (part) {
@@ -120,7 +121,6 @@ const Expander = struct {
                 };
                 if (std.mem.eql(u8, tag_name, "template")) {
                     const location = Location{ .file = input.file, .offset = tag.span.start };
-                    if (loop_count != 0) return e.reject(location, "component invocation inside a keyed loop is not supported");
                     var component_name: ?[]const u8 = null;
                     var view: ?[]const u8 = null;
                     var ref: ?[]const u8 = null;
@@ -130,10 +130,12 @@ const Expander = struct {
                         if (target.* != null) return e.reject(location, "duplicate component attribute");
                         target.* = try e.quoted(.{ .file = input.file, .attr = attr });
                     }
-                    if (component_name == null or view == null or ref == null) return e.reject(location, "component invocation requires :component, :view and :ref");
-                    if (!identifier(component_name.?) or !identifier(ref.?)) return e.reject(location, "component and instance names must be simple identifiers");
+                    if (component_name == null or view == null or (!in_loop and ref == null)) return e.reject(location, "component invocation requires :component, :view and :ref");
+                    const actual_ref = ref orelse try std.fmt.allocPrint(e.a, "loop_comp_{d}", .{e.instances.items.len});
+                    if (!identifier(component_name.?) or !identifier(actual_ref)) return e.reject(location, "component and instance names must be simple identifiers");
                     const v = view.?;
-                    if (v.len < 2 or v[0] != '$' or !path(v[1..]) or isItem(v[1..])) return e.reject(location, ":view requires an explicit $field.path outside loops");
+                    if (v.len < 2 or v[0] != '$' or !path(v[1..])) return e.reject(location, ":view requires an explicit $field.path");
+                    if (!in_loop and (isItem(v[1..]) or isOuter(v[1..]))) return e.reject(location, ":view requires an explicit $field.path outside loops");
                     if (e.active.items.len == 16) return e.reject(location, "component nesting exceeds 16");
                     for (e.active.items) |name| if (std.mem.eql(u8, name, component_name.?)) return e.reject(location, "recursive component invocation");
                     const component = for (e.components) |c| {
@@ -149,13 +151,15 @@ const Expander = struct {
                     } else return e.reject(location, "unclosed component invocation");
                     if (end.kind != .end or !std.mem.eql(u8, end.name.slice(source), "template") or std.mem.trim(u8, source[tag.span.end..end.span.start], " \t\r\n").len != 0 or std.mem.trim(u8, source[end.name.end .. end.span.end - 1], " \t\r\n").len != 0)
                         return e.reject(location, "component invocation must be empty");
-                    const instance = Instance{ .view = try e.scoped(.{ .scope = input.view, .value = v[1..] }), .ref = try e.scoped(.{ .scope = input.ref, .value = ref.? }), .location = location };
+                    const instance_view = if (isItem(v[1..]) or isOuter(v[1..])) v[1..] else try e.scoped(.{ .scope = input.view, .value = v[1..] });
+                    const instance_ref = try e.scoped(.{ .scope = input.ref, .value = actual_ref });
+                    const instance = Instance{ .view = instance_view, .ref = instance_ref, .location = location, .in_loop = in_loop };
                     if (e.instances.items.len == 256) return e.reject(location, "template exceeds 256 component instances");
                     for (e.instances.items) |previous| if (std.mem.eql(u8, previous.ref, instance.ref)) return e.reject(location, "duplicate component instance name");
                     try e.instances.append(e.a, instance);
                     try e.append(.{ .text = source[cursor..tag.span.start], .location = .{ .file = input.file, .offset = cursor } });
                     try e.active.append(e.a, component.name);
-                    try e.file(.{ .file = component.file, .view = instance.view, .ref = instance.ref });
+                    try e.file(.{ .file = component.file, .view = instance.view, .ref = instance.ref, .in_loop = in_loop });
                     _ = e.active.pop();
                     cursor = end.span.end;
                     continue;
@@ -172,7 +176,7 @@ const Expander = struct {
                         const value = v.span.slice(source);
                         const replacement = if (std.mem.eql(u8, name, ":ref"))
                             try e.scoped(.{ .scope = input.ref, .value = value })
-                        else if (input.view.len > 0 and value.len > 1 and value[0] == '$' and !isItem(value[1..]))
+                        else if (input.view.len > 0 and value.len > 1 and value[0] == '$' and !isItem(value[1..]) and !isOuter(value[1..]))
                             try std.fmt.allocPrint(e.a, "${s}.{s}", .{ input.view, value[1..] })
                         else
                             continue;
@@ -195,8 +199,11 @@ const Expander = struct {
         try e.append(.{ .text = source[cursor..], .location = .{ .file = input.file, .offset = cursor } });
     }
 };
-fn isItem(value: []const u8) bool {
+pub fn isItem(value: []const u8) bool {
     return std.mem.eql(u8, value, "item") or std.mem.startsWith(u8, value, "item.");
+}
+pub fn isOuter(value: []const u8) bool {
+    return std.mem.eql(u8, value, "outer") or std.mem.startsWith(u8, value, "outer.");
 }
 fn identifier(value: []const u8) bool {
     if (value.len == 0 or !(std.ascii.isAlphabetic(value[0]) or value[0] == '_')) return false;

@@ -1611,3 +1611,61 @@ test "StringCompactKeys maps external UUIDs to stable loop keys triggering clean
     try std.testing.expect(std.mem.indexOf(u8, reordered, "D\t") == null);
     try std.testing.expect(std.mem.indexOf(u8, reordered, "J\t") == null);
 }
+
+test "components invoked inside keyed loops derive deterministic keyed node identities and surgical patches" {
+    const loop_comp = @import("loop_components_fixture").Scoped(.{ .first = 1000, .count = 500 });
+    const LoopCompP = gui.Projection(loop_comp.snapshot_capacity);
+    const Item = struct { id: u32, label: []const u8, value: []const u8 };
+    var model: struct { items: []const Item } = .{
+        .items = &.{
+            .{ .id = 1, .label = "First", .value = "val1" },
+            .{ .id = 2, .label = "Second", .value = "val2" },
+        },
+    };
+
+    var bytes: [4096]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var previous = LoopCompP.Snapshot{};
+    var p = LoopCompP{ .html = &html, .next = &previous };
+    loop_comp.project(&p, model);
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "First") != null);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "val1") != null);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "Second") != null);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "val2") != null);
+
+    // Verify keyed ref resolves exact node ID
+    const input1_node = try loop_comp.nodes.@"card.input"(1);
+    const input2_node = try loop_comp.nodes.@"card.input"(2);
+    try std.testing.expect(input1_node != input2_node);
+
+    // Patch: change value of item 2 only
+    var output_bytes: [1024]u8 = undefined;
+    var output = gui.html.Writer{ .buffer = &output_bytes };
+    var patches = gui.patch.Writer{ .output = &output };
+    var next = LoopCompP.Snapshot{};
+    p = .{ .html = &html, .next = &next, .previous = &previous, .patches = &patches, .writing = false };
+    model.items = &.{
+        .{ .id = 1, .label = "First", .value = "val1" },
+        .{ .id = 2, .label = "Second", .value = "updated2" },
+    };
+    loop_comp.project(&p, model);
+    try std.testing.expect(!html.failed and !output.failed);
+
+    // Expect surgical V patch ONLY on item 2's input node
+    var expected_patch: [128]u8 = undefined;
+    try std.testing.expectEqualStrings(try std.fmt.bufPrint(&expected_patch, "V\t{d}\t\"updated2\"\n", .{input2_node}), output.slice());
+
+    // Reorder items: produces Move 'M\t' command preserving component DOM identity
+    previous = next;
+    next = .{};
+    output.len = 0;
+    model.items = &.{
+        .{ .id = 2, .label = "Second", .value = "updated2" },
+        .{ .id = 1, .label = "First", .value = "val1" },
+    };
+    loop_comp.project(&p, model);
+    try std.testing.expect(!html.failed and !output.failed);
+    try std.testing.expect(std.mem.indexOf(u8, output.slice(), "M\t") != null);
+    try std.testing.expect(std.mem.indexOf(u8, output.slice(), "D\t") == null);
+}

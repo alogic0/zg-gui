@@ -1,6 +1,6 @@
 # Request 055: component invocation inside keyed loops
 
-Status: proposed roadmap capability; specification and contract defined.
+Status: implemented and verified.
 
 ## Reusable problem
 
@@ -60,11 +60,11 @@ capacity scaling, and zero-allocation diffing.
 
 ## Acceptance checklist
 
-- [ ] Specify template compiler grammar for `<template:name>` within `:loop` contexts.
-- [ ] Implement collision-free node ID stride calculation and qualified reference resolution.
-- [ ] Statically derive combined snapshot and buffer limits based on $L_{\text{loop}} \times C_{\text{comp}}$.
-- [ ] Support `$item` and child path bindings to component `:view` inputs with compile-time type validation.
-- [ ] Verify surgical patch generation on property changes without sibling or row replacement.
-- [ ] Verify retained input focus, cursor position, and DOM identity during row reordering.
-- [ ] Enforce limit bounds and reject duplicate keys, malformed views, and invalid references.
-- [ ] Validate both WASM surgical patch streams and static SSR HTML code generation.
+- [x] Specify template compiler grammar for `<template:name>` within `:loop` contexts.
+- [x] Implement collision-free node ID stride calculation and qualified reference resolution.
+- [x] Statically derive combined snapshot and buffer limits based on $L_{\text{loop}} \times C_{\text{comp}}$.
+- [x] Support `$item` and child path bindings to component `:view` inputs with compile-time type validation.
+- [x] Verify surgical patch generation on property changes without sibling or row replacement.
+- [x] Verify retained input focus, cursor position, and DOM identity during row reordering.
+- [x] Enforce limit bounds and reject duplicate keys, malformed views, and invalid references.
+- [x] Validate both WASM surgical patch streams and static SSR HTML code generation.
