@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { chromium } from 'playwright';
+import { chromium, firefox } from 'playwright';
 import { serve } from '../tools/server.mjs';
 
 test('DOM host retains controls and validates typed patch commands', async () => {
@@ -827,6 +827,97 @@ test('virtual scrolling window calculation and container styling', async () => {
     await server.close();
   }
 });
+
+for (const [engineName, browserType] of Object.entries({ chromium, firefox })) {
+  test(`form validation interaction tracking, dirty/touched lifecycle, and accessibility attribute synchronization (${engineName})`, async () => {
+    const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+    let browser;
+    try {
+      browser = await browserType.launch({ headless: true });
+      const page = await browser.newPage();
+      await page.goto(server.url + '/dom.js');
+      const result = await page.evaluate(async () => {
+        const { createDomHost } = await import('/dom.js');
+        const root = document.createElement('main');
+        document.body.append(root);
+
+        const dom = createDomHost({ root });
+        dom.initialize(`
+          <form data-node-id="1">
+            <input data-node-id="2" id="email" type="text">
+            <span data-node-id="3" id="email-error" hidden></span>
+            <textarea data-node-id="4" id="bio"></textarea>
+            <select data-node-id="5" id="role"><option value="admin">Admin</option></select>
+            <button data-node-id="6" id="submit" type="submit">Submit</button>
+          </form>
+        `);
+
+        const email = root.querySelector('#email');
+        const bio = root.querySelector('#bio');
+        const role = root.querySelector('#role');
+        const btn = root.querySelector('#submit');
+
+        // 1. Initial mounted state is pristine on form controls, not buttons
+        const emailPristineInitial = email.getAttribute('data-pristine') === 'true' && !email.hasAttribute('data-dirty') && !email.hasAttribute('data-touched');
+        const bioPristineInitial = bio.getAttribute('data-pristine') === 'true';
+        const rolePristineInitial = role.getAttribute('data-pristine') === 'true';
+        const btnNotPristine = !btn.hasAttribute('data-pristine');
+
+        // 2. Focus and blur without typing sets touched, keeps pristine
+        email.focus();
+        email.blur();
+        const touchedOnly = email.getAttribute('data-touched') === 'true' && email.getAttribute('data-pristine') === 'true' && !email.hasAttribute('data-dirty');
+
+        // 3. User typing emits input event -> dirty=true, pristine removed
+        email.focus();
+        email.value = 'invalid-email';
+        email.dispatchEvent(new Event('input', { bubbles: true }));
+        const dirtyAfterInput = email.getAttribute('data-dirty') === 'true' && !email.hasAttribute('data-pristine');
+
+        // 4. WASM sends validation patch: aria-invalid="true" and aria-describedby="email-error"
+        dom.applyPatchStream('A\t2\taria-invalid\ttrue\nA\t2\taria-describedby\temail-error\n');
+        const ariaInvalidSet = email.getAttribute('aria-invalid') === 'true';
+        const ariaDescribedbySet = email.getAttribute('aria-describedby') === 'email-error';
+
+        // 5. User fixes error, WASM sends removal patch
+        dom.applyPatchStream('R\t2\taria-invalid\nR\t2\taria-describedby\n');
+        const ariaInvalidCleared = !email.hasAttribute('aria-invalid');
+        const ariaDescribedbyCleared = !email.hasAttribute('aria-describedby');
+
+        // 6. Caret and focus preservation during validation patch
+        email.focus();
+        email.setSelectionRange(4, 4);
+        dom.applyPatchStream('A\t2\taria-invalid\ttrue\n');
+        const focusPreserved = document.activeElement === email;
+        const caretPreserved = email.selectionStart === 4 && email.selectionEnd === 4;
+
+        dom.dispose();
+        root.remove();
+
+        return {
+          emailPristineInitial,
+          bioPristineInitial,
+          rolePristineInitial,
+          btnNotPristine,
+          touchedOnly,
+          dirtyAfterInput,
+          ariaInvalidSet,
+          ariaDescribedbySet,
+          ariaInvalidCleared,
+          ariaDescribedbyCleared,
+          focusPreserved,
+          caretPreserved,
+        };
+      });
+
+      assert.ok(Object.values(result).every(Boolean), JSON.stringify(result));
+    } finally {
+      await browser?.close();
+      await server.close();
+    }
+  });
+}
+
 
 
 

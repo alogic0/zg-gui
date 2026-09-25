@@ -455,7 +455,7 @@ test "explicit identities reject ambiguous ownership" {
         .{ .first = 100, .count = 20, .overrides = &.{.{ .local = 2, .node = 102 }} },
         .{ .first = 100, .count = 20, .overrides = &.{ .{ .local = 2, .node = 7 }, .{ .local = 3, .node = 7 } } },
         .{ .first = 100, .count = 20, .overrides = &.{ .{ .local = 2, .node = 7 }, .{ .local = 2, .node = 8 } } },
-    }) |invalid| try std.testing.expectError(error.NamespaceOverflow, invalid.node(1));
+    }) |bad_ns| try std.testing.expectError(error.NamespaceOverflow, bad_ns.node(1));
     comptime validateNamespaces(&.{ space, .{ .first = 200, .count = 20, .overrides = &.{.{ .local = 2, .node = 8 }} } });
 }
 
@@ -624,6 +624,51 @@ fn validImageSource(value: []const u8) bool {
     } and uri.user == null and uri.password == null;
 }
 
+fn isInvalid(value: anytype) bool {
+    const T = @TypeOf(value);
+    return switch (@typeInfo(T)) {
+        .bool => value,
+        .optional => |opt| blk: {
+            if (value) |v| {
+                if (opt.child == bool) break :blk v;
+                switch (@typeInfo(opt.child)) {
+                    .pointer => |ptr| switch (ptr.size) {
+                        .slice => if (ptr.child == u8) break :blk v.len > 0,
+                        .one => switch (@typeInfo(ptr.child)) {
+                            .array => |a| if (a.child == u8) break :blk v.len > 0,
+                            else => {},
+                        },
+                        else => {},
+                    },
+                    else => {},
+                }
+                break :blk true;
+            }
+            break :blk false;
+        },
+        .pointer => |ptr| switch (ptr.size) {
+            .slice => if (ptr.child == u8) value.len > 0 else @compileError(":invalid requires a bool, optional, or string"),
+            .one => switch (@typeInfo(ptr.child)) {
+                .array => |a| if (a.child == u8) value.len > 0 else @compileError(":invalid requires a bool, optional, or string"),
+                else => @compileError(":invalid requires a bool, optional, or string"),
+            },
+            else => @compileError(":invalid requires a bool, optional, or string"),
+        },
+        else => @compileError(":invalid requires a bool, optional, or string"),
+    };
+}
+
+pub fn invalid(p: anytype, input: anytype) void {
+    const inv = isInvalid(input.value);
+    p.attr(.{ .node = input.node, .name = "aria-invalid", .value = if (inv) "true" else null });
+}
+
+pub fn invalidWithId(p: anytype, comptime error_id: []const u8, input: anytype) void {
+    const inv = isInvalid(input.value);
+    p.attr(.{ .node = input.node, .name = "aria-invalid", .value = if (inv) "true" else null });
+    p.attr(.{ .node = input.node, .name = "aria-describedby", .value = if (inv) error_id else null });
+}
+
 test "optional style groups clear only their attribute and retry failed output" {
     const gui = @import("root.zig");
     const P = gui.Projection(1);
@@ -654,3 +699,41 @@ test "optional style groups clear only their attribute and retry failed output" 
     styleVariables(&retry_p, .{ .node = @as(u32, 20), .value = @as(?Style, .{ .@"--offset" = .{ .value = 8, .unit = .percent } }) });
     try std.testing.expectEqualStrings("A\t20\tdata-style-vars\t--offset:8%\n", output.slice());
 }
+
+test "validation bindings synchronize aria-invalid and aria-describedby" {
+    const gui = @import("root.zig");
+    const P = gui.Projection(2);
+    var bytes: [256]u8 = undefined;
+    var output = gui.html.Writer{ .buffer = &bytes };
+    var scratch_bytes: [256]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &scratch_bytes };
+
+    // Initial render with valid state
+    var before = P.Snapshot{};
+    var initial = P{ .html = &html, .next = &before };
+    invalidWithId(&initial, "email-error", .{ .node = @as(u32, 10), .value = @as(?[]const u8, null) });
+    try std.testing.expect(!html.failed);
+    try std.testing.expectEqualStrings("", html.slice());
+
+    // Patch to invalid state
+    var after = P.Snapshot{};
+    var writer = gui.patch.Writer{ .output = &output };
+    var p = P{ .html = &html, .patches = &writer, .previous = &before, .next = &after, .writing = false };
+    invalidWithId(&p, "email-error", .{ .node = @as(u32, 10), .value = @as(?[]const u8, "Email is required") });
+    try std.testing.expectEqualStrings("A\t10\taria-invalid\ttrue\nA\t10\taria-describedby\temail-error\n", output.slice());
+
+    // Patch back to valid state (null)
+    output.len = 0;
+    var valid_snap = P.Snapshot{};
+    var valid_p = P{ .html = &html, .patches = &writer, .previous = &after, .next = &valid_snap, .writing = false };
+    invalidWithId(&valid_p, "email-error", .{ .node = @as(u32, 10), .value = @as(?[]const u8, null) });
+    try std.testing.expectEqualStrings("R\t10\taria-invalid\nR\t10\taria-describedby\n", output.slice());
+
+    // Test with bool
+    output.len = 0;
+    var bool_snap = P.Snapshot{};
+    var bool_p = P{ .html = &html, .patches = &writer, .previous = &valid_snap, .next = &bool_snap, .writing = false };
+    invalid(&bool_p, .{ .node = @as(u32, 10), .value = true });
+    try std.testing.expectEqualStrings("A\t10\taria-invalid\ttrue\n", output.slice());
+}
+

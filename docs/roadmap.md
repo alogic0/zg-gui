@@ -41,9 +41,10 @@ Explicit radio choice values are implemented and verified in
 - [x] Typed multiple selection, change events and recovery.
 - [x] Large-list snapshot measurements and evidence-based improvements.
 - [x] Component invocation inside keyed loops with derived item namespaces; see
-  [request 055](requests/055-components-in-keyed-loops.md).
-- [ ] CSS transition lifecycles and deferred DOM detachment hooks.
-- [ ] Web Worker offscreen projections and zero-copy binary patch transfers.
+- [x] CSS transition lifecycles and deferred DOM detachment hooks; see
+  [request 056](requests/056-css-transitions-and-exit-hooks.md).
+- [x] Web Worker offscreen projections and zero-copy binary patch transfers; see
+  [request 057](requests/057-web-worker-offscreen-projections.md).
 
 See [templates](templates.md) and [verification](template-verification.md).
 Focus trapping, modal dismissal, routing and business effects remain application
@@ -123,5 +124,5 @@ zero-copy Web Worker offscreen projections are delivered under
   Adopting pre-rendered static SSR DOM elements on client boot without re-creating nodes or discarding active input focus and draft state.
 - [x] [Virtual scrolling and windowed projections](requests/059-virtual-scrolling.md):
   Declarative viewport windowing for 10,000+ item collections with zero heap allocation and overscan slicing.
-- [ ] [Declarative form validation and dirty tracking](requests/060-form-validation.md):
+- [x] [Declarative form validation and dirty tracking](requests/060-form-validation.md):
   Coordinating client-side validation states, dirty/touched flags, and ARIA accessibility feedback with Zig models.

@@ -107,6 +107,41 @@ export function createDomHost({ root, onStructure = () => {} }) {
     }
   }
 
+  function applyFormStates(scope) {
+    const selector = 'input, textarea, select';
+    const controls = scope.matches?.(selector) ? [scope] : [];
+    controls.push(...scope.querySelectorAll(selector));
+    for (const control of controls) {
+      if (control.type === 'button' || control.type === 'submit' || control.type === 'reset') continue;
+      if (!control.hasAttribute('data-dirty') && !control.hasAttribute('data-touched') && !control.hasAttribute('data-pristine')) {
+        control.setAttribute('data-pristine', 'true');
+      }
+    }
+  }
+
+  function handleControlBlur(event) {
+    const target = event.target;
+    if (!target || !root.contains(target)) return;
+    if (target instanceof window.HTMLInputElement || target instanceof window.HTMLTextAreaElement || target instanceof window.HTMLSelectElement) {
+      if (target.type === 'button' || target.type === 'submit' || target.type === 'reset') return;
+      target.setAttribute('data-touched', 'true');
+    }
+  }
+
+  function handleControlInput(event) {
+    const target = event.target;
+    if (!target || !root.contains(target)) return;
+    if (target instanceof window.HTMLInputElement || target instanceof window.HTMLTextAreaElement || target instanceof window.HTMLSelectElement) {
+      if (target.type === 'button' || target.type === 'submit' || target.type === 'reset') return;
+      target.setAttribute('data-dirty', 'true');
+      target.removeAttribute('data-pristine');
+    }
+  }
+
+  root.addEventListener('blur', handleControlBlur, { capture: true });
+  root.addEventListener('input', handleControlInput, { capture: true });
+  root.addEventListener('change', handleControlInput, { capture: true });
+
   function hydrate(html) {
     const hasExistingNodes = root.firstElementChild && root.querySelector('[data-node-id]');
     if (!hasExistingNodes) {
@@ -123,6 +158,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
       applyDeclaredStyles(root);
       applyInitialTimeFormats(root);
       applyWindowScrollers(root);
+      applyFormStates(root);
       onStructure(root);
 
       if (activeInRoot && activeIsText && draftValue !== null && active.value !== draftValue) {
@@ -144,6 +180,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
     applyDeclaredStyles(root);
     applyInitialTimeFormats(root);
     applyWindowScrollers(root);
+    applyFormStates(root);
     onStructure(root);
   }
 
@@ -325,6 +362,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
             applyDeclaredProviders(child);
             applyInitialTimeFormats(child);
             applyWindowScrollers(child);
+            applyFormStates(child);
             child = nextChild;
           }
           continue;
@@ -350,6 +388,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
         applyDeclaredProviders(target);
         applyInitialTimeFormats(target);
         applyWindowScrollers(target);
+        applyFormStates(target);
         if (activeId || activeTestId) {
           const replacement = activeId
             ? document.getElementById(activeId)
@@ -454,6 +493,9 @@ export function createDomHost({ root, onStructure = () => {} }) {
   }
 
   function dispose() {
+    root.removeEventListener('blur', handleControlBlur, { capture: true });
+    root.removeEventListener('input', handleControlInput, { capture: true });
+    root.removeEventListener('change', handleControlInput, { capture: true });
     for (const [node] of exiting) abortExit(node);
     nodes.dispose();
   }

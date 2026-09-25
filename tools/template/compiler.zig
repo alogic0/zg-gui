@@ -395,6 +395,14 @@ const Compiler = struct {
                     if (!std.mem.eql(u8, tag_name, "input") or !oneOf(try c.value(type_attr), "checkbox radio")) return c.reject(a.name.start, ":checked requires a checkbox or radio");
                 } else if (std.mem.eql(u8, n, ":input")) {
                     if (!oneOf(tag_name, "input textarea select")) return c.reject(a.name.start, ":input requires input, textarea or select");
+                } else if (std.mem.eql(u8, n, ":invalid")) {
+                    if (!oneOf(tag_name, "input textarea select")) return c.reject(a.name.start, ":invalid requires input, textarea or select");
+                } else if (std.mem.eql(u8, n, ":error-id")) {
+                    if (!oneOf(tag_name, "input textarea select")) return c.reject(a.name.start, ":error-id requires input, textarea or select");
+                    const raw = try c.value(a);
+                    const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+                    if (trimmed.len == 0 or !validId(trimmed)) return c.reject(a.name.start, "invalid element id in :error-id");
+                    continue;
                 } else if (std.mem.eql(u8, n, ":exit-transition")) {
                     _ = try c.exitTransition(a);
                     continue;
@@ -461,6 +469,11 @@ const Compiler = struct {
         if ((has_text or (has_value and std.mem.eql(u8, tag_name, "textarea"))) and std.mem.trim(u8, c.input.source[node.tag.span.end..node.close_start], " \t\r\n").len > 0) return c.reject(node.tag.span.start, "text/value bindings require empty content");
         if ((has_if and (is_void or has_visible or has_value or has_values)) or (has_loop and (is_void or ((has_value or has_values) and !std.mem.eql(u8, tag_name, "select"))))) return c.reject(node.tag.span.start, "conflicting structural or visibility directives");
         if (c.attr(.{ .idx = input.idx, .name = ":style-vars" }) != null and c.attr(.{ .idx = input.idx, .name = "data-style-vars" }) != null) return c.reject(node.tag.span.start, ":style-vars conflicts with data-style-vars");
+        if (c.attr(.{ .idx = input.idx, .name = ":invalid" }) != null and c.attr(.{ .idx = input.idx, .name = "aria-invalid" }) != null) return c.reject(node.tag.span.start, ":invalid conflicts with aria-invalid");
+        if (c.attr(.{ .idx = input.idx, .name = ":error-id" }) != null) {
+            if (c.attr(.{ .idx = input.idx, .name = ":invalid" }) == null) return c.reject(node.tag.span.start, ":error-id requires :invalid");
+            if (c.attr(.{ .idx = input.idx, .name = "aria-describedby" }) != null) return c.reject(node.tag.span.start, ":error-id conflicts with aria-describedby");
+        }
         if (has_value and c.attr(.{ .idx = input.idx, .name = "value" }) != null) return c.reject(node.tag.span.start, ":value conflicts with value");
         if (has_values and std.mem.eql(u8, tag_name, "select") and c.attr(.{ .idx = input.idx, .name = "value" }) != null) return c.reject(node.tag.span.start, ":values conflicts with value");
         if (has_values and c.attr(.{ .idx = input.idx, .name = ":checked" }) != null) return c.reject(node.tag.span.start, ":values conflicts with :checked");
@@ -634,12 +647,26 @@ const Compiler = struct {
                 try c.literal(try std.fmt.allocPrint(c.a, " data-window-item-height=\"{d}\" data-window-overscan=\"{d}\"", .{ w.item_height, w.overscan }));
                 continue;
             }
-            if (oneOf(n, ":ref :key :limit :loop :text :if :slot :value :values")) continue;
+            if (oneOf(n, ":ref :key :limit :loop :text :if :slot :value :values :error-id")) continue;
             if (std.mem.eql(u8, n, ":checked") or std.mem.eql(u8, n, ":visible")) {
                 c.entries += input.factor;
                 try c.code.print("p.{s}(.{{ .node = node, .value = ", .{n[1..]});
                 try c.expression(a);
                 try c.code.add(" });\n");
+            } else if (std.mem.eql(u8, n, ":invalid")) {
+                const error_id_attr = c.attr(.{ .idx = input.idx, .name = ":error-id" });
+                if (error_id_attr) |eid| {
+                    c.entries += 2 * input.factor;
+                    const err_id = try c.value(eid);
+                    try c.code.print("binding.invalidWithId(p, \"{s}\", .{{ .node = node, .value = ", .{err_id});
+                    try c.expression(a);
+                    try c.code.add(" });\n");
+                } else {
+                    c.entries += input.factor;
+                    try c.code.add("binding.invalid(p, .{ .node = node, .value = ");
+                    try c.expression(a);
+                    try c.code.add(" });\n");
+                }
             } else if (std.mem.eql(u8, n, ":style-vars")) {
                 c.entries += input.factor;
                 try c.code.add("binding.styleVariables(p, .{ .node = node, .value = ");
@@ -881,6 +908,11 @@ fn validTransitionName(name: []const u8) bool {
     for (name) |c| if (!(std.ascii.isAlphanumeric(c) or c == '-' or c == '_')) return false;
     return true;
 }
+fn validId(value: []const u8) bool {
+    if (value.len == 0) return false;
+    for (value) |c| if (!(std.ascii.isAlphanumeric(c) or c == '-' or c == '_')) return false;
+    return true;
+}
 fn isPhrasing(name: []const u8) bool {
     return oneOf(name, "span a strong em small time b i code br label input textarea button output meter progress img select svg");
 }
@@ -1081,6 +1113,38 @@ test "window directives emit data-window attributes and validate configuration" 
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad.gui.html", .diagnostic = &d }));
     }
 }
+
+test "validation directives emit aria-invalid and error-id bindings and validate configuration" {
+    var d = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{
+        .source = "<form><input id=\"email\" :input=\"$email\" :invalid=\"$errors.email\" :error-id=\"email-error\"><span id=\"email-error\" :text=\"$errors.email\" :visible=\"$errors.email\"></span></form>",
+        .name = "form.gui.html",
+        .diagnostic = &d,
+    });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "binding.invalidWithId(p, \"email-error\", .{ .node = node, .value = binding.get(view, \"errors.email\"") != null);
+
+    const solo_code = try compile(std.testing.allocator, .{
+        .source = "<form><input id=\"email\" :input=\"$email\" :invalid=\"$errors.email\"></form>",
+        .name = "solo.gui.html",
+        .diagnostic = &d,
+    });
+    defer std.testing.allocator.free(solo_code);
+    try std.testing.expect(std.mem.indexOf(u8, solo_code, "binding.invalid(p, .{ .node = node, .value = binding.get(view, \"errors.email\"") != null);
+
+    for ([_][]const u8{
+        "<div :invalid=\"$error\">Bad</div>",
+        "<div :error-id=\"bad\">Bad</div>",
+        "<input :error-id=\"bad\">",
+        "<input :invalid=\"$error\" :error-id=\"\">",
+        "<input :invalid=\"$error\" :error-id=\"bad id with spaces\">",
+        "<input :invalid=\"$error\" aria-invalid=\"true\">",
+        "<input :invalid=\"$error\" :error-id=\"err\" aria-describedby=\"err\">",
+    }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad.gui.html", .diagnostic = &d }));
+    }
+}
+
 
 fn componentAllocationProbe(a: Allocator) !void {
     var d = Diagnostic{};
