@@ -6,7 +6,7 @@ const requiredExports = ['init', 'resync', 'dispatch', 'setInput', 'getRenderBuf
   'getRenderLength', 'getRenderMode', 'getExchangeBuffer', 'getExchangeCapacity'];
 
 // A single WASM instance owns one application. Instantiate separately for each root.
-export function mount({ root, wasm, onError = error => console.error(error), onStructure }) {
+export function mount({ root, wasm, hydrate = false, onError = error => console.error(error), onStructure }) {
   if (owners.has(root)) throw new Error('Root already has a mounted GUI');
   for (const name of requiredExports) {
     if (typeof wasm[name] !== 'function') throw new Error(`Missing WASM export: ${name}`);
@@ -41,7 +41,15 @@ export function mount({ root, wasm, onError = error => console.error(error), onS
     const projection = readText(wasm.getRenderBuffer(), length);
     if (mode === 0) {
       if (initialized) throw new Error('Full render requires explicit resynchronization');
-      dom.initialize(projection);
+      if (hydrate) {
+        try {
+          dom.hydrate(projection);
+        } catch (err) {
+          onError(err);
+        }
+      } else {
+        dom.initialize(projection);
+      }
       initialized = true;
     } else if (mode === 1 && initialized) {
       try { dom.applyPatchStream(projection); }
@@ -99,7 +107,7 @@ export function mount({ root, wasm, onError = error => console.error(error), onS
   return api;
 }
 
-export async function load({ root, url, wasmBytes, imports = {}, onError, onStructure }) {
+export async function load({ root, url, wasmBytes, imports = {}, hydrate = false, onError, onStructure }) {
   let bytes = wasmBytes;
   if (!bytes && url) {
     const response = await fetch(url);
@@ -107,7 +115,7 @@ export async function load({ root, url, wasmBytes, imports = {}, onError, onStru
     bytes = await response.arrayBuffer();
   }
   const { instance } = await WebAssembly.instantiate(bytes, imports);
-  return mount({ root, wasm: instance.exports, onError, onStructure });
+  return mount({ root, wasm: instance.exports, hydrate, onError, onStructure });
 }
 
 export async function createApp({
@@ -118,6 +126,7 @@ export async function createApp({
   worker = false,
   workerUrl,
   imports = {},
+  hydrate = false,
   onError = error => console.error(error),
   onStructure,
 }) {
@@ -134,6 +143,7 @@ export async function createApp({
         wasmBytes,
         wasmModule,
         imports,
+        hydrate,
         onError,
         onStructure,
       });
@@ -153,6 +163,6 @@ export async function createApp({
   const { instance } = wasmModule
     ? await WebAssembly.instantiate(wasmModule, imports)
     : await WebAssembly.instantiate(bytes, imports);
-  return mount({ root, wasm: instance.exports, onError, onStructure });
+  return mount({ root, wasm: instance.exports, hydrate, onError, onStructure });
 }
 

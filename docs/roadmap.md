@@ -111,13 +111,17 @@ are delivered under [request 053](requests/053-compact-keys.md).
 Large-list snapshot measurements (500–1000 items) and exact identity tradeoffs
 are delivered under [request 054](requests/054-large-list-snapshots.md).
 
-## Active milestone: Loops, Transitions, and Worker Projections
+Component invocation inside keyed loops, CSS transitions and exit hooks, and
+zero-copy Web Worker offscreen projections are delivered under
+[request 055](requests/055-components-in-keyed-loops.md),
+[request 056](requests/056-css-transitions-and-exit-hooks.md), and
+[request 057](requests/057-web-worker-offscreen-projections.md).
 
-- [x] [Component invocation inside keyed loops](requests/055-components-in-keyed-loops.md):
-  Lifting the remaining constraint noted in [request 001](requests/001-template-components.md) by
-  allowing `<template:component>` calls inside `:loop` elements with deterministic keyed node identities
-  and derived capacity scaling.
-- [x] [CSS transitions and exit hooks](requests/056-css-transitions-and-exit-hooks.md):
-  Coordinating DOM element detachment with CSS transition/animation lifecycles before recycling node IDs.
-- [x] [Web Worker offscreen projections](requests/057-web-worker-offscreen-projections.md):
-  Transferring binary patch buffers zero-copy from a background Web Worker to the main thread DOM host.
+## Active milestone: Hydration, Virtualization, and Form Validation
+
+- [x] [Hydration and SSR-to-WASM handover](requests/058-hydration-and-ssr-handover.md):
+  Adopting pre-rendered static SSR DOM elements on client boot without re-creating nodes or discarding active input focus and draft state.
+- [ ] [Virtual scrolling and windowed projections](requests/059-virtual-scrolling.md):
+  Declarative viewport windowing for 10,000+ item collections with zero heap allocation and overscan slicing.
+- [ ] [Declarative form validation and dirty tracking](requests/060-form-validation.md):
+  Coordinating client-side validation states, dirty/touched flags, and ARIA accessibility feedback with Zig models.

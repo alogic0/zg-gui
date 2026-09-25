@@ -74,7 +74,36 @@ export function createDomHost({ root, onStructure = () => {} }) {
   }
   function applyDeclaredProviders(scope) { onStructure(scope); }
 
-  function initialize(html) {
+  function hydrate(html) {
+    const hasExistingNodes = root.firstElementChild && root.querySelector('[data-node-id]');
+    if (!hasExistingNodes) {
+      return initialize(html);
+    }
+    try {
+      nodes.rebuild();
+      const active = document.activeElement;
+      const activeInRoot = active instanceof window.HTMLElement && root.contains(active);
+      const activeIsText = active instanceof window.HTMLInputElement || active instanceof window.HTMLTextAreaElement;
+      const draftValue = activeIsText ? active.value : null;
+
+      applySelectValues(root);
+      applyDeclaredStyles(root);
+      applyInitialTimeFormats(root);
+      onStructure(root);
+
+      if (activeInRoot && activeIsText && draftValue !== null && active.value !== draftValue) {
+        active.value = draftValue;
+      }
+    } catch (err) {
+      initialize(html);
+      throw err;
+    }
+  }
+
+  function initialize(html, { hydrate: shouldHydrate = false } = {}) {
+    if (shouldHydrate) {
+      return hydrate(html);
+    }
     root.innerHTML = toText(html);
     nodes.rebuild();
     applySelectValues(root);
@@ -392,5 +421,5 @@ export function createDomHost({ root, onStructure = () => {} }) {
     nodes.dispose();
   }
 
-  return Object.freeze({ initialize, applyPatchStream, dispose });
+  return Object.freeze({ initialize, hydrate, applyPatchStream, dispose });
 }

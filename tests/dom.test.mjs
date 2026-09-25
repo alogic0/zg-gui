@@ -669,3 +669,104 @@ test('DOM host coordinates CSS transitions, exit lifecycles, safety timeout, and
   }
 });
 
+test('DOM host hydrates existing SSR markup preserving node identities, focus and draft state', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    const result = await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main');
+      document.body.append(root);
+
+      // Pre-render static SSR markup into root
+      root.innerHTML = '<section data-node-id="1"><h1 data-node-id="2">Pre-rendered Title</h1><input data-node-id="3" id="task-name" value="Initial"><select data-node-id="4" data-select-value="b"><option value="a">A</option><option value="b">B</option></select><div data-node-id="5" data-style-vars="--padding:16px">Content</div></section>';
+
+      const existingSection = root.querySelector('section');
+      const existingH1 = root.querySelector('h1');
+      const existingInput = root.querySelector('#task-name');
+      const existingSelect = root.querySelector('select');
+      const existingDiv = root.querySelector('div');
+
+      // User interacts before WASM hydrates: focus input and type draft text
+      existingInput.focus();
+      existingInput.value = 'User Draft While Downloading WASM';
+      existingInput.setSelectionRange(5, 10);
+
+      const dom = createDomHost({ root });
+      // Hydrate with the WASM projection
+      dom.initialize('<section data-node-id="1"><h1 data-node-id="2">Pre-rendered Title</h1><input data-node-id="3" id="task-name" value="Initial"><select data-node-id="4" data-select-value="b"><option value="a">A</option><option value="b">B</option></select><div data-node-id="5" data-style-vars="--padding:16px">Content</div></section>', { hydrate: true });
+
+      // Verify node references are completely identical (zero re-creation)
+      const nodesIdentical = (root.querySelector('section') === existingSection)
+        && (root.querySelector('h1') === existingH1)
+        && (root.querySelector('#task-name') === existingInput)
+        && (root.querySelector('select') === existingSelect)
+        && (root.querySelector('div') === existingDiv);
+
+      // Verify focus, caret and draft text were strictly preserved
+      const focusPreserved = (document.activeElement === existingInput);
+      const draftPreserved = (existingInput.value === 'User Draft While Downloading WASM');
+      const selectionPreserved = (existingInput.selectionStart === 5 && existingInput.selectionEnd === 10);
+
+      // Verify styles and select values were applied onto existing nodes
+      const selectVal = existingSelect.value;
+      const styleApplied = existingDiv.style.getPropertyValue('--padding') === '16px';
+
+      // Verify patches can now target the hydrated nodes normally
+      dom.applyPatchStream('T\t2\t"Updated After Hydration"\n');
+      const patchApplied = (existingH1.textContent === 'Updated After Hydration')
+        && (root.querySelector('h1') === existingH1);
+
+      dom.dispose();
+      root.remove();
+
+      return {
+        nodesIdentical,
+        focusPreserved,
+        draftPreserved,
+        selectionPreserved,
+        selectVal: selectVal === 'b',
+        styleApplied,
+        patchApplied,
+      };
+    });
+
+    assert.ok(Object.values(result).every(Boolean), JSON.stringify(result));
+  } finally {
+    await browser?.close();
+    await server.close();
+  }
+});
+
+test('DOM host hydration gracefully falls back to clean initialization when root is empty', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    const result = await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main');
+      document.body.append(root);
+
+      const dom = createDomHost({ root });
+      dom.initialize('<p data-node-id="1">Fallback render</p>', { hydrate: true });
+
+      const rendered = root.querySelector('p')?.textContent === 'Fallback render';
+      dom.dispose();
+      root.remove();
+      return rendered;
+    });
+
+    assert.equal(result, true);
+  } finally {
+    await browser?.close();
+    await server.close();
+  }
+});
+
+

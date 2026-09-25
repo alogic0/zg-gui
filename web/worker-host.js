@@ -11,6 +11,7 @@ export function mountWorker({
   wasmBytes,
   wasmModule,
   imports = {},
+  hydrate = false,
   onError = error => console.error(error),
   onStructure,
 }) {
@@ -46,7 +47,15 @@ export function mountWorker({
         const { mode, length, buffer } = msg;
         const bytes = new Uint8Array(buffer, 0, length);
         if (mode === 0) {
-          dom.initialize(bytes);
+          if (hydrate) {
+            try {
+              dom.hydrate(bytes);
+            } catch (err) {
+              onError(err);
+            }
+          } else {
+            dom.initialize(bytes);
+          }
           initialized = true;
           readyResolve();
         } else if (mode === 1 && initialized) {

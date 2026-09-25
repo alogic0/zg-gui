@@ -236,3 +236,65 @@ test('createApp falls back to main-thread execution when Worker is unavailable',
     if (server) await server.close();
   }
 });
+
+test('createApp with worker: true and hydrate: true seamlessly hydrates pre-rendered markup', async () => {
+  const server = await serve({ directory: new URL('../zig-out/web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await browserType.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/basics.html');
+
+    const result = await page.evaluate(async () => {
+      const { createApp, load } = await import('/runtime.js');
+
+      // Create a temporary main app to obtain the exact pre-rendered HTML projection
+      const tempRoot = document.createElement('div');
+      const tempApp = await load({ root: tempRoot, url: '/demo.wasm' });
+      const serverHtml = tempRoot.innerHTML;
+      tempApp.dispose();
+      tempRoot.remove();
+
+      // Put serverHtml in a new root to simulate SSR
+      const root = document.createElement('main');
+      root.innerHTML = serverHtml;
+      document.body.append(root);
+
+      const existingInput = root.querySelector('#name');
+      const existingCounter = root.querySelector('.counter');
+      existingInput.focus();
+      existingInput.value = 'Pre-hydrated Typing';
+
+      // Boot with worker: true and hydrate: true
+      const app = await createApp({ root, wasmUrl: '/demo.wasm', worker: true, hydrate: true });
+
+      const inputSame = root.querySelector('#name') === existingInput;
+      const counterSame = root.querySelector('.counter') === existingCounter;
+      const focusRetained = document.activeElement === existingInput;
+      const textRetained = existingInput.value === 'Pre-hydrated Typing';
+
+      // Perform action through worker
+      app.dispatch({ action: 1 });
+      await new Promise(r => setTimeout(r, 60));
+
+      const countUpdated = root.querySelector('.counter output')?.textContent === '1';
+
+      app.dispose();
+      root.remove();
+
+      return {
+        inputSame,
+        counterSame,
+        focusRetained,
+        textRetained,
+        countUpdated,
+      };
+    });
+
+    assert.ok(Object.values(result).every(Boolean), JSON.stringify(result));
+  } finally {
+    if (browser) await browser.close();
+    if (server) await server.close();
+  }
+});
+
