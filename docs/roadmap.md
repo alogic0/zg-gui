@@ -85,3 +85,6 @@ Consumers retain keyboard and focus policy.
 
 Delimited integer formatting and typed HTML helpers are delivered under
 [request 047](requests/047-delimited-integer-formatting.md).
+
+HTML writer streaming, form element helpers, and zero-allocation data
+formatters are delivered under [request 048](requests/048-html-writer-streaming-and-helpers.md).

@@ -121,6 +121,132 @@ pub const Writer = struct {
         }
     }
 
+    pub const Stream = struct {
+        parent: *Writer,
+        writer: std.Io.Writer,
+
+        pub fn finish(self: *Stream) void {
+            if (self.parent.failed) return;
+            self.parent.len += self.writer.end;
+        }
+    };
+
+    pub fn openStream(self: *Writer) Stream {
+        if (self.failed or self.len >= self.buffer.len) {
+            return .{
+                .parent = self,
+                .writer = std.Io.Writer.fixed(&.{}),
+            };
+        }
+        return .{
+            .parent = self,
+            .writer = std.Io.Writer.fixed(self.buffer[self.len..]),
+        };
+    }
+
+    pub fn writeStream(self: *Writer, comptime action: anytype, args: anytype) void {
+        if (self.failed or self.len >= self.buffer.len) {
+            self.failed = true;
+            return;
+        }
+        var w = std.Io.Writer.fixed(self.buffer[self.len..]);
+        @call(.auto, action, .{&w} ++ args) catch {
+            self.failed = true;
+            return;
+        };
+        self.len += w.end;
+    }
+
+    pub noinline fn option(self: *Writer, value: []const u8, label: []const u8, selected: bool) void {
+        self.add("<option");
+        self.attribute("value", value);
+        self.booleanAttribute("selected", selected);
+        self.add(">");
+        self.escaped(label);
+        self.add("</option>");
+    }
+
+    pub noinline fn time(self: *Writer, datetime: []const u8, label: []const u8) void {
+        self.add("<time");
+        self.attribute("datetime", datetime);
+        self.add(">");
+        self.escaped(label);
+        self.add("</time>");
+    }
+
+    pub noinline fn tag(self: *Writer, element: []const u8, content: []const u8) void {
+        self.add("<");
+        self.add(element);
+        self.add(">");
+        self.escaped(content);
+        self.add("</");
+        self.add(element);
+        self.add(">");
+    }
+
+    pub noinline fn formatBytes(self: *Writer, bytes: u64) void {
+        if (self.failed) return;
+        if (bytes < 1024) {
+            self.print("{d} B", .{bytes});
+            return;
+        }
+
+        const units = [_][]const u8{ "KB", "MB", "GB", "TB", "PB" };
+        var unit_idx: usize = 0;
+        var divisor: u64 = 1024;
+
+        while (unit_idx + 1 < units.len and bytes >= divisor * 1024) {
+            divisor *= 1024;
+            unit_idx += 1;
+        }
+
+        var whole = bytes / divisor;
+        const remainder = bytes % divisor;
+        var tenth = (remainder * 10 + (divisor / 2)) / divisor;
+        if (tenth >= 10) {
+            whole += 1;
+            tenth = 0;
+        }
+
+        self.print("{d}.{d} {s}", .{ whole, tenth, units[unit_idx] });
+    }
+
+    pub noinline fn formatDuration(self: *Writer, ms: u64) void {
+        if (self.failed) return;
+        if (ms < 1000) {
+            self.print("{d}ms", .{ms});
+            return;
+        }
+        if (ms < 60_000) {
+            const whole = ms / 1000;
+            const remainder = ms % 1000;
+            const tenth = (remainder * 10 + 500) / 1000;
+            if (tenth >= 10) {
+                self.print("{d}.0s", .{whole + 1});
+                return;
+            }
+            self.print("{d}.{d}s", .{ whole, tenth });
+            return;
+        }
+        if (ms < 3600_000) {
+            const mins = ms / 60_000;
+            const secs = (ms % 60_000) / 1000;
+            if (secs == 0) {
+                self.print("{d}m", .{mins});
+                return;
+            }
+            self.print("{d}m {d}s", .{ mins, secs });
+            return;
+        }
+        const hours = ms / 3600_000;
+        const mins = (ms % 3600_000) / 60_000;
+        if (mins == 0) {
+            self.print("{d}h", .{hours});
+            return;
+        }
+        self.print("{d}h {d}m", .{ hours, mins });
+    }
+
     pub fn slice(self: *const Writer) []const u8 {
         return self.buffer[0..self.len];
     }
@@ -214,3 +340,94 @@ test "writer attributes and boolean attributes escape properly" {
 
     try std.testing.expectEqualStrings("<button data-label=\"Save &amp; Continue\" disabled>Submit</button>", writer.slice());
 }
+
+test "writer streaming adaptors write directly to buffer" {
+    var bytes: [128]u8 = undefined;
+    var writer = Writer{ .buffer = &bytes };
+
+    var s = writer.openStream();
+    try s.writer.print("Value: {d}, Hex: 0x{x}", .{ 42, 255 });
+    s.finish();
+    try std.testing.expectEqualStrings("Value: 42, Hex: 0xff", writer.slice());
+
+    const helper = struct {
+        fn writeFormatted(w: *std.Io.Writer, label: []const u8, val: i32) !void {
+            try w.print(" | {s}={d}", .{ label, val });
+        }
+    }.writeFormatted;
+
+    writer.writeStream(helper, .{ "delta", -15 });
+    try std.testing.expectEqualStrings("Value: 42, Hex: 0xff | delta=-15", writer.slice());
+
+    // Stream overflow sets failed flag
+    var small: [8]u8 = undefined;
+    var small_writer = Writer{ .buffer = &small };
+    var small_stream = small_writer.openStream();
+    try std.testing.expectError(error.WriteFailed, small_stream.writer.writeAll("long string that exceeds buffer"));
+}
+
+test "writer form elements and semantic tags escape safely" {
+    var bytes: [256]u8 = undefined;
+    var writer = Writer{ .buffer = &bytes };
+
+    writer.option("yesterday", "Since yesterday", true);
+    writer.option("month", "Last 30 <days>", false);
+    try std.testing.expectEqualStrings("<option value=\"yesterday\" selected>Since yesterday</option><option value=\"month\">Last 30 &lt;days&gt;</option>", writer.slice());
+
+    writer.len = 0;
+    writer.time("2026-09-25T03:00:00Z", "Sept 25, 2026");
+    try std.testing.expectEqualStrings("<time datetime=\"2026-09-25T03:00:00Z\">Sept 25, 2026</time>", writer.slice());
+
+    writer.len = 0;
+    writer.tag("strong", "Alert & Warning");
+    try std.testing.expectEqualStrings("<strong>Alert &amp; Warning</strong>", writer.slice());
+}
+
+test "writer formats byte sizes without allocation" {
+    var bytes: [128]u8 = undefined;
+    var writer = Writer{ .buffer = &bytes };
+
+    writer.formatBytes(0);
+    writer.add(" ");
+    writer.formatBytes(1023);
+    writer.add(" ");
+    writer.formatBytes(1024);
+    writer.add(" ");
+    writer.formatBytes(1536);
+    writer.add(" ");
+    writer.formatBytes(29481000);
+    writer.add(" ");
+    writer.formatBytes(1024 * 1024 * 1024);
+    writer.add(" ");
+    writer.formatBytes(2638827906662);
+
+    try std.testing.expectEqualStrings("0 B 1023 B 1.0 KB 1.5 KB 28.1 MB 1.0 GB 2.4 TB", writer.slice());
+}
+
+test "writer formats durations without allocation" {
+    var bytes: [128]u8 = undefined;
+    var writer = Writer{ .buffer = &bytes };
+
+    writer.formatDuration(0);
+    writer.add(" ");
+    writer.formatDuration(45);
+    writer.add(" ");
+    writer.formatDuration(999);
+    writer.add(" ");
+    writer.formatDuration(1000);
+    writer.add(" ");
+    writer.formatDuration(1500);
+    writer.add(" ");
+    writer.formatDuration(59940);
+    writer.add(" ");
+    writer.formatDuration(120_000);
+    writer.add(" ");
+    writer.formatDuration(135_000);
+    writer.add(" ");
+    writer.formatDuration(3600_000);
+    writer.add(" ");
+    writer.formatDuration(5400_000);
+
+    try std.testing.expectEqualStrings("0ms 45ms 999ms 1.0s 1.5s 59.9s 2m 2m 15s 1h 1h 30m", writer.slice());
+}
+
