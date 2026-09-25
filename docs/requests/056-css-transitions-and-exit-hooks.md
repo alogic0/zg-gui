@@ -1,6 +1,6 @@
 # Request 056: CSS transitions and exit lifecycle hooks
 
-Status: proposed roadmap capability; specification and contract defined.
+Status: implemented and verified.
 
 ## Reusable problem
 
@@ -64,11 +64,11 @@ DOM element detachment with CSS transition lifecycles before recycling node IDs.
 
 ## Acceptance checklist
 
-- [ ] Specify declarative `:exit-transition` syntax and compiler validation.
-- [ ] Implement DOM host transition coordination in `dom.js` with `transitionend` and safety timers.
-- [ ] Implement node ID hold/reservation in the node registry until exit completion.
-- [ ] Handle transition cancellation (re-insertion of exiting keyed items) without DOM recreation.
-- [ ] Verify zero runtime heap allocation in Zig WASM engine during exit phases.
-- [ ] Verify browser interaction scenarios: smooth exit, rapid re-insertion, timeout fallback,
+- [x] Specify declarative `:exit-transition` syntax and compiler validation.
+- [x] Implement DOM host transition coordination in `dom.js` with `transitionend` and safety timers.
+- [x] Implement node ID hold/reservation in the node registry until exit completion.
+- [x] Handle transition cancellation (re-insertion of exiting keyed items) without DOM recreation.
+- [x] Verify zero runtime heap allocation in Zig WASM engine during exit phases.
+- [x] Verify browser interaction scenarios: smooth exit, rapid re-insertion, timeout fallback,
       and focus preservation on remaining siblings.
-- [ ] Verify multi-engine browser compatibility (Chromium, Firefox Gecko, WebKit).
+- [x] Verify multi-engine browser compatibility (Chromium, Firefox Gecko, WebKit).

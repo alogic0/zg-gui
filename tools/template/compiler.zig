@@ -244,6 +244,43 @@ const Compiler = struct {
         if ((std.mem.eql(u8, v, "$outer") or std.mem.startsWith(u8, v, "$outer.")) and input.loop_depth < 2) return c.reject(input.attr.name.start, "$outer is only available inside a nested loop");
     }
 
+    const ExitTransition = struct { name: []const u8, timeout: ?u32 };
+    fn exitTransition(c: *Compiler, a: Attr) Error!ExitTransition {
+        const raw = try c.value(a);
+        const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+        if (trimmed.len == 0) return c.reject(a.name.start, ":exit-transition requires a transition name or configuration");
+        if (trimmed[0] == '{') {
+            if (trimmed[trimmed.len - 1] != '}') return c.reject(a.name.start, "unclosed :exit-transition configuration");
+            var transition_name: ?[]const u8 = null;
+            var timeout: ?u32 = null;
+            var it = std.mem.tokenizeAny(u8, trimmed[1 .. trimmed.len - 1], ",");
+            while (it.next()) |part| {
+                const entry = std.mem.trim(u8, part, " \t\r\n");
+                if (entry.len == 0) continue;
+                const colon = std.mem.indexOfScalar(u8, entry, ':') orelse return c.reject(a.name.start, "malformed :exit-transition configuration");
+                const key = std.mem.trim(u8, entry[0..colon], " \t\r\n'\"");
+                const val = std.mem.trim(u8, entry[colon + 1 ..], " \t\r\n'\"");
+                if (std.mem.eql(u8, key, "name")) {
+                    if (!validTransitionName(val)) return c.reject(a.name.start, "invalid transition name in :exit-transition");
+                    transition_name = val;
+                } else if (std.mem.eql(u8, key, "timeout")) {
+                    timeout = std.fmt.parseInt(u32, val, 10) catch return c.reject(a.name.start, "invalid timeout in :exit-transition");
+                } else {
+                    return c.reject(a.name.start, "unknown property in :exit-transition configuration");
+                }
+            }
+            if (transition_name == null) return c.reject(a.name.start, ":exit-transition configuration requires a name");
+            return .{ .name = transition_name.?, .timeout = timeout };
+        } else {
+            var it = std.mem.tokenizeScalar(u8, trimmed, ' ');
+            const transition_name = it.next() orelse return c.reject(a.name.start, ":exit-transition requires a transition name");
+            if (!validTransitionName(transition_name)) return c.reject(a.name.start, "invalid transition name in :exit-transition");
+            const timeout = if (it.next()) |t| std.fmt.parseInt(u32, t, 10) catch return c.reject(a.name.start, "invalid timeout in :exit-transition") else null;
+            if (it.next() != null) return c.reject(a.name.start, "unexpected extra argument in :exit-transition");
+            return .{ .name = transition_name, .timeout = timeout };
+        }
+    }
+
     fn validate(c: *Compiler, input: struct { idx: usize, loop_depth: u32 = 0, in_condition: bool = false, factor: usize = 1 }) Error!void {
         const node = &c.nodes.items[input.idx];
         node.loop_depth = input.loop_depth;
@@ -325,6 +362,9 @@ const Compiler = struct {
                     if (!std.mem.eql(u8, tag_name, "input") or !oneOf(try c.value(type_attr), "checkbox radio")) return c.reject(a.name.start, ":checked requires a checkbox or radio");
                 } else if (std.mem.eql(u8, n, ":input")) {
                     if (!oneOf(tag_name, "input textarea select")) return c.reject(a.name.start, ":input requires input, textarea or select");
+                } else if (std.mem.eql(u8, n, ":exit-transition")) {
+                    _ = try c.exitTransition(a);
+                    continue;
                 } else if (!oneOf(n, ":on-click :style-vars")) {
                     return c.reject(a.name.start, "unknown GUI directive");
                 }
@@ -545,6 +585,14 @@ const Compiler = struct {
         for (node.attrs) |a| {
             const n = a.name.slice(c.input.source);
             if (dynamic_max != null and oneOf(n, "max value")) continue;
+            if (std.mem.eql(u8, n, ":exit-transition")) {
+                const t = try c.exitTransition(a);
+                try c.literal(try std.fmt.allocPrint(c.a, " data-exit-transition=\"{s}\"", .{t.name}));
+                if (t.timeout) |ms| {
+                    try c.literal(try std.fmt.allocPrint(c.a, " data-exit-timeout=\"{d}\"", .{ms}));
+                }
+                continue;
+            }
             if (oneOf(n, ":ref :key :limit :loop :text :if :slot :value :values")) continue;
             if (std.mem.eql(u8, n, ":checked") or std.mem.eql(u8, n, ":visible")) {
                 c.entries += input.factor;
@@ -787,6 +835,11 @@ fn dashedName(value: []const u8) bool {
     }
     return true;
 }
+fn validTransitionName(name: []const u8) bool {
+    if (name.len == 0) return false;
+    for (name) |c| if (!(std.ascii.isAlphanumeric(c) or c == '-' or c == '_')) return false;
+    return true;
+}
 fn isPhrasing(name: []const u8) bool {
     return oneOf(name, "span a strong em small time b i code br label input textarea button output meter progress img select svg");
 }
@@ -941,6 +994,28 @@ test "components inside keyed loops derive scaled capacity and keyed references"
     try std.testing.expect(std.mem.indexOf(u8, code, "binding.get(item, \"value\"") != null);
     try std.testing.expect(std.mem.indexOf(u8, code, "binding.get(view, \"item\"") == null);
     try std.testing.expect(std.mem.indexOf(u8, code, "snapshot_capacity: usize = 16") != null);
+}
+
+test "exit transition directives emit data-exit-transition attributes and validate configuration" {
+    var d = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{ .source = "<li :exit-transition=\"fade-collapse 300\"><span :text=\"$label\"></span></li>", .name = "item.gui.html", .fragment_context = .ul, .diagnostic = &d });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "data-exit-transition=\\\"fade-collapse\\\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, code, "data-exit-timeout=\\\"300\\\"") != null);
+
+    const obj_code = try compile(std.testing.allocator, .{ .source = "<li :exit-transition=\"{ name: 'fade-out', timeout: 450 }\"><span :text=\"$label\"></span></li>", .name = "obj.gui.html", .fragment_context = .ul, .diagnostic = &d });
+    defer std.testing.allocator.free(obj_code);
+    try std.testing.expect(std.mem.indexOf(u8, obj_code, "data-exit-transition=\\\"fade-out\\\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, obj_code, "data-exit-timeout=\\\"450\\\"") != null);
+
+    for ([_][]const u8{
+        "<li :exit-transition=\"\"><span :text=\"$label\"></span></li>",
+        "<li :exit-transition=\"{ bad }\"><span :text=\"$label\"></span></li>",
+        "<li :exit-transition=\"{ timeout: 300 }\"><span :text=\"$label\"></span></li>",
+        "<li :exit-transition=\"fade bad_timeout 100\"><span :text=\"$label\"></span></li>",
+    }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad.gui.html", .fragment_context = .ul, .diagnostic = &d }));
+    }
 }
 
 fn componentAllocationProbe(a: Allocator) !void {

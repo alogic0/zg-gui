@@ -75,6 +75,71 @@ export function createDomHost({ root, onStructure = () => {} }) {
     onStructure(root);
   }
 
+  const exiting = new Map(); // target -> { id, transitionName, parent, timeoutId, onEnd }
+
+  function abortExit(target) {
+    const info = exiting.get(target);
+    if (!info) return;
+    clearTimeout(info.timeoutId);
+    target.removeEventListener('transitionend', info.onEnd);
+    target.removeEventListener('animationend', info.onEnd);
+    target.classList.remove('zg-exit', 'zg-exit-active', `${info.transitionName}-exit`, `${info.transitionName}-exit-active`);
+    target.style.pointerEvents = '';
+    target.removeAttribute('aria-hidden');
+    exiting.delete(target);
+  }
+
+  function finishExit(target) {
+    const info = exiting.get(target);
+    if (!info) return;
+    clearTimeout(info.timeoutId);
+    target.removeEventListener('transitionend', info.onEnd);
+    target.removeEventListener('animationend', info.onEnd);
+    exiting.delete(target);
+    if (target.parentElement) {
+      nodes.forget(target);
+      target.remove();
+      applySelectValues(info.parent);
+    }
+  }
+
+  function startExit(target, transitionName, parent) {
+    if (exiting.has(target)) return;
+    const timeoutAttr = target.getAttribute("data-exit-timeout");
+    const timeoutMs = timeoutAttr && /^\d+$/.test(timeoutAttr) ? Number(timeoutAttr) : 500;
+
+    target.style.pointerEvents = "none";
+    target.setAttribute("aria-hidden", "true");
+    target.classList.add("zg-exit", `${transitionName}-exit`);
+
+    if (typeof target.offsetWidth === 'number') {
+      void target.offsetWidth;
+    }
+
+    target.classList.add("zg-exit-active", `${transitionName}-exit-active`);
+
+    const onEnd = (event) => {
+      if (event.target === target) {
+        finishExit(target);
+      }
+    };
+
+    const timeoutId = setTimeout(() => {
+      finishExit(target);
+    }, timeoutMs);
+
+    target.addEventListener("transitionend", onEnd);
+    target.addEventListener("animationend", onEnd);
+
+    exiting.set(target, {
+      id: target.getAttribute("data-node-id"),
+      transitionName,
+      parent,
+      timeoutId,
+      onEnd,
+    });
+  }
+
   function applyPatchStream(stream) {
     patchTextFocus = null;
     for (const line of stream.split("\n")) {
@@ -104,9 +169,16 @@ export function createDomHost({ root, onStructure = () => {} }) {
       if (operation === "D" && fields.length === 2) {
         if (target === root || !target.parentElement) throw new Error("Zig remove patch needs an owned child subtree");
         const parent = target.parentElement;
-        nodes.forget(target);
-        target.remove();
-        applySelectValues(parent);
+        const transitionName = target.getAttribute("data-exit-transition");
+        const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+        if (!transitionName || reducedMotion) {
+          abortExit(target);
+          nodes.forget(target);
+          target.remove();
+          applySelectValues(parent);
+          continue;
+        }
+        startExit(target, transitionName, parent);
         continue;
       }
       if (operation === "C" && fields.length === 3) {
@@ -143,11 +215,40 @@ export function createDomHost({ root, onStructure = () => {} }) {
           const last = target.lastElementChild;
           target.insertAdjacentHTML("beforeend", fragment);
           applySelectValues(target);
-          for (let child = last ? last.nextElementSibling : target.firstElementChild; child; child = child.nextElementSibling) {
+          let child = last ? last.nextElementSibling : target.firstElementChild;
+          while (child) {
+            const nextChild = child.nextElementSibling;
+            const childId = child.getAttribute("data-node-id");
+            if (childId) {
+              const exitingTarget = Array.from(exiting.keys()).find(n => n.getAttribute("data-node-id") === childId);
+              if (exitingTarget && exitingTarget !== child) {
+                abortExit(exitingTarget);
+                const tName = exitingTarget.getAttribute("data-exit-transition");
+                exitingTarget.classList.add("zg-enter", `${tName}-enter`);
+                if (typeof exitingTarget.offsetWidth === 'number') {
+                  void exitingTarget.offsetWidth;
+                }
+                exitingTarget.classList.add("zg-enter-active", `${tName}-enter-active`);
+                const onEnterEnd = (e) => {
+                  if (e.target === exitingTarget) {
+                    exitingTarget.classList.remove("zg-enter", "zg-enter-active", `${tName}-enter`, `${tName}-enter-active`);
+                    exitingTarget.removeEventListener("transitionend", onEnterEnd);
+                    exitingTarget.removeEventListener("animationend", onEnterEnd);
+                  }
+                };
+                exitingTarget.addEventListener("transitionend", onEnterEnd);
+                exitingTarget.addEventListener("animationend", onEnterEnd);
+
+                child.remove();
+                child = nextChild;
+                continue;
+              }
+            }
             nodes.add(child);
             applyDeclaredStyles(child);
             applyDeclaredProviders(child);
             applyInitialTimeFormats(child);
+            child = nextChild;
           }
           continue;
         }
@@ -159,6 +260,11 @@ export function createDomHost({ root, onStructure = () => {} }) {
           || active instanceof window.HTMLTextAreaElement;
         const selectionStart = activeIsTextControl ? active.selectionStart : null;
         const selectionEnd = activeIsTextControl ? active.selectionEnd : null;
+        for (const [exitingNode] of exiting) {
+          if (target.contains(exitingNode)) {
+            abortExit(exitingNode);
+          }
+        }
         nodes.forgetChildren(target);
         target.innerHTML = fragment;
         for (const child of target.children) nodes.add(child);
@@ -269,5 +375,10 @@ export function createDomHost({ root, onStructure = () => {} }) {
     patchTextFocus = null;
   }
 
-  return Object.freeze({ initialize, applyPatchStream, dispose: nodes.dispose });
+  function dispose() {
+    for (const [node] of exiting) abortExit(node);
+    nodes.dispose();
+  }
+
+  return Object.freeze({ initialize, applyPatchStream, dispose });
 }

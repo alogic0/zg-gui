@@ -113,11 +113,11 @@ are delivered under [request 054](requests/054-large-list-snapshots.md).
 
 ## Active milestone: Loops, Transitions, and Worker Projections
 
-- [ ] [Component invocation inside keyed loops](requests/055-components-in-keyed-loops.md):
+- [x] [Component invocation inside keyed loops](requests/055-components-in-keyed-loops.md):
   Lifting the remaining constraint noted in [request 001](requests/001-template-components.md) by
   allowing `<template:component>` calls inside `:loop` elements with deterministic keyed node identities
   and derived capacity scaling.
-- [ ] [CSS transitions and exit hooks](requests/056-css-transitions-and-exit-hooks.md):
+- [x] [CSS transitions and exit hooks](requests/056-css-transitions-and-exit-hooks.md):
   Coordinating DOM element detachment with CSS transition/animation lifecycles before recycling node IDs.
 - [ ] [Web Worker offscreen projections](requests/057-web-worker-offscreen-projections.md):
   Transferring binary patch buffers zero-copy from a background Web Worker to the main thread DOM host.

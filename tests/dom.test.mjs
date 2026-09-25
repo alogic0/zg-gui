@@ -591,3 +591,81 @@ test('node registry tracks structural ownership, external mutations and resync',
     assert.ok(Object.values(result).every(Boolean), JSON.stringify(result));
   } finally { await browser.close(); await server.close(); }
 });
+
+test('DOM host coordinates CSS transitions, exit lifecycles, safety timeout, and re-adoption', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    const result = await page.evaluate(async () => {
+      const { createDomHost } = await import('/dom.js');
+      const root = document.createElement('main'); document.body.append(root);
+      const dom = createDomHost({ root });
+
+      // 1. Initial state with an element having data-exit-transition="fade" and timeout 100ms
+      dom.initialize('<ul data-node-id="1"><li data-node-id="2" data-exit-transition="fade" data-exit-timeout="100"><span data-node-id="3">Item 1</span></li><li data-node-id="4">Item 2</li></ul>');
+      const item1 = root.querySelector('[data-node-id="2"]');
+
+      // 2. Apply removal patch D for item 1
+      dom.applyPatchStream('D\t2\n');
+
+      // Item 1 must still be in the DOM, marked inert with exit classes
+      const stillAttached = item1.isConnected;
+      const hasExitClass = item1.classList.contains('zg-exit') && item1.classList.contains('zg-exit-active');
+      const hasCustomExitClass = item1.classList.contains('fade-exit') && item1.classList.contains('fade-exit-active');
+      const isInert = item1.style.pointerEvents === 'none' && item1.getAttribute('aria-hidden') === 'true';
+
+      // 3. Re-adoption before exit completes: J re-adds node 2
+      dom.applyPatchStream('J\t1\t"<li data-node-id=\\"2\\" data-exit-transition=\\"fade\\" data-exit-timeout=\\"100\\"><span data-node-id=\\"3\\">Item 1</span></li>"\n');
+
+      // Exit transition should be aborted, enter classes applied, same DOM element reused
+      const reAdopted = root.querySelector('[data-node-id="2"]') === item1;
+      const notInert = item1.style.pointerEvents === '' && !item1.hasAttribute('aria-hidden');
+      const hasEnterClass = item1.classList.contains('zg-enter') && item1.classList.contains('zg-enter-active');
+      const exitClassCleared = !item1.classList.contains('zg-exit') && !item1.classList.contains('zg-exit-active');
+
+      // 4. Now remove it again, and let transitionend fire to test detachment
+      dom.applyPatchStream('D\t2\n');
+      const secondExitAttached = item1.isConnected;
+
+      // Dispatch transitionend on item 1
+      item1.dispatchEvent(new Event('transitionend', { bubbles: true }));
+      const detachedOnTransitionEnd = !item1.isConnected;
+
+      // 5. Test safety timeout on another element with missing transitionend
+      dom.applyPatchStream('J\t1\t"<li data-node-id=\\"5\\" data-exit-transition=\\"collapse\\" data-exit-timeout=\\"50\\">Item 3</li>"\n');
+      const item3 = root.querySelector('[data-node-id="5"]');
+      dom.applyPatchStream('D\t5\n');
+      const item3InitiallyAttached = item3.isConnected;
+
+      // Wait for safety timeout (80ms > 50ms)
+      await new Promise(resolve => setTimeout(resolve, 80));
+      const item3DetachedAfterTimeout = !item3.isConnected;
+
+      dom.dispose();
+      root.remove();
+
+      return {
+        stillAttached,
+        hasExitClass,
+        hasCustomExitClass,
+        isInert,
+        reAdopted,
+        notInert,
+        hasEnterClass,
+        exitClassCleared,
+        secondExitAttached,
+        detachedOnTransitionEnd,
+        item3InitiallyAttached,
+        item3DetachedAfterTimeout,
+      };
+    });
+    assert.ok(Object.values(result).every(Boolean), JSON.stringify(result));
+  } finally {
+    await browser?.close();
+    await server.close();
+  }
+});
+
