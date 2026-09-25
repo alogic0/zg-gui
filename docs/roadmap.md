@@ -40,6 +40,9 @@ Explicit radio choice values are implemented and verified in
 - [x] Stable compact keys for arbitrary external identifiers.
 - [x] Typed multiple selection, change events and recovery.
 - [x] Large-list snapshot measurements and evidence-based improvements.
+- [ ] Component invocation inside keyed loops with derived item namespaces.
+- [ ] CSS transition lifecycles and deferred DOM detachment hooks.
+- [ ] Web Worker offscreen projections and zero-copy binary patch transfers.
 
 See [templates](templates.md) and [verification](template-verification.md).
 Focus trapping, modal dismissal, routing and business effects remain application
@@ -53,9 +56,9 @@ policy. Examples and tests use general-purpose controls and local fixtures.
 - [ ] Record limits and artifact/memory measurements separately from correctness.
 
 Reusable components are implemented and verified in
-[request 001](requests/001-template-components.md). Further extensions remain
-separate requests; invocation within keyed loops is not yet supported. Follow the
-[provider workflow](contributing.md) for new capabilities.
+[request 001](requests/001-template-components.md). Component invocation
+inside keyed loops is scheduled under [request 055](requests/055-components-in-keyed-loops.md).
+Follow the [provider workflow](contributing.md) for new capabilities.
 
 - [x] [Integer style-variable bindings](requests/010-integer-style-variables.md):
   provider-verified; consumer layout and scroll policy remain separate.
@@ -107,4 +110,13 @@ are delivered under [request 053](requests/053-compact-keys.md).
 Large-list snapshot measurements (500–1000 items) and exact identity tradeoffs
 are delivered under [request 054](requests/054-large-list-snapshots.md).
 
+## Active milestone: Loops, Transitions, and Worker Projections
 
+- [ ] [Component invocation inside keyed loops](requests/055-components-in-keyed-loops.md):
+  Lifting the remaining constraint noted in [request 001](requests/001-template-components.md) by
+  allowing `<template:component>` calls inside `:loop` elements with deterministic keyed node identities
+  and derived capacity scaling.
+- [ ] [CSS transitions and exit hooks](requests/056-css-transitions-and-exit-hooks.md):
+  Coordinating DOM element detachment with CSS transition/animation lifecycles before recycling node IDs.
+- [ ] [Web Worker offscreen projections](requests/057-web-worker-offscreen-projections.md):
+  Transferring binary patch buffers zero-copy from a background Web Worker to the main thread DOM host.
