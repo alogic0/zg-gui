@@ -9,6 +9,29 @@ function toText(payload) {
   return String(payload);
 }
 
+export function calculateWindowSlice({ scrollTop = 0, viewportHeight = 0, itemHeight = 40, totalItems = 0, overscan = 3 } = {}) {
+  if (itemHeight <= 0 || totalItems <= 0) {
+    return { startIndex: 0, endIndex: 0, topSpacer: 0, bottomSpacer: 0, totalHeight: 0 };
+  }
+  const totalHeight = Math.min(totalItems * itemHeight, 0x7fffffff);
+  const visibleStart = Math.floor(scrollTop / itemHeight);
+  const visibleCount = Math.ceil(viewportHeight / itemHeight);
+  const start = Math.max(0, visibleStart > overscan ? visibleStart - overscan : 0);
+  const clampedStart = Math.min(start, totalItems);
+  const rawEnd = visibleStart + visibleCount + overscan;
+  const end = Math.min(totalItems, rawEnd);
+  const clampedEnd = Math.max(clampedStart, end);
+  const topSpacer = clampedStart * itemHeight;
+  const bottomSpacer = (totalItems - clampedEnd) * itemHeight;
+  return {
+    startIndex: clampedStart,
+    endIndex: clampedEnd,
+    topSpacer,
+    bottomSpacer,
+    totalHeight,
+  };
+}
+
 // Only this module writes the DOM after initialization. Hooks bind host-owned
 // capabilities to explicitly introduced subtrees; they do not choose UI state.
 export function createDomHost({ root, onStructure = () => {} }) {
@@ -73,6 +96,16 @@ export function createDomHost({ root, onStructure = () => {} }) {
     }
   }
   function applyDeclaredProviders(scope) { onStructure(scope); }
+  function applyWindowScrollers(scope) {
+    const scrollers = scope.matches?.('[data-window-item-height]') ? [scope] : [];
+    scrollers.push(...scope.querySelectorAll('[data-window-item-height]'));
+    for (const container of scrollers) {
+      const itemHeight = Number(container.getAttribute('data-window-item-height') || 40);
+      const overscan = Number(container.getAttribute('data-window-overscan') || 3);
+      container.style.setProperty('--window-item-height', `${itemHeight}px`);
+      container.style.setProperty('--window-overscan', `${overscan}`);
+    }
+  }
 
   function hydrate(html) {
     const hasExistingNodes = root.firstElementChild && root.querySelector('[data-node-id]');
@@ -89,6 +122,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
       applySelectValues(root);
       applyDeclaredStyles(root);
       applyInitialTimeFormats(root);
+      applyWindowScrollers(root);
       onStructure(root);
 
       if (activeInRoot && activeIsText && draftValue !== null && active.value !== draftValue) {
@@ -109,6 +143,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
     applySelectValues(root);
     applyDeclaredStyles(root);
     applyInitialTimeFormats(root);
+    applyWindowScrollers(root);
     onStructure(root);
   }
 
@@ -289,6 +324,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
             applyDeclaredStyles(child);
             applyDeclaredProviders(child);
             applyInitialTimeFormats(child);
+            applyWindowScrollers(child);
             child = nextChild;
           }
           continue;
@@ -313,6 +349,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
         applyDeclaredStyles(target);
         applyDeclaredProviders(target);
         applyInitialTimeFormats(target);
+        applyWindowScrollers(target);
         if (activeId || activeTestId) {
           const replacement = activeId
             ? document.getElementById(activeId)

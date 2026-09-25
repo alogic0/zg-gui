@@ -11,6 +11,8 @@ pub const snapshot = @import("snapshot.zig");
 pub const compact_key = @import("compact_key.zig");
 pub const CompactKeyRegistry = compact_key.CompactKeyRegistry;
 pub const StringCompactKeys = compact_key.StringCompactKeys;
+pub const window = @import("window.zig");
+pub const Window = window.Window;
 
 test {
     _ = html;
@@ -20,4 +22,5 @@ test {
     _ = snapshot;
     _ = namespace;
     _ = compact_key;
+    _ = window;
 }

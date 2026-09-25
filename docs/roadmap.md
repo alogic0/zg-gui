@@ -121,7 +121,7 @@ zero-copy Web Worker offscreen projections are delivered under
 
 - [x] [Hydration and SSR-to-WASM handover](requests/058-hydration-and-ssr-handover.md):
   Adopting pre-rendered static SSR DOM elements on client boot without re-creating nodes or discarding active input focus and draft state.
-- [ ] [Virtual scrolling and windowed projections](requests/059-virtual-scrolling.md):
+- [x] [Virtual scrolling and windowed projections](requests/059-virtual-scrolling.md):
   Declarative viewport windowing for 10,000+ item collections with zero heap allocation and overscan slicing.
 - [ ] [Declarative form validation and dirty tracking](requests/060-form-validation.md):
   Coordinating client-side validation states, dirty/touched flags, and ARIA accessibility feedback with Zig models.

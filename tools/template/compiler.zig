@@ -281,6 +281,39 @@ const Compiler = struct {
         }
     }
 
+    const WindowConfig = struct { item_height: u32, overscan: u32 = 3 };
+    fn windowConfig(c: *Compiler, a: Attr) Error!WindowConfig {
+        const raw = try c.value(a);
+        const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+        if (trimmed.len == 0) return c.reject(a.name.start, ":window requires an item height or configuration");
+        if (trimmed[0] == '{') {
+            if (trimmed[trimmed.len - 1] != '}') return c.reject(a.name.start, "unclosed :window configuration");
+            var item_height: ?u32 = null;
+            var overscan: u32 = 3;
+            var it = std.mem.tokenizeAny(u8, trimmed[1 .. trimmed.len - 1], ",");
+            while (it.next()) |part| {
+                const entry = std.mem.trim(u8, part, " \t\r\n");
+                if (entry.len == 0) continue;
+                const colon = std.mem.indexOfScalar(u8, entry, ':') orelse return c.reject(a.name.start, "malformed :window configuration");
+                const key = std.mem.trim(u8, entry[0..colon], " \t\r\n'\"");
+                const val = std.mem.trim(u8, entry[colon + 1 ..], " \t\r\n'\"");
+                if (std.mem.eql(u8, key, "itemHeight") or std.mem.eql(u8, key, "item_height")) {
+                    item_height = std.fmt.parseInt(u32, val, 10) catch return c.reject(a.name.start, "invalid itemHeight in :window");
+                } else if (std.mem.eql(u8, key, "overscan")) {
+                    overscan = std.fmt.parseInt(u32, val, 10) catch return c.reject(a.name.start, "invalid overscan in :window");
+                } else {
+                    return c.reject(a.name.start, "unknown property in :window configuration");
+                }
+            }
+            if (item_height == null or item_height.? == 0) return c.reject(a.name.start, ":window requires a positive itemHeight");
+            return .{ .item_height = item_height.?, .overscan = overscan };
+        } else {
+            const item_height = std.fmt.parseInt(u32, trimmed, 10) catch return c.reject(a.name.start, "invalid itemHeight in :window");
+            if (item_height == 0) return c.reject(a.name.start, ":window requires a positive itemHeight");
+            return .{ .item_height = item_height, .overscan = 3 };
+        }
+    }
+
     fn validate(c: *Compiler, input: struct { idx: usize, loop_depth: u32 = 0, in_condition: bool = false, factor: usize = 1 }) Error!void {
         const node = &c.nodes.items[input.idx];
         node.loop_depth = input.loop_depth;
@@ -364,6 +397,9 @@ const Compiler = struct {
                     if (!oneOf(tag_name, "input textarea select")) return c.reject(a.name.start, ":input requires input, textarea or select");
                 } else if (std.mem.eql(u8, n, ":exit-transition")) {
                     _ = try c.exitTransition(a);
+                    continue;
+                } else if (std.mem.eql(u8, n, ":window")) {
+                    _ = try c.windowConfig(a);
                     continue;
                 } else if (!oneOf(n, ":on-click :style-vars")) {
                     return c.reject(a.name.start, "unknown GUI directive");
@@ -449,7 +485,7 @@ const Compiler = struct {
             if (node.children.items.len != 1) return c.reject(node.tag.span.start, "loop container requires exactly one child element");
             const child = c.nodes.items[node.children.items[0]];
             if (std.mem.trim(u8, c.input.source[node.tag.span.end..child.tag.span.start], " \t\r\n").len != 0 or std.mem.trim(u8, c.input.source[child.end..node.close_start], " \t\r\n").len != 0) return c.reject(node.tag.span.start, "loop container permits only whitespace around its child element");
-        } else if (node.loop_limit != null or c.attr(.{ .idx = input.idx, .name = ":key" }) != null) return c.reject(node.tag.span.start, ":key and :limit require :loop");
+        } else if (node.loop_limit != null or c.attr(.{ .idx = input.idx, .name = ":key" }) != null or c.attr(.{ .idx = input.idx, .name = ":window" }) != null) return c.reject(node.tag.span.start, ":key, :limit and :window require :loop");
         for (node.children.items) |child| try c.validate(.{ .idx = child, .loop_depth = if (has_loop) input.loop_depth + 1 else input.loop_depth, .in_condition = input.in_condition or has_if, .factor = input.factor * (node.loop_limit orelse 1) });
     }
 
@@ -591,6 +627,11 @@ const Compiler = struct {
                 if (t.timeout) |ms| {
                     try c.literal(try std.fmt.allocPrint(c.a, " data-exit-timeout=\"{d}\"", .{ms}));
                 }
+                continue;
+            }
+            if (std.mem.eql(u8, n, ":window")) {
+                const w = try c.windowConfig(a);
+                try c.literal(try std.fmt.allocPrint(c.a, " data-window-item-height=\"{d}\" data-window-overscan=\"{d}\"", .{ w.item_height, w.overscan }));
                 continue;
             }
             if (oneOf(n, ":ref :key :limit :loop :text :if :slot :value :values")) continue;
@@ -1015,6 +1056,29 @@ test "exit transition directives emit data-exit-transition attributes and valida
         "<li :exit-transition=\"fade bad_timeout 100\"><span :text=\"$label\"></span></li>",
     }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad.gui.html", .fragment_context = .ul, .diagnostic = &d }));
+    }
+}
+
+test "window directives emit data-window attributes and validate configuration" {
+    var d = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{ .source = "<ul :loop=\"$items\" :key=\"id\" :limit=\"10\" :window=\"40\"><li><span :text=\"$item.name\"></span></li></ul>", .name = "window.gui.html", .diagnostic = &d });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "data-window-item-height=\\\"40\\\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, code, "data-window-overscan=\\\"3\\\"") != null);
+
+    const obj_code = try compile(std.testing.allocator, .{ .source = "<ul :loop=\"$items\" :key=\"id\" :limit=\"10\" :window=\"{ itemHeight: 48, overscan: 5 }\"><li><span :text=\"$item.name\"></span></li></ul>", .name = "window_obj.gui.html", .diagnostic = &d });
+    defer std.testing.allocator.free(obj_code);
+    try std.testing.expect(std.mem.indexOf(u8, obj_code, "data-window-item-height=\\\"48\\\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, obj_code, "data-window-overscan=\\\"5\\\"") != null);
+
+    for ([_][]const u8{
+        "<ul :window=\"40\"><li>Bad</li></ul>",
+        "<ul :loop=\"$items\" :key=\"id\" :limit=\"10\" :window=\"\"><li>Bad</li></ul>",
+        "<ul :loop=\"$items\" :key=\"id\" :limit=\"10\" :window=\"0\"><li>Bad</li></ul>",
+        "<ul :loop=\"$items\" :key=\"id\" :limit=\"10\" :window=\"{ bad }\"><li>Bad</li></ul>",
+        "<ul :loop=\"$items\" :key=\"id\" :limit=\"10\" :window=\"{ overscan: 5 }\"><li>Bad</li></ul>",
+    }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad.gui.html", .diagnostic = &d }));
     }
 }
 

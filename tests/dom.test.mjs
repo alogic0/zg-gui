@@ -769,4 +769,64 @@ test('DOM host hydration gracefully falls back to clean initialization when root
   }
 });
 
+test('virtual scrolling window calculation and container styling', async () => {
+  const server = await serve({ directory: new URL('../web', import.meta.url).pathname });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(server.url + '/dom.js');
+    const result = await page.evaluate(async () => {
+      const { createDomHost, calculateWindowSlice } = await import('/dom.js');
+
+      // 1. Verify window slice calculation
+      const topSlice = calculateWindowSlice({ scrollTop: 0, viewportHeight: 800, itemHeight: 40, totalItems: 10000, overscan: 5 });
+      const midSlice = calculateWindowSlice({ scrollTop: 4000, viewportHeight: 800, itemHeight: 40, totalItems: 10000, overscan: 5 });
+      const botSlice = calculateWindowSlice({ scrollTop: 399500, viewportHeight: 800, itemHeight: 40, totalItems: 10000, overscan: 5 });
+
+      const topValid = (topSlice.startIndex === 0)
+        && (topSlice.endIndex === 25)
+        && (topSlice.topSpacer === 0)
+        && (topSlice.totalHeight === 400000)
+        && (topSlice.topSpacer + (topSlice.endIndex - topSlice.startIndex) * 40 + topSlice.bottomSpacer === topSlice.totalHeight);
+
+      const midValid = (midSlice.startIndex === 95)
+        && (midSlice.endIndex === 125)
+        && (midSlice.topSpacer === 95 * 40)
+        && (midSlice.topSpacer + (midSlice.endIndex - midSlice.startIndex) * 40 + midSlice.bottomSpacer === midSlice.totalHeight);
+
+      const botValid = (botSlice.endIndex === 10000)
+        && (botSlice.bottomSpacer === 0)
+        && (botSlice.topSpacer + (botSlice.endIndex - botSlice.startIndex) * 40 + botSlice.bottomSpacer === botSlice.totalHeight);
+
+      // 2. Verify DOM container binding
+      const root = document.createElement('main');
+      document.body.append(root);
+      const dom = createDomHost({ root });
+      dom.initialize('<div data-node-id="1" class="scroller" data-window-item-height="40" data-window-overscan="5"><ul data-node-id="2"><li data-node-id="3">Row 1</li></ul></div>');
+
+      const scroller = root.querySelector('.scroller');
+      const itemHeightVar = scroller.style.getPropertyValue('--window-item-height');
+      const overscanVar = scroller.style.getPropertyValue('--window-overscan');
+
+      dom.dispose();
+      root.remove();
+
+      return {
+        topValid,
+        midValid,
+        botValid,
+        itemHeightVar: itemHeightVar === '40px',
+        overscanVar: overscanVar === '5',
+      };
+    });
+
+    assert.ok(Object.values(result).every(Boolean), JSON.stringify(result));
+  } finally {
+    await browser?.close();
+    await server.close();
+  }
+});
+
+
 
