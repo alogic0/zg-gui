@@ -37,9 +37,9 @@ Explicit radio choice values are implemented and verified in
 - [x] Reusable template invocation with typed inputs, stable instance namespaces
   and derived combined snapshot capacity.
 - [x] Nested keyed loops with explicit ownership and admission limits.
-- [ ] Stable compact keys for arbitrary external identifiers.
+- [x] Stable compact keys for arbitrary external identifiers.
 - [x] Typed multiple selection, change events and recovery.
-- [ ] Large-list snapshot measurements and evidence-based improvements.
+- [x] Large-list snapshot measurements and evidence-based improvements.
 
 See [templates](templates.md) and [verification](template-verification.md).
 Focus trapping, modal dismissal, routing and business effects remain application
