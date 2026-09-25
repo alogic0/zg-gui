@@ -468,24 +468,24 @@ const Compiler = struct {
             try c.expression(loop);
             try c.code.print(";\nif (items.len > {d}) {{ p.html.failed = true; return; }}\nvar ids: [{d}]u32 = undefined;\n", .{ limit, limit });
             if (is_nested) {
-                try c.code.add("for (items, 0..) |inner_item, i| {\nconst inner_key: u32 = binding.get(inner_item, ");
+                try c.code.add("for (items, 0..) |inner_item, i| {\nconst inner_key: u32 = (binding.asKey(binding.get(inner_item, ");
                 try c.code.string(try c.value(key));
-                try c.code.print(", \"loop key\");\nids[i] = (space.node((binding.nestedKeyedId(.{{ .outer_key = key, .inner_key = inner_key, .slot = {d}, .stride = {d} }}) catch {{ p.html.failed = true; return; }})) catch {{ p.html.failed = true; return; }});\n", .{ c.nodes.items[child].slot, c.nodes.items.len });
+                try c.code.print(", \"loop key\")) catch {{ p.html.failed = true; return; }});\nids[i] = (space.node((binding.nestedKeyedId(.{{ .outer_key = key, .inner_key = inner_key, .slot = {d}, .stride = {d} }}) catch {{ p.html.failed = true; return; }})) catch {{ p.html.failed = true; return; }});\n", .{ c.nodes.items[child].slot, c.nodes.items.len });
                 try c.code.add("for (ids[0..i]) |previous| if (previous == ids[i]) { p.html.failed = true; return; };\n}\n");
-                try c.code.add("p.keyedList(.{ .owner = node, .nodes = ids[0..items.len] });\nfor (items, 0..) |inner_item, i| {\nconst inner_key: u32 = binding.get(inner_item, ");
+                try c.code.add("p.keyedList(.{ .owner = node, .nodes = ids[0..items.len] });\nfor (items, 0..) |inner_item, i| {\nconst inner_key: u32 = (binding.asKey(binding.get(inner_item, ");
                 try c.code.string(try c.value(key));
-                try c.code.add(", \"loop key\");\nconst child = p.beginChild(.{ .owner = node, .node = ids[i] });\n");
+                try c.code.add(", \"loop key\")) catch {{ p.html.failed = true; return; }});\nconst child = p.beginChild(.{ .owner = node, .node = ids[i] });\n");
                 c.entries += limit * input.factor; // Parent identities.
                 try c.code.print("element_{d}(p, view, space, inner_item, inner_key, item, key);\n", .{c.nodes.items[child].slot});
                 try c.code.add("p.endChild(child);\n}\np.order(.{ .owner = node, .nodes = ids[0..items.len] });\n}\n");
             } else {
-                try c.code.add("for (items, 0..) |item, i| {\nconst key: u32 = binding.get(item, ");
+                try c.code.add("for (items, 0..) |item, i| {\nconst key: u32 = (binding.asKey(binding.get(item, ");
                 try c.code.string(try c.value(key));
-                try c.code.print(", \"loop key\");\nids[i] = (space.node((binding.keyedId(.{{ .key = key, .slot = {d}, .stride = {d} }}) catch {{ p.html.failed = true; return; }})) catch {{ p.html.failed = true; return; }});\n", .{ c.nodes.items[child].slot, c.nodes.items.len });
+                try c.code.print(", \"loop key\")) catch {{ p.html.failed = true; return; }});\nids[i] = (space.node((binding.keyedId(.{{ .key = key, .slot = {d}, .stride = {d} }}) catch {{ p.html.failed = true; return; }})) catch {{ p.html.failed = true; return; }});\n", .{ c.nodes.items[child].slot, c.nodes.items.len });
                 try c.code.add("for (ids[0..i]) |previous| if (previous == ids[i]) { p.html.failed = true; return; };\n}\n");
-                try c.code.print("p.keyedList(.{{ .owner = space.node({d}) catch unreachable, .nodes = ids[0..items.len] }});\nfor (items, 0..) |item, i| {{\nconst key: u32 = binding.get(item, ", .{node.slot});
+                try c.code.print("p.keyedList(.{{ .owner = space.node({d}) catch unreachable, .nodes = ids[0..items.len] }});\nfor (items, 0..) |item, i| {{\nconst key: u32 = (binding.asKey(binding.get(item, ", .{node.slot});
                 try c.code.string(try c.value(key));
-                try c.code.print(", \"loop key\");\nconst child = p.beginChild(.{{ .owner = space.node({d}) catch unreachable, .node = ids[i] }});\n", .{node.slot});
+                try c.code.print(", \"loop key\")) catch {{{{ p.html.failed = true; return; }}}});\nconst child = p.beginChild(.{{ .owner = space.node({d}) catch unreachable, .node = ids[i] }});\n", .{node.slot});
                 c.entries += limit * input.factor; // Parent identities.
                 try c.code.print("element_{d}(p, view, space, item, key);\n", .{c.nodes.items[child].slot});
                 try c.code.print("p.endChild(child);\n}}\np.order(.{{ .owner = space.node({d}) catch unreachable, .nodes = ids[0..items.len] }});\n}}\n", .{node.slot});
@@ -779,9 +779,9 @@ test "compiler preserves literal whitespace and entities and emits leaf bindings
 
 test "malformed structures unsupported directives and injected expressions fail at source locations" {
     for ([_][]const u8{
-        "<p><div></div></p>",                       "<div><span></div>",                                                        "<div>",                                                                                                                      "<div/>",
-        "<p :text=\"$name + dangerous()\"></p>",    "<p :html=\"$markup\"></p>",                                                "<p :text=\"$item.name\"></p>",                                                                                               "<input :text=\"$name\">",
-        "<p :text=\"$name\">content</p>",           "<div :visible=\"$show\" hidden></div>",                                    "<button data-event=\"2\">click</button>",                                                                                    "<p CLASS=\"one\"></p>",
+        "<p><div></div></p>",                       "<div><span></div>",                                                        "<div>",                                                                                                                                                                              "<div/>",
+        "<p :text=\"$name + dangerous()\"></p>",    "<p :html=\"$markup\"></p>",                                                "<p :text=\"$item.name\"></p>",                                                                                                                                                       "<input :text=\"$name\">",
+        "<p :text=\"$name\">content</p>",           "<div :visible=\"$show\" hidden></div>",                                    "<button data-event=\"2\">click</button>",                                                                                                                                            "<p CLASS=\"one\"></p>",
         "<div :loop=\"$rows\"><span></span></div>", "<div :loop=\"$rows\" :key=\"id\" :limit=\"2\"><span></span><b></b></div>", "<div :loop=\"$rows\" :key=\"id\" :limit=\"2\"><div :loop=\"$item.rows\" :key=\"id\" :limit=\"2\"><div :loop=\"$item.sub\" :key=\"id\" :limit=\"2\"><span></span></div></div></div>", "<p :ref=\"same\"></p><p :ref=\"same\"></p>",
         "<div :text=\"$outer.name\"></div>",
     }) |source| {

@@ -329,6 +329,13 @@ pub fn iterateValues(payload: []const u8) std.mem.SplitIterator(u8, .scalar) {
     return std.mem.splitScalar(u8, payload, 0x1f);
 }
 
+pub fn asKey(value: anytype) error{InvalidKey}!u32 {
+    return switch (@typeInfo(@TypeOf(value))) {
+        .int, .comptime_int => std.math.cast(u32, value) orelse error.InvalidKey,
+        else => @compileError("template loop :key must be an integer; map external identifiers using zg_gui.CompactKeyRegistry or zg_gui.StringCompactKeys"),
+    };
+}
+
 pub fn keyedId(input: struct { key: u32, slot: u32, stride: u32 }) error{InvalidKey}!u32 {
     if (input.slot == 0 or input.slot > input.stride) return error.InvalidKey;
     const id = (@as(u64, input.key) + 1) * input.stride + input.slot;

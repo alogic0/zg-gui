@@ -8,6 +8,9 @@ pub const renderHtmlWithNodes = @import("projection.zig").renderHtmlWithNodes;
 pub const template = @import("template.zig");
 pub const namespace = @import("namespace.zig");
 pub const snapshot = @import("snapshot.zig");
+pub const compact_key = @import("compact_key.zig");
+pub const CompactKeyRegistry = compact_key.CompactKeyRegistry;
+pub const StringCompactKeys = compact_key.StringCompactKeys;
 
 test {
     _ = html;
@@ -16,4 +19,5 @@ test {
     _ = template;
     _ = snapshot;
     _ = namespace;
+    _ = compact_key;
 }

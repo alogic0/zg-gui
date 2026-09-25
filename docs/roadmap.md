@@ -100,3 +100,7 @@ delivered under [request 051](requests/051-nested-keyed-loops.md).
 
 Typed multiple selection, change events, and recovery are
 delivered under [request 052](requests/052-multi-selection.md).
+
+Stable compact keys for arbitrary external identifiers (UUIDs, slugs, 64-bit IDs)
+are delivered under [request 053](requests/053-compact-keys.md).
+

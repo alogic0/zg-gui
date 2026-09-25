@@ -1580,3 +1580,34 @@ test "multiple selection and checkbox group array bindings synchronize state and
     // Checkbox patches: sms becomes false, push becomes true
     try std.testing.expect(std.mem.indexOf(u8, patch_output, "C\t") != null);
 }
+
+test "StringCompactKeys maps external UUIDs to stable loop keys triggering clean move patches" {
+    var h = Harness{};
+    var keys = gui.compact_key.StringCompactKeys(36, 8){};
+
+    const task_alpha = "4a12ecb8-7c89-4f32-bb91-03284091a111";
+    const task_beta = "9d81fc20-0012-4e99-8ab1-19812409b222";
+
+    const k_alpha = try keys.getOrAssign(task_alpha);
+    const k_beta = try keys.getOrAssign(task_beta);
+
+    var model = View{
+        .rows = &.{
+            .{ .id = k_alpha, .label = "Alpha Task" },
+            .{ .id = k_beta, .label = "Beta Task" },
+        },
+    };
+    _ = try h.render(.{ .value = model, .mode = .full });
+
+    // Reverse order of tasks using same registry
+    model.rows = &.{
+        .{ .id = try keys.getOrAssign(task_beta), .label = "Beta Task" },
+        .{ .id = try keys.getOrAssign(task_alpha), .label = "Alpha Task" },
+    };
+
+    const reordered = try h.render(.{ .value = model, .mode = .patch });
+    // Stable keys produce move operation 'M\t' rather than destroy/recreate ('D\t' / 'J\t')
+    try std.testing.expect(std.mem.indexOf(u8, reordered, "M\t") != null);
+    try std.testing.expect(std.mem.indexOf(u8, reordered, "D\t") == null);
+    try std.testing.expect(std.mem.indexOf(u8, reordered, "J\t") == null);
+}
