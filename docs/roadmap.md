@@ -104,3 +104,7 @@ delivered under [request 052](requests/052-multi-selection.md).
 Stable compact keys for arbitrary external identifiers (UUIDs, slugs, 64-bit IDs)
 are delivered under [request 053](requests/053-compact-keys.md).
 
+Large-list snapshot measurements (500–1000 items) and exact identity tradeoffs
+are delivered under [request 054](requests/054-large-list-snapshots.md).
+
+

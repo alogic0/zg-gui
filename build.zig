@@ -164,6 +164,20 @@ pub fn build(b: *std.Build) void {
     b.step("test", "Test the GUI core").dependOn(&b.addRunArtifact(unit_tests).step);
     b.top_level_steps.get("test").?.step.dependOn(tokenizer_tests);
     b.top_level_steps.get("test").?.step.dependOn(template_tests);
+
+    const bench_module = b.createModule(.{
+        .root_source_file = b.path("tests/snapshot_benchmark.zig"),
+        .target = b.graph.host,
+        .optimize = .fast,
+        .imports = &.{.{ .name = "zg_gui", .module = test_gui }},
+    });
+    const bench_exe = b.addExecutable(.{
+        .name = "snapshot-bench",
+        .root_module = bench_module,
+    });
+    const run_bench = b.addRunArtifact(bench_exe);
+    b.step("bench", "Run snapshot benchmark").dependOn(&run_bench.step);
+
     b.installDirectory(.{ .source_dir = b.path("web"), .install_dir = .prefix, .install_subdir = "web" });
 
     const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding });
