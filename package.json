@@ -12,12 +12,11 @@
   },
   "scripts": {
     "build": "zig build",
-    "dev": "zig build && node tools/server.mjs",
-    "test": "zig build test && zig build && node --test tests/*.test.mjs",
-    "test:templates": "zig build test-templates && zig build && node --test tests/template-compiler.test.mjs",
-    "test:browser": "zig build && node --test tests/dom.test.mjs tests/template-dom.test.mjs tests/workspace.test.mjs tests/workspace-session.test.mjs tests/demo-usability.test.mjs tests/browser.mjs",
-    "test:browser:firefox": "zig build && ZG_BROWSER=firefox node --test tests/browser.mjs",
-    "test:browser:all": "npm run test:browser && npm run test:browser:firefox"
-  },
-  "devDependencies": { "playwright": "1.59.1" }
+    "dev": "zig build serve",
+    "test": "zig build test",
+    "test:tools": "zig build test-tools",
+    "test:templates": "zig build test-templates",
+    "test:browser": "zig build test-browser",
+    "test:all": "zig build test-all"
+  }
 }

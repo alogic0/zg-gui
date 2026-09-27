@@ -1367,8 +1367,6 @@ test "layout-id, hydrate, and optimistic directives emit attributes and validate
     }));
 }
 
-
-
 fn componentAllocationProbe(a: Allocator) !void {
     var d = Diagnostic{};
     const code = try compile(a, .{ .source = component_invocation, .name = "parent.gui.html", .components = &.{component_fixture}, .diagnostic = &d });

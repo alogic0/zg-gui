@@ -52,6 +52,17 @@ pub fn build(b: *std.Build) void {
     });
     const template_tests = b.step("test-templates", "Test template validation and code generation");
     template_tests.dependOn(&b.addRunArtifact(compiler_tests).step);
+    const template_compiler_cli_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/template_compiler_test.zig"),
+            .target = b.graph.host,
+            .optimize = .debug,
+        }),
+    });
+    const run_template_compiler_cli_tests = b.addRunArtifact(template_compiler_cli_tests);
+    run_template_compiler_cli_tests.setCwd(b.path("."));
+    run_template_compiler_cli_tests.step.dependOn(&b.addInstallArtifact(template_compiler, .{}).step);
+    template_tests.dependOn(&run_template_compiler_cli_tests.step);
     const fixture_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/view.gui.html") });
     const component_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/components.gui.html"), .components = &.{
         .{ .name = "field", .source = b.path("tests/templates/field.gui.html") },
@@ -300,6 +311,60 @@ pub fn build(b: *std.Build) void {
     const workspace_check = b.step("test-workspace", "Test the bounded workspace example");
     workspace_check.dependOn(&b.addRunArtifact(workspace_tests).step);
     b.top_level_steps.get("test").?.step.dependOn(workspace_check);
+
+    _ = b.addModule("cdp", .{
+        .root_source_file = b.path("tools/lib/cdp.zig"),
+        .target = b.graph.host,
+        .optimize = .debug,
+    });
+
+    const serve_exe = b.addExecutable(.{
+        .name = "serve",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/serve.zig"),
+            .target = b.graph.host,
+            .optimize = .safe,
+        }),
+    });
+    b.installArtifact(serve_exe);
+    const run_serve = b.addRunArtifact(serve_exe);
+    run_serve.setCwd(b.path("."));
+    run_serve.step.dependOn(b.getInstallStep());
+    const serve_step = b.step("serve", "Run local development web server");
+    serve_step.dependOn(&run_serve.step);
+
+    const tools_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/tools_test.zig"),
+            .target = b.graph.host,
+            .optimize = .debug,
+        }),
+    });
+    const run_tools_tests = b.addRunArtifact(tools_tests);
+    run_tools_tests.setCwd(b.path("."));
+    const tools_step = b.step("test-tools", "Test native repository tools and CDP protocol");
+    tools_step.dependOn(&run_tools_tests.step);
+    b.top_level_steps.get("test").?.step.dependOn(tools_step);
+
+    const browser_unit_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/browser_tests.zig"),
+            .target = b.graph.host,
+            .optimize = .debug,
+        }),
+    });
+    const run_browser_unit_tests = b.addRunArtifact(browser_unit_tests);
+    run_browser_unit_tests.setCwd(b.path("."));
+    run_browser_unit_tests.step.dependOn(b.getInstallStep());
+    const browser_unit_step = b.step("test-browser-unit", "Test native CDP browser unit harness");
+    browser_unit_step.dependOn(&run_browser_unit_tests.step);
+
+    const browser_step = b.step("test-browser", "Run browser test suites via native CDP");
+    browser_step.dependOn(browser_unit_step);
+
+    const test_all_step = b.step("test-all", "Run all tests: core, templates, tools, and browser");
+    test_all_step.dependOn(&b.top_level_steps.get("test").?.step);
+    test_all_step.dependOn(browser_step);
 }
 
 pub const FragmentContext = enum { flow, dl, ul, ol, thead, tbody, tfoot, tr, select, optgroup };
