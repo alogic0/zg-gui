@@ -507,3 +507,164 @@ test "template compiler: independent Zig package compiles and imports its own HT
     });
     try std.testing.expectEqual(std.process.Child.Term{ .exited = 0 }, try child.wait(io));
 }
+
+test "template formatter: CLI in-place write (-w) and check mode (-c)" {
+    const alloc = std.testing.allocator;
+    const io = std.testing.io;
+
+    const tmp_dir = ".zig-cache/tmp_template_fmt_check";
+    try std.Io.Dir.cwd().createDirPath(io, tmp_dir);
+    defer std.Io.Dir.cwd().deleteTree(io, tmp_dir) catch {};
+
+    const src_path = tmp_dir ++ "/button.gui.html";
+    const unformatted = "<div><button :ref=\"btn\" :on-click=\"$click\">Click</button></div>\n";
+
+    {
+        var f = try std.Io.Dir.cwd().createFile(io, src_path, .{});
+        defer f.close(io);
+        try f.writeStreamingAll(io, unformatted);
+    }
+
+    // 1. zg-fmt -c should fail with exit code != 0
+    {
+        var child = try std.process.spawn(io, .{
+            .argv = &.{ "zig-out/bin/zg-fmt", "-c", src_path },
+            .stdout = .ignore,
+            .stderr = .ignore,
+        });
+        const term = try child.wait(io);
+        try std.testing.expect(term != .exited or term.exited != 0);
+    }
+
+    // 2. zg-template fmt -c should also fail
+    {
+        var child = try std.process.spawn(io, .{
+            .argv = &.{ "zig-out/bin/zg-template", "fmt", "-c", src_path },
+            .stdout = .ignore,
+            .stderr = .ignore,
+        });
+        const term = try child.wait(io);
+        try std.testing.expect(term != .exited or term.exited != 0);
+    }
+
+    // 3. zg-fmt -w should format in-place
+    {
+        var child = try std.process.spawn(io, .{
+            .argv = &.{ "zig-out/bin/zg-fmt", "-w", src_path },
+            .stdout = .ignore,
+            .stderr = .ignore,
+        });
+        const term = try child.wait(io);
+        try std.testing.expectEqual(std.process.Child.Term{ .exited = 0 }, term);
+    }
+
+    // Verify formatted content
+    const expected =
+        \\<div>
+        \\  <button :ref="btn" :on-click="$click">Click</button>
+        \\</div>
+        \\
+    ;
+    const on_disk = try std.Io.Dir.cwd().readFileAlloc(io, src_path, alloc, .limited(4096));
+    defer alloc.free(on_disk);
+    try std.testing.expectEqualStrings(expected, on_disk);
+
+    // 4. zg-fmt -c should now succeed
+    {
+        var child = try std.process.spawn(io, .{
+            .argv = &.{ "zig-out/bin/zg-fmt", "-c", src_path },
+            .stdout = .ignore,
+            .stderr = .ignore,
+        });
+        const term = try child.wait(io);
+        try std.testing.expectEqual(std.process.Child.Term{ .exited = 0 }, term);
+    }
+
+    // 5. zg-template fmt -c should now succeed
+    {
+        var child = try std.process.spawn(io, .{
+            .argv = &.{ "zig-out/bin/zg-template", "fmt", "-c", src_path },
+            .stdout = .ignore,
+            .stderr = .ignore,
+        });
+        const term = try child.wait(io);
+        try std.testing.expectEqual(std.process.Child.Term{ .exited = 0 }, term);
+    }
+}
+
+test "template formatter: CLI stdout output" {
+    const alloc = std.testing.allocator;
+    const io = std.testing.io;
+
+    const tmp_dir = ".zig-cache/tmp_template_fmt_stdout";
+    try std.Io.Dir.cwd().createDirPath(io, tmp_dir);
+    defer std.Io.Dir.cwd().deleteTree(io, tmp_dir) catch {};
+
+    const src_path = tmp_dir ++ "/card.gui.html";
+    const unformatted = "<section class=\"card\"><span>Header</span></section>";
+
+    {
+        var f = try std.Io.Dir.cwd().createFile(io, src_path, .{});
+        defer f.close(io);
+        try f.writeStreamingAll(io, unformatted);
+    }
+
+    var child = try std.process.spawn(io, .{
+        .argv = &.{ "zig-out/bin/zg-template", "fmt", src_path },
+        .stdout = .pipe,
+        .stderr = .ignore,
+    });
+    var stdout_pipe = child.stdout.?;
+    var buf: [1024]u8 = undefined;
+    var reader = stdout_pipe.reader(io, &buf);
+    const output = try reader.interface.allocRemaining(alloc, .limited(4096));
+    defer alloc.free(output);
+
+    const term = try child.wait(io);
+    try std.testing.expectEqual(std.process.Child.Term{ .exited = 0 }, term);
+
+    const expected =
+        \\<section class="card">
+        \\  <span>Header</span>
+        \\</section>
+        \\
+    ;
+    try std.testing.expectEqualStrings(expected, output);
+
+    // Verify source file on disk was not modified
+    const disk_content = try std.Io.Dir.cwd().readFileAlloc(io, src_path, alloc, .limited(4096));
+    defer alloc.free(disk_content);
+    try std.testing.expectEqualStrings(unformatted, disk_content);
+}
+
+test "template formatter: CLI diagnostics on invalid template" {
+    const alloc = std.testing.allocator;
+    const io = std.testing.io;
+
+    const tmp_dir = ".zig-cache/tmp_template_fmt_err";
+    try std.Io.Dir.cwd().createDirPath(io, tmp_dir);
+    defer std.Io.Dir.cwd().deleteTree(io, tmp_dir) catch {};
+
+    const src_path = tmp_dir ++ "/invalid.gui.html";
+    {
+        var f = try std.Io.Dir.cwd().createFile(io, src_path, .{});
+        defer f.close(io);
+        try f.writeStreamingAll(io, "<div><span>mismatch</div></span>");
+    }
+
+    var child = try std.process.spawn(io, .{
+        .argv = &.{ "zig-out/bin/zg-fmt", src_path },
+        .stdout = .ignore,
+        .stderr = .pipe,
+    });
+    var stderr_pipe = child.stderr.?;
+    var buf: [1024]u8 = undefined;
+    var reader = stderr_pipe.reader(io, &buf);
+    const err_out = try reader.interface.allocRemaining(alloc, .limited(4096));
+    defer alloc.free(err_out);
+
+    const term = try child.wait(io);
+    try std.testing.expect(term != .exited or term.exited != 0);
+    try std.testing.expect(std.mem.indexOf(u8, err_out, "mismatched closing tag") != null);
+}
+

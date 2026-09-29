@@ -42,6 +42,22 @@ pub fn build(b: *std.Build) void {
         }),
     });
     b.installArtifact(template_compiler);
+
+    const template_formatter = b.addExecutable(.{
+        .name = "zg-fmt",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/template/main.zig"),
+            .target = b.graph.host,
+            .optimize = .safe,
+            .imports = compiler_imports,
+        }),
+    });
+    b.installArtifact(template_formatter);
+
+    const fmt_step = b.step("fmt", "Format GUI template files");
+    const run_fmt = b.addRunArtifact(template_formatter);
+    run_fmt.addPassthruArgs();
+    fmt_step.dependOn(&run_fmt.step);
     const compiler_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("tools/template/compiler.zig"),
@@ -50,8 +66,17 @@ pub fn build(b: *std.Build) void {
             .imports = compiler_imports,
         }),
     });
+    const formatter_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/template/formatter.zig"),
+            .target = b.graph.host,
+            .optimize = .debug,
+            .imports = compiler_imports,
+        }),
+    });
     const template_tests = b.step("test-templates", "Test template validation and code generation");
     template_tests.dependOn(&b.addRunArtifact(compiler_tests).step);
+    template_tests.dependOn(&b.addRunArtifact(formatter_tests).step);
     const template_compiler_cli_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("tools/template_compiler_test.zig"),
@@ -62,6 +87,7 @@ pub fn build(b: *std.Build) void {
     const run_template_compiler_cli_tests = b.addRunArtifact(template_compiler_cli_tests);
     run_template_compiler_cli_tests.setCwd(b.path("."));
     run_template_compiler_cli_tests.step.dependOn(&b.addInstallArtifact(template_compiler, .{}).step);
+    run_template_compiler_cli_tests.step.dependOn(&b.addInstallArtifact(template_formatter, .{}).step);
     template_tests.dependOn(&run_template_compiler_cli_tests.step);
     const fixture_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/view.gui.html") });
     const component_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/components.gui.html"), .components = &.{
