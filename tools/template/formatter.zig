@@ -27,7 +27,7 @@ pub const Diagnostic = struct {
 
 pub const FormatOptions = struct {
     indent_size: u32 = 2,
-    max_line_width: u32 = 100,
+    max_line_width: u32 = 120,
     diagnostic: ?*Diagnostic = null,
     file_name: []const u8 = "<template>",
 };
@@ -264,8 +264,15 @@ pub fn parse(allocator: Allocator, source: []const u8, options: FormatOptions) E
             } else {
                 const trimmed = std.mem.trim(u8, raw, " \t\r\n");
                 if (trimmed.len > 0) {
-                    const has_leading = (span.start > 0 and std.ascii.isWhitespace(source[span.start - 1]));
-                    const has_trailing = (span.end < source.len and std.ascii.isWhitespace(source[span.end]));
+                    const is_first_child = (stack.items.len == 0 or stack.items[stack.items.len - 1].children.items.len == 0);
+                    const parent_is_phrasing = if (stack.items.len > 0) isPhrasing(stack.items[stack.items.len - 1].tag_name) else false;
+
+                    const raw_has_leading = std.ascii.isWhitespace(raw[0]) or (span.start > 0 and std.ascii.isWhitespace(source[span.start - 1]));
+                    const raw_has_trailing = std.ascii.isWhitespace(raw[raw.len - 1]) or (span.end < source.len and std.ascii.isWhitespace(source[span.end]));
+
+                    const has_leading = if (is_first_child and !parent_is_phrasing) false else raw_has_leading;
+                    const has_trailing = raw_has_trailing;
+
                     const norm = try normalizeWhitespace(allocator, trimmed, has_leading, has_trailing);
                     const node = Node{ .kind = .{ .text = norm } };
                     if (stack.items.len > 0) {
@@ -339,6 +346,23 @@ fn calculateInlineLength(node: Node) ?usize {
     }
 }
 
+fn hasMixedPhrasing(elem: Element) bool {
+    var has_text = false;
+    var has_elem = false;
+    for (elem.children) |child| {
+        switch (child.kind) {
+            .text => |t| {
+                if (std.mem.trim(u8, t, " \t\r\n").len > 0) has_text = true;
+            },
+            .element => |e| {
+                if (isPhrasing(e.tag_name)) has_elem = true;
+            },
+            .comment => {},
+        }
+    }
+    return has_text and has_elem;
+}
+
 fn canInline(elem: Element, current_indent_chars: usize, max_line_width: u32) bool {
     if (elem.is_void) return true;
     if (elem.children.len == 0) return true;
@@ -357,6 +381,9 @@ fn canInline(elem: Element, current_indent_chars: usize, max_line_width: u32) bo
             .comment => return false,
         }
     }
+
+    // Preserve mixed phrasing elements inline to prevent corrupting text whitespace
+    if (hasMixedPhrasing(elem)) return true;
 
     const node = Node{ .kind = .{ .element = elem } };
     const inline_len = calculateInlineLength(node) orelse return false;

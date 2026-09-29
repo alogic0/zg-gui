@@ -46,7 +46,7 @@ fn runFormatter(init: std.process.Init, first_arg: ?[:0]const u8, args: *std.pro
     var write_mode = false;
     var check_mode = false;
     var indent_size: u32 = 2;
-    var max_width: u32 = 100;
+    var max_width: u32 = 120;
     var files = std.ArrayList([]const u8).empty;
 
     var current_arg: ?[:0]const u8 = first_arg;

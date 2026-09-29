@@ -1,9 +1,19 @@
 <main class="demo" data-theme="$theme">
-  <nav class="site-header" aria-label="Demo pages"><a class="site-brand" href="index.html">zg-gui<span>Zig + WebAssembly</span></a><div class="site-nav"><a href="index.html">Showcase</a><a href="basics.html" aria-current="page">Basics</a><a href="source.html">Source</a></div><button class="theme-toggle" :on-click="$actions.theme" :text="$theme_label"></button></nav>
+  <nav class="site-header" aria-label="Demo pages">
+    <a class="site-brand" href="index.html">zg-gui<span>Zig + WebAssembly</span></a>
+    <div class="site-nav">
+      <a href="index.html">Showcase</a>
+      <a href="basics.html" aria-current="page">Basics</a>
+      <a href="source.html">Source</a>
+    </div>
+    <button class="theme-toggle" :on-click="$actions.theme" :text="$theme_label"></button>
+  </nav>
   <header>
     <p class="eyebrow">LEARN BY TRYING</p>
     <h1>Small updates.<br>Steady controls.</h1>
-    <p>Explore how zg-gui updates a page while keeping your inputs in place. Try each experiment, then look at its source.</p>
+    <p>
+      Explore how zg-gui updates a page while keeping your inputs in place. Try each experiment, then look at its source.
+    </p>
     <p class="hint">No account or backend. Reload starts a fresh demo.</p>
   </header>
 
@@ -18,7 +28,9 @@
 
   <section class="card">
     <h2>Keep things in place</h2>
-    <p class="hint">Change the count or reveal the details. Each update leaves the surrounding controls in place. Reset clears only the count.</p>
+    <p class="hint">
+      Change the count or reveal the details. Each update leaves the surrounding controls in place. Reset clears only the count.
+    </p>
     <div class="counter">
       <output :ref="count" :text="$count"></output>
       <div class="actions">
@@ -27,10 +39,13 @@
         <button class="secondary" :on-click="$actions.reset">Reset</button>
       </div>
     </div>
-    <button class="secondary" aria-controls="details" :ref="details_trigger"
-            :on-click="$actions.details" aria-expanded="$details">Show / hide details</button>
+    <button class="secondary" aria-controls="details" :ref="details_trigger" :on-click="$actions.details" aria-expanded="$details">
+      Show / hide details
+    </button>
     <p><a class="source-link" href="source.html#basics-counter">See the counter source →</a></p>
-    <p id="details" :ref="details" :visible="$details">This paragraph stays mounted when hidden. The counter updates only its own text.</p>
+    <p id="details" :ref="details" :visible="$details">
+      This paragraph stays mounted when hidden. The counter updates only its own text.
+    </p>
   </section>
 
   <section class="card wide">
@@ -41,7 +56,9 @@
         <button class="secondary" :on-click="$actions.extra">Toggle third row</button>
       </div>
     </div>
-    <p class="hint">Type a draft, then reverse the rows or add a third. The row controls also update the mapping tables below; channel choices stay unchanged.</p>
+    <p class="hint">
+      Type a draft, then reverse the rows or add a third. The row controls also update the mapping tables below; channel choices stay unchanged.
+    </p>
     <ul :loop="$rows" :key="id" :limit="3">
       <li>
         <label>
@@ -53,8 +70,23 @@
     <a class="source-link" href="source.html#basics-rows">How rows keep their drafts →</a>
   </section>
 
-  <section class="wide integration-intro" aria-labelledby="component-heading"><h2 id="component-heading">One component, two independent choices</h2><p>Choose a different channel in each panel. Changing one leaves the other alone. Type into a mapping row, then use the row controls above to see its draft stay with it.</p><div class="option-experiment"><h3>Try an unavailable option</h3><p>Remove Email from both menus. A selected Email stays remembered, with an explanation, until you restore it or choose SMS.</p><button class="secondary" :on-click="$actions.email_option" :text="$email_action_label"></button></div><a class="source-link" href="source.html#basics-components">Explore the component source →</a></section>
+  <section class="wide integration-intro" aria-labelledby="component-heading">
+    <h2 id="component-heading">One component, two independent choices</h2>
+    <p>
+      Choose a different channel in each panel. Changing one leaves the other alone. Type into a mapping row, then use the row controls above to see its draft stay with it.
+    </p>
+    <div class="option-experiment">
+      <h3>Try an unavailable option</h3>
+      <p>
+        Remove Email from both menus. A selected Email stays remembered, with an explanation, until you restore it or choose SMS.
+      </p>
+      <button class="secondary" :on-click="$actions.email_option" :text="$email_action_label"></button>
+    </div>
+    <a class="source-link" href="source.html#basics-components">Explore the component source →</a>
+  </section>
   <div class="wide integration-panels" :ref="panels" :slot="$panels"></div>
 
-  <footer>No backend. No UI runtime dependencies. State and updates belong to Zig.</footer>
+  <footer>
+    No backend. No UI runtime dependencies. State and updates belong to Zig.
+  </footer>
 </main>
