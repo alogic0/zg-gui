@@ -33,6 +33,11 @@ native callers own scenario state and sequencing.
 Explicit navigation/reload accepts its `beforeunload` confirmation. Other native
 dialogs are dismissed and fail the journey. A failed wire command seals its
 connection; callers must close it rather than reuse a partially read frame.
+Resolving a queued interception after navigation canceled its request can return
+the exact `-32602` / `Invalid InterceptionId.` response. That completed
+cancellation is ignored only for interception continuation or denial; the
+connection remains usable and origin restrictions remain enforced. Other
+protocol errors retain their failure behavior.
 
 Frames and retained messages are bounded to 64 MiB; pending messages to 8,192;
 observed requests to 20,000. Socket reads have a 30-second timeout. Callers use

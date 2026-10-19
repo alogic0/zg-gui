@@ -29,6 +29,22 @@ test "CDP exact numeric reply identity" {
     try std.testing.expectError(error.InvalidProtocolReply, cdp.WsSession.responseId(std.testing.allocator, "{\"id\":\"1\"}"));
 }
 
+test "stale interception callbacks keep the browser session usable" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const browser = try J.Browser.start(arena.allocator(), std.testing.io);
+    defer browser.stop();
+    const p = try browser.page(&.{"http://fixture.invalid"});
+    defer p.close();
+    for ([_][]const u8{ "http://fixture.invalid/canceled", "https://outside.invalid/canceled" }) |url| {
+        const raw = try J.json(arena.allocator(), .{ .method = "Fetch.requestPaused", .params = .{ .requestId = "stale-fixture-id", .request = .{ .url = url } } });
+        try p.socket.event_handler.?(p.socket.event_context.?, &p.socket, raw);
+        try std.testing.expect(!p.socket.failed);
+        try std.testing.expect(J.boolean(try p.eval("true")));
+    }
+    try std.testing.expect(J.boolean(try p.eval("fetch('https://outside.invalid/probe').then(()=>false,()=>true)")));
+}
+
 test "owned CDP actual input upload download isolation and origin denial" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();

@@ -9,6 +9,12 @@ automation dependency. Extend the public `cdp` module; retain existing callers.
 The connection owner must retain interleaved events, correlate numeric command
 IDs exactly, bound frames/events and reject malformed/error replies. A browser
 owner uses a fresh explicit profile and closes only its own process and targets.
+Navigation can cancel an intercepted request before its queued event is handled.
+When resolving that event, the exact protocol error for an invalid interception
+ID is a completed cancellation, and must leave the connection usable. All other
+protocol errors still fail. Test both continuation and denial with stale IDs,
+then verify that evaluation and external-origin denial still work. Include
+negative controls for other error codes, messages and malformed replies.
 Expose isolated contexts, initialization scripts, file inputs, screenshots,
 downloads and network observation through named options and explicit ownership.
 Pointer actions must check visibility, enabled state and hit testing before
@@ -22,7 +28,8 @@ after closing connections and joining the owned process. Application acceptance,
 cross-engine support and performance claims are outside this contract.
 
 `cdp.journey` is documented in [native browser journeys](../native-browser.md).
-`zig build test-tools --summary all` passes eight tests, including profile removal
+`zig build test-tools --summary all` passes ten tests, including stale interception
+continuation/denial against actual Chromium, exact-error negative controls, and profile removal
 after browser shutdown, enabled hidden file selection, case-insensitive
 observed response headers and actual browser
 input/upload/download, context cookie isolation, external-origin denial and

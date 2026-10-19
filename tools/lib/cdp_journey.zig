@@ -152,6 +152,42 @@ fn commandValue(a: A, socket: *cdp.WsSession, method: []const u8, params: anytyp
     return field(value, "result");
 }
 
+fn interceptionResult(value: V) !void {
+    const failure = field(value, "error");
+    if (failure != .null) {
+        const code = field(failure, "code");
+        const message = field(failure, "message");
+        // A navigation may cancel the request before its queued event is read.
+        if (code == .integer and code.integer == -32602 and message == .string and
+            std.mem.eql(u8, message.string, "Invalid InterceptionId.")) return;
+        return error.CdpCommandFailed;
+    }
+    if (field(value, "result") != .object) return error.InvalidProtocolReply;
+}
+
+fn resolveInterception(a: A, socket: *cdp.WsSession, method: []const u8, params: anytype) !void {
+    const args = try json(a, params);
+    defer a.free(args);
+    const raw = try socket.call(method, args);
+    defer a.free(raw);
+    try interceptionResult(try parse(a, raw));
+}
+
+test "only the exact stale interception error is a completed cancellation" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    try interceptionResult(try parse(a, "{\"result\":{}}"));
+    try interceptionResult(try parse(a, "{\"error\":{\"code\":-32602,\"message\":\"Invalid InterceptionId.\"}}"));
+    for ([_][]const u8{
+        "{\"error\":{\"code\":-1,\"message\":\"Invalid InterceptionId.\"}}",
+        "{\"error\":{\"code\":\"-32602\",\"message\":\"Invalid InterceptionId.\"}}",
+        "{\"error\":{\"code\":-32602,\"message\":\"Other failure\"}}",
+        "{\"error\":{}}",
+    }) |raw| try std.testing.expectError(error.CdpCommandFailed, interceptionResult(try parse(a, raw)));
+    try std.testing.expectError(error.InvalidProtocolReply, interceptionResult(try parse(a, "{}")));
+}
+
 pub const Request = struct {
     id: []const u8,
     url: []const u8,
@@ -326,7 +362,7 @@ pub const Page = struct {
             for (self.origins) |origin| {
                 if (std.mem.startsWith(u8, url_value, origin) and (url_value.len == origin.len or url_value[origin.len] == '/')) allowed = true;
             }
-            if (allowed) _ = try self.command("Fetch.continueRequest", .{ .requestId = str(field(p, "requestId")) }) else _ = try self.command("Fetch.failRequest", .{ .requestId = str(field(p, "requestId")), .errorReason = "BlockedByClient" });
+            if (allowed) try resolveInterception(self.a, &self.socket, "Fetch.continueRequest", .{ .requestId = str(field(p, "requestId")) }) else try resolveInterception(self.a, &self.socket, "Fetch.failRequest", .{ .requestId = str(field(p, "requestId")), .errorReason = "BlockedByClient" });
         } else if (std.mem.eql(u8, method, "Network.requestWillBeSent")) {
             if (self.requests.items.len >= 20000) return error.RequestLimitExceeded;
             const request = field(p, "request");
