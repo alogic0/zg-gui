@@ -117,7 +117,7 @@ pub const Browser = struct {
         p.socket.event_handler = Page.onEvent;
         _ = try p.command("Page.enable", .{});
         _ = try p.command("Runtime.enable", .{});
-        _ = try p.command("Network.enable", .{ .maxTotalBufferSize = 64 * 1024 * 1024, .maxResourceBufferSize = 20 * 1024 * 1024, .maxPostDataSize = 1024 * 1024 });
+        _ = try p.command("Network.enable", .{ .maxTotalBufferSize = 64 * 1024 * 1024, .maxResourceBufferSize = 20 * 1024 * 1024, .maxPostDataSize = 1024 * 1024, .enableDurableMessages = true });
         _ = try p.command("Fetch.enable", .{ .patterns = .{.{ .urlPattern = "*", .requestStage = "Request" }} });
         _ = try p.command("Emulation.setDeviceMetricsOverride", .{ .width = 1280, .height = 720, .deviceScaleFactor = 1, .mobile = false });
         _ = try self.command("Browser.setDownloadBehavior", .{ .behavior = "allowAndName", .browserContextId = context, .downloadPath = self.downloads_dir, .eventsEnabled = true });
@@ -268,21 +268,28 @@ pub const Page = struct {
     }
     pub fn pump(self: *Page) !void {
         _ = try self.command("Runtime.evaluate", .{ .expression = "0", .returnByValue = true });
-        var i: usize = 0;
-        while (i < self.requests.items.len) : (i += 1) {
-            const r = self.requests.items[i];
-            if (!r.finished or r.failed or r.body != null or r.body_unavailable or r.status == 0) continue;
-            // Body ownership is bounded by Network.enable and the wire frame limit.
-            const result = self.command("Network.getResponseBody", .{ .requestId = r.id }) catch {
-                r.body_unavailable = true;
-                continue;
-            };
-            const body_bytes = str(field(result, "body"));
-            if (boolean(field(result, "base64Encoded"))) {
-                const decoded = try self.a.alloc(u8, try std.base64.standard.Decoder.calcSizeForSlice(body_bytes));
-                try std.base64.standard.Decoder.decode(decoded, body_bytes);
-                r.body = decoded;
-            } else r.body = body_bytes;
+        // Body commands can deliver completion events for earlier requests.
+        // Drain those completions too before publishing a response or snapshot.
+        var captured = true;
+        while (captured) {
+            captured = false;
+            var i: usize = 0;
+            while (i < self.requests.items.len) : (i += 1) {
+                const r = self.requests.items[i];
+                if (!r.finished or r.failed or r.body != null or r.body_unavailable or r.status == 0) continue;
+                captured = true;
+                // Body ownership is bounded by Network.enable and the wire frame limit.
+                const result = self.command("Network.getResponseBody", .{ .requestId = r.id }) catch {
+                    r.body_unavailable = true;
+                    continue;
+                };
+                const body_bytes = str(field(result, "body"));
+                if (boolean(field(result, "base64Encoded"))) {
+                    const decoded = try self.a.alloc(u8, try std.base64.standard.Decoder.calcSizeForSlice(body_bytes));
+                    try std.base64.standard.Decoder.decode(decoded, body_bytes);
+                    r.body = decoded;
+                } else r.body = body_bytes;
+            }
         }
     }
     fn find(self: *Page, id: []const u8) ?*Request {

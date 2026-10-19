@@ -26,6 +26,18 @@ test "owned CDP actual input upload download isolation and origin denial" {
     defer browser.stop();
     const p = try browser.page(&.{});
     defer p.close();
+    const mark = try p.mark();
+    _ = try p.eval("Promise.all([fetch('data:text/plain,first-body').then(r=>r.text()),fetch('data:text/plain,second-body').then(r=>r.text())])");
+    try p.pump();
+    var bodies: usize = 0;
+    for (p.requests.items[mark..]) |r| {
+        if (std.mem.startsWith(u8, r.url, "data:text/plain,")) {
+            try std.testing.expect(r.finished and r.body != null);
+            try std.testing.expectEqualStrings(r.url["data:text/plain,".len..], r.body.?);
+            bodies += 1;
+        }
+    }
+    try std.testing.expectEqual(@as(usize, 2), bodies);
     _ = try p.eval("document.body.innerHTML='<label>Name<input id=entry></label><input type=file id=file><button id=act>Download</button><button disabled>Disabled</button>';window.trusted=[];document.addEventListener('input',e=>trusted.push(e.isTrusted));document.querySelector('#act').onclick=()=>{const a=document.createElement(\"a\");a.href=URL.createObjectURL(new Blob([\"exact,bytes\\r\\n\"]));a.download=\"fixture.csv\";a.click()};true");
     try p.label("Name").fill("native input");
     try std.testing.expect(J.boolean(try p.eval("document.querySelector('#entry').value==='native input'&&trusted.length===1&&trusted[0]")));
