@@ -440,6 +440,8 @@ pub const Locator = struct {
             try std.Io.sleep(self.page.io, .fromMilliseconds(50), .awake);
         }
         std.debug.print("Actionability timeout: {s}\n", .{self.expression});
+        const diagnostic = self.evalAll("ns=>ns.map(n=>({tag:n.tagName,visible:__cdp.visible(n),disabled:n.disabled,ariaDisabled:n.getAttribute('aria-disabled'),rect:n.getBoundingClientRect().toJSON(),viewport:[innerWidth,innerHeight]}))") catch .null;
+        std.debug.print("Actionability state: {s}\n", .{try json(self.page.a, diagnostic)});
         return error.ElementNotActionable;
     }
     pub fn focus(self: Locator) !void {
