@@ -2,6 +2,7 @@
 //! Provides loopback target management, RFC 6455 WebSocket framing,
 //! JSON-RPC evaluation, and headless process lifecycle.
 const std = @import("std");
+pub const journey = @import("cdp_journey.zig");
 
 pub const Target = struct {
     id: []const u8,
@@ -34,8 +35,15 @@ pub const WsSession = struct {
     io: std.Io,
     alloc: std.mem.Allocator,
     next_id: u32 = 1,
+    pending: std.ArrayList([]const u8) = .empty,
+    pending_bytes: usize = 0,
+    event_context: ?*anyopaque = null,
+    event_handler: ?*const fn (*anyopaque, *WsSession, []const u8) anyerror!void = null,
+    pub const max_message_bytes = 64 * 1024 * 1024;
 
     pub fn close(self: *WsSession) void {
+        for (self.pending.items) |message| self.alloc.free(message);
+        self.pending.deinit(self.alloc);
         self.stream.close(self.io);
     }
 
@@ -61,43 +69,70 @@ pub const WsSession = struct {
             try w.interface.writeAll(&len_bytes);
         }
 
-        // Masking key: 4 zeros (RFC 6455 XOR with 0 is identity)
-        try w.interface.writeAll(&[_]u8{ 0, 0, 0, 0 });
-        try w.interface.writeAll(payload);
+        var mask: [4]u8 = undefined;
+        self.io.random(&mask);
+        try w.interface.writeAll(&mask);
+        var chunk: [4096]u8 = undefined;
+        var offset: usize = 0;
+        while (offset < payload.len) {
+            const n = @min(chunk.len, payload.len - offset);
+            for (chunk[0..n], 0..) |*byte, i| byte.* = payload[offset + i] ^ mask[(offset + i) % 4];
+            try w.interface.writeAll(chunk[0..n]);
+            offset += n;
+        }
         try w.interface.flush();
     }
 
+    fn readExact(self: *WsSession, bytes: []u8) !void {
+        var offset: usize = 0;
+        while (offset < bytes.len) {
+            var buffers = [_][]u8{bytes[offset..]};
+            const result = try self.io.operateTimeout(.{ .net_read = .{
+                .socket_handle = self.stream.socket.handle,
+                .data = &buffers,
+            } }, .{ .duration = .{ .raw = .fromSeconds(30), .clock = .awake } });
+            const n = (try result.net_read).data_len;
+            if (n == 0) return error.ConnectionClosed;
+            offset += n;
+        }
+    }
+
     pub fn receiveRaw(self: *WsSession) ![]const u8 {
-        var rb: [8192]u8 = undefined;
-        var r = self.stream.reader(self.io, &rb);
-
+        var message: std.ArrayList(u8) = .empty;
+        errdefer message.deinit(self.alloc);
+        var fragmented = false;
         while (true) {
-            const b0 = try r.interface.takeByte();
+            var head: [2]u8 = undefined;
+            try self.readExact(&head);
+            const b0 = head[0];
             const opcode = b0 & 0x0F;
-
-            const b1 = try r.interface.takeByte();
+            if (b0 & 0x70 != 0) return error.InvalidWebSocketFrame;
+            const final = b0 & 0x80 != 0;
+            const b1 = head[1];
             const masked = (b1 & 0x80) != 0;
             const len_byte = b1 & 0x7F;
 
             var payload_len: usize = len_byte;
             if (len_byte == 126) {
                 var len_bytes: [2]u8 = undefined;
-                try r.interface.readSliceAll(&len_bytes);
+                try self.readExact(&len_bytes);
                 payload_len = std.mem.readInt(u16, &len_bytes, .big);
             } else if (len_byte == 127) {
                 var len_bytes: [8]u8 = undefined;
-                try r.interface.readSliceAll(&len_bytes);
-                payload_len = @as(usize, @intCast(std.mem.readInt(u64, &len_bytes, .big)));
+                try self.readExact(&len_bytes);
+                payload_len = std.math.cast(usize, std.mem.readInt(u64, &len_bytes, .big)) orelse return error.MessageTooLarge;
             }
+            if (payload_len > max_message_bytes - message.items.len) return error.MessageTooLarge;
+            if (opcode >= 8 and (!final or payload_len > 125)) return error.InvalidWebSocketFrame;
 
             var mask_key: [4]u8 = undefined;
             if (masked) {
-                try r.interface.readSliceAll(&mask_key);
+                try self.readExact(&mask_key);
             }
 
             const buf = try self.alloc.alloc(u8, payload_len);
-            errdefer self.alloc.free(buf);
-            try r.interface.readSliceAll(buf);
+            defer self.alloc.free(buf);
+            try self.readExact(buf);
 
             if (masked) {
                 for (buf, 0..) |*b, i| {
@@ -105,16 +140,53 @@ pub const WsSession = struct {
                 }
             }
 
-            if (opcode == 1) { // text frame
-                return buf;
-            } else if (opcode == 8) { // close frame
-                self.alloc.free(buf);
-                return error.ConnectionClosed;
-            } else if (opcode == 9) { // ping frame -> respond with pong
-                self.alloc.free(buf);
-                continue;
+            switch (opcode) {
+                0, 1 => {
+                    if ((opcode == 0) != fragmented) return error.InvalidWebSocketFrame;
+                    try message.appendSlice(self.alloc, buf);
+                    if (final) return message.toOwnedSlice(self.alloc);
+                    fragmented = true;
+                },
+                8 => return error.ConnectionClosed,
+                9 => {
+                    var wb: [256]u8 = undefined;
+                    var writer = self.stream.writer(self.io, &wb);
+                    var mask: [4]u8 = undefined;
+                    self.io.random(&mask);
+                    try writer.interface.writeAll(&.{ 0x8a, 0x80 | @as(u8, @intCast(buf.len)) });
+                    try writer.interface.writeAll(&mask);
+                    for (buf, 0..) |byte, i| try writer.interface.writeByte(byte ^ mask[i % 4]);
+                    try writer.interface.flush();
+                },
+                10 => {},
+                else => return error.InvalidWebSocketFrame,
             }
         }
+    }
+
+    pub fn takeEvent(self: *WsSession) ?[]const u8 {
+        for (self.pending.items, 0..) |raw, index| {
+            if ((responseId(self.alloc, raw) catch return null) == null) {
+                self.pending_bytes -= raw.len;
+                return self.pending.orderedRemove(index);
+            }
+        }
+        return null;
+    }
+
+    fn retain(self: *WsSession, raw: []const u8) !void {
+        if (self.pending.items.len >= 8192 or raw.len > max_message_bytes - self.pending_bytes) return error.EventLimitExceeded;
+        try self.pending.append(self.alloc, raw);
+        self.pending_bytes += raw.len;
+    }
+
+    pub fn responseId(alloc: std.mem.Allocator, raw: []const u8) !?u32 {
+        const parsed = try std.json.parseFromSlice(std.json.Value, alloc, raw, .{});
+        defer parsed.deinit();
+        if (parsed.value != .object) return error.InvalidProtocolReply;
+        const id = parsed.value.object.get("id") orelse return null;
+        if (id != .integer) return error.InvalidProtocolReply;
+        return std.math.cast(u32, id.integer) orelse error.InvalidProtocolReply;
     }
 
     /// Sends a JSON-RPC command and waits for the response with the matching ID.
@@ -130,16 +202,25 @@ pub const WsSession = struct {
 
         try self.sendRaw(cmd);
 
-        var id_buf: [32]u8 = undefined;
-        const id_str = try std.fmt.bufPrint(&id_buf, "\"id\":{d}", .{id});
-
         while (true) {
-            const raw = try self.receiveRaw();
-            if (std.mem.indexOf(u8, raw, id_str) != null) {
-                return raw;
+            for (self.pending.items, 0..) |pending, index| {
+                if (try responseId(self.alloc, pending) == id) {
+                    self.pending_bytes -= pending.len;
+                    return self.pending.orderedRemove(index);
+                }
             }
-            // Event or different message; free and keep waiting
-            self.alloc.free(raw);
+            const raw = try self.receiveRaw();
+            errdefer self.alloc.free(raw);
+            const received_id = try responseId(self.alloc, raw);
+            if (received_id == id) return raw;
+            if (received_id == null) {
+                if (self.event_handler) |handler| {
+                    try handler(self.event_context.?, self, raw);
+                    self.alloc.free(raw);
+                    continue;
+                }
+            }
+            try self.retain(raw);
         }
     }
 
@@ -511,6 +592,14 @@ pub const CdpClient = struct {
         return true;
     }
 
+    pub fn connectBrowser(self: CdpClient) !WsSession {
+        const body = try self.http("GET", "/json/version");
+        defer self.alloc.free(body);
+        const parsed = try std.json.parseFromSlice(std.json.Value, self.alloc, body, .{});
+        defer parsed.deinit();
+        return self.connectWs(parsed.value.object.get("webSocketDebuggerUrl").?.string);
+    }
+
     pub fn listTargets(self: CdpClient) ![]Target {
         const body = try self.http("GET", "/json/list");
         defer self.alloc.free(body);
@@ -590,7 +679,7 @@ pub const CdpClient = struct {
         const stream = try (try std.Io.net.IpAddress.parse("127.0.0.1", self.port)).connect(self.io, .{ .mode = .stream });
         errdefer stream.close(self.io);
 
-        var rb: [4096]u8 = undefined;
+        var rb: [1]u8 = undefined;
         var wb: [2048]u8 = undefined;
         var r = stream.reader(self.io, &rb);
         var w = stream.writer(self.io, &wb);
