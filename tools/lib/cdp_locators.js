@@ -15,7 +15,10 @@
     one: ns => { if(ns.length!==1 || !ns[0]) throw Error('locator must resolve exactly once'); return ns[0]; },
     role: (root, o) => [...root.querySelectorAll('*')].filter(n => role(n)===o.role && visible(n) && !n.closest('[aria-hidden="true"]') && (o.name===null || (o.regex ? new RegExp(o.name).test(accessible(n)) : o.exact ? accessible(n)===o.name : accessible(n).includes(o.name)))),
     label: (root, name) => [...root.querySelectorAll('input,select,textarea,button')].filter(n=>accessible(n)===name),
-    text: (root, name, regex) => [...root.querySelectorAll('*')].filter(n=>visible(n) && (regex ? new RegExp(name).test(normalize(n.textContent)) : normalize(n.textContent)===name) && ![...n.children].some(c=>visible(c) && (regex ? new RegExp(name).test(normalize(c.textContent)) : normalize(c.textContent)===name))),
+    text: (root, name, regex) => {
+      const matches = [...root.querySelectorAll('*')].filter(n=>visible(n) && (regex ? new RegExp(name).test(normalize(n.textContent)) : normalize(n.textContent)===name));
+      return matches.filter(n=>!matches.some(child=>child!==n && n.contains(child)));
+    },
     point: n => {
       if(!visible(n) || n.disabled || n.getAttribute('aria-disabled')==='true' || n.closest('[inert]')) return null;
       n.scrollIntoView({block:'center',inline:'center'});

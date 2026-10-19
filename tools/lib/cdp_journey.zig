@@ -344,6 +344,9 @@ pub const Page = struct {
     pub fn text(self: *Page, value: []const u8) Locator {
         return .{ .page = self, .expression = self.a.print("__cdp.text(document,{s},false)", .{json(self.a, value) catch unreachable}) catch unreachable };
     }
+    pub fn textRegex(self: *Page, value: []const u8) Locator {
+        return .{ .page = self, .expression = self.a.print("__cdp.text(document,{s},true)", .{json(self.a, value) catch unreachable}) catch unreachable };
+    }
     pub fn label(self: *Page, value: []const u8) Locator {
         return .{ .page = self, .expression = self.a.print("__cdp.label(document,{s})", .{json(self.a, value) catch unreachable}) catch unreachable };
     }

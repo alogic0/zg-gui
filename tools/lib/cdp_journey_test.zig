@@ -38,6 +38,8 @@ test "owned CDP actual input upload download isolation and origin denial" {
     try std.testing.expectEqualStrings("exact,bytes\r\n", J.str(J.field(download, "csv")));
     _ = try p.eval("document.body.insertAdjacentHTML('beforeend','<section hidden><button>Download</button></section>');true");
     try std.testing.expectEqual(@as(usize, 1), try p.role(.{ .role = "button", .name = "Download" }).count());
+    _ = try p.eval("document.body.insertAdjacentHTML('beforeend','<div style=\"display:contents\"><p>Estimated amount: $0.02 (reference)</p></div>');true");
+    try std.testing.expectEqual(@as(usize, 1), try p.textRegex("Estimated amount: \\$0.02").count());
     _ = try p.eval("window.onbeforeunload=e=>{e.preventDefault();e.returnValue='';};true");
     try p.reload();
     _ = try p.eval("document.body.innerHTML='<button>Download</button><button disabled>Disabled</button>';true");
