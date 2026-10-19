@@ -499,6 +499,8 @@ pub const Locator = struct {
     }
     pub fn file(self: Locator, filename: []const u8) !void {
         try self.waitAttached();
+        // File controls may be hidden, but must be enabled before selection.
+        try self.page.wait(try self.page.a.print("({s}).length===1&&!__cdp.one({s}).matches(':disabled')", .{ self.expression, self.expression }));
         const result = try self.page.command("Runtime.evaluate", .{ .expression = try self.page.a.print("__cdp.one({s})", .{self.expression}), .returnByValue = false });
         const id = str(field(field(result, "result"), "objectId"));
         if (id.len == 0) return error.FileInputMissing;

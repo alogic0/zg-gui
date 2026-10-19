@@ -43,7 +43,9 @@ test "owned CDP actual input upload download isolation and origin denial" {
     try std.testing.expect(J.boolean(try p.eval("document.querySelector('#entry').value==='native input'&&trusted.length===1&&trusted[0]")));
     const owned = try a.print("{s}/upload.csv", .{browser.profile});
     try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = owned, .data = "header\nvalue\n" });
+    _ = try p.eval("const file=document.querySelector('#file');file.disabled=true;file.hidden=true;window.fileReady=false;file.onchange=()=>fileReady=!file.disabled;setTimeout(()=>file.disabled=false,200);true");
     try p.css("#file").file(owned);
+    try std.testing.expect(J.boolean(try p.eval("fileReady")));
     try std.testing.expectEqualStrings("header\nvalue\n", J.str(try p.eval("document.querySelector('#file').files[0].text()")));
     const download = try p.download(p.role(.{ .role = "button", .name = "Download" }), try a.print("{s}/result.csv", .{browser.profile}));
     try std.testing.expectEqualStrings("fixture.csv", J.str(J.field(download, "filename")));
