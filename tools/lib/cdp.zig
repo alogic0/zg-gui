@@ -35,6 +35,7 @@ pub const WsSession = struct {
     io: std.Io,
     alloc: std.mem.Allocator,
     next_id: u32 = 1,
+    failed: bool = false,
     pending: std.ArrayList([]const u8) = .empty,
     pending_bytes: usize = 0,
     event_context: ?*anyopaque = null,
@@ -191,6 +192,8 @@ pub const WsSession = struct {
 
     /// Sends a JSON-RPC command and waits for the response with the matching ID.
     pub fn call(self: *WsSession, method: []const u8, params_json: ?[]const u8) ![]const u8 {
+        if (self.failed) return error.ConnectionClosed;
+        errdefer self.failed = true;
         const id = self.next_id;
         self.next_id += 1;
 

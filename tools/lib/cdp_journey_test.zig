@@ -27,6 +27,9 @@ test "owned CDP actual input upload download isolation and origin denial" {
     const download = try p.download(p.role(.{ .role = "button", .name = "Download" }), try a.print("{s}/result.csv", .{browser.profile}));
     try std.testing.expectEqualStrings("fixture.csv", J.str(J.field(download, "filename")));
     try std.testing.expectEqualStrings("exact,bytes\r\n", J.str(J.field(download, "csv")));
+    _ = try p.eval("window.onbeforeunload=e=>{e.preventDefault();e.returnValue='';};true");
+    try p.reload();
+    _ = try p.eval("document.body.innerHTML='<button>Download</button><button disabled>Disabled</button>';true");
     p.timeout_ms = 100;
     try std.testing.expectError(error.ElementNotActionable, p.role(.{ .role = "button", .name = "Disabled" }).click());
     _ = try p.eval("document.body.insertAdjacentHTML('beforeend','<div style=\"position:fixed;inset:0;z-index:999\"></div>');true");

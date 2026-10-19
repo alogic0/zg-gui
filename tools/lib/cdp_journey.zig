@@ -134,7 +134,8 @@ fn commandValue(a: A, socket: *cdp.WsSession, method: []const u8, params: anytyp
     defer a.free(raw);
     const value = try parse(a, raw);
     if (field(value, "error") != .null) {
-        std.debug.print("CDP command failed: {s}: {s}\n", .{ method, str(field(field(value, "error"), "message")) });
+        if (!std.mem.eql(u8, method, "Network.getResponseBody"))
+            std.debug.print("CDP command failed: {s}: {s}\n", .{ method, str(field(field(value, "error"), "message")) });
         return error.CdpCommandFailed;
     }
     return field(value, "result");
@@ -172,6 +173,7 @@ pub const Page = struct {
     timeout_ms: i64 = 30000,
     next_handle: usize = 0,
     closed: bool = false,
+    allow_unload: bool = false,
 
     pub fn close(self: *Page) void {
         if (self.closed) return;
@@ -208,12 +210,16 @@ pub const Page = struct {
         return error.BrowserConditionTimeout;
     }
     pub fn goto(self: *Page, target_url: []const u8) !void {
+        self.allow_unload = true;
+        defer self.allow_unload = false;
         const old = try self.eval("performance.timeOrigin");
         _ = try self.command("Page.navigate", .{ .url = target_url });
         try self.wait(try self.a.print("performance.timeOrigin !== {s}", .{try json(self.a, old)}));
         try self.wait("document.readyState === 'complete' && typeof window.__cdp === 'object'");
     }
     pub fn reload(self: *Page) !void {
+        self.allow_unload = true;
+        defer self.allow_unload = false;
         const old = try self.eval("performance.timeOrigin");
         _ = try self.command("Page.reload", .{});
         try self.wait(try self.a.print("performance.timeOrigin !== {s}", .{try json(self.a, old)}));
@@ -279,7 +285,11 @@ pub const Page = struct {
         const v = try parse(self.a, raw);
         const method = str(field(v, "method"));
         const p = field(v, "params");
-        if (std.mem.eql(u8, method, "Fetch.requestPaused")) {
+        if (std.mem.eql(u8, method, "Page.javascriptDialogOpening")) {
+            const accepted_unload = self.allow_unload and std.mem.eql(u8, str(field(p, "type")), "beforeunload");
+            _ = try self.command("Page.handleJavaScriptDialog", .{ .accept = accepted_unload });
+            if (!accepted_unload) return error.UnexpectedBrowserDialog;
+        } else if (std.mem.eql(u8, method, "Fetch.requestPaused")) {
             const url_value = str(field(field(p, "request"), "url"));
             var allowed = std.mem.startsWith(u8, url_value, "data:") or std.mem.startsWith(u8, url_value, "blob:") or std.mem.eql(u8, url_value, "about:blank");
             for (self.origins) |origin| {

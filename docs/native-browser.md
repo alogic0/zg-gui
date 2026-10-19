@@ -24,6 +24,10 @@ input. `file` uses the protocol's file-input command. `handle` retains an actual
 DOM object for identity assertions. Browser-side JS performs DOM queries only;
 native callers own scenario state and sequencing.
 
+Explicit navigation/reload accepts its `beforeunload` confirmation. Other native
+dialogs are dismissed and fail the journey. A failed wire command seals its
+connection; callers must close it rather than reuse a partially read frame.
+
 Frames and retained messages are bounded to 64 MiB; pending messages to 8,192;
 observed requests to 20,000. Socket reads have a 30-second timeout. Callers use
 one task per connection; connection event callbacks may issue nested commands.
