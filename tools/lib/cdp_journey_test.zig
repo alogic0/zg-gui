@@ -40,6 +40,9 @@ test "owned CDP actual input upload download isolation and origin denial" {
     try std.testing.expectEqual(@as(usize, 1), try p.role(.{ .role = "button", .name = "Download" }).count());
     _ = try p.eval("document.body.insertAdjacentHTML('beforeend','<div style=\"display:contents\"><p>Estimated amount: $0.02 (reference)</p></div>');true");
     try std.testing.expectEqual(@as(usize, 1), try p.textRegex("Estimated amount: \\$0.02").count());
+    _ = try p.eval("document.body.insertAdjacentHTML('beforeend','<button id=shift>Moving control</button>');window.movedClick=false;const shift=document.querySelector('#shift');shift.onmouseenter=()=>shift.style.marginLeft='160px';shift.onclick=()=>movedClick=true;true");
+    try p.role(.{ .role = "button", .name = "Moving control" }).click();
+    try std.testing.expect(J.boolean(try p.eval("movedClick")));
     _ = try p.eval("window.onbeforeunload=e=>{e.preventDefault();e.returnValue='';};true");
     try p.reload();
     _ = try p.eval("document.body.innerHTML='<button>Download</button><button disabled>Disabled</button>';true");

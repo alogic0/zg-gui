@@ -21,8 +21,9 @@ may contain credentials and must not be dumped wholesale.
 Locators support CSS, scoped roles with names, form labels and visible text.
 Their name computation covers labels, aria-label/labelledby and text content; it
 is a bounded helper, not a complete accessibility-name implementation. Ambiguous
-actions fail. `click` checks visibility, enabled state and center-point hit testing,
-then uses browser mouse input. `fill` selects a form value and uses browser text
+actions fail. `click` checks visibility, enabled state, center-point hit testing
+and stable geometry across animation frames after hover, then uses browser mouse
+input. `waitEnabled` waits for an operable visible control. `fill` selects a form value and uses browser text
 input. `file` uses the protocol's file-input command. `handle` retains an actual
 DOM object for identity assertions. Browser-side JS performs DOM queries only;
 native callers own scenario state and sequencing.

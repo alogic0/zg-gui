@@ -431,6 +431,9 @@ pub const Locator = struct {
     pub fn waitVisible(self: Locator) !void {
         try self.page.wait(try self.page.a.print("({s}).length===1&&__cdp.visible(({s})[0])", .{ self.expression, self.expression }));
     }
+    pub fn waitEnabled(self: Locator) !void {
+        try self.page.wait(try self.page.a.print("({s}).length===1&&__cdp.visible(({s})[0])&&!({s})[0].disabled&&({s})[0].getAttribute('aria-disabled')!=='true'", .{ self.expression, self.expression, self.expression, self.expression }));
+    }
     pub fn waitHidden(self: Locator) !void {
         try self.page.wait(try self.page.a.print("({s}).every(n=>!__cdp.visible(n))", .{self.expression}));
     }
@@ -448,8 +451,11 @@ pub const Locator = struct {
                 const x = field(point, "x");
                 const y = field(point, "y");
                 _ = try self.page.command("Input.dispatchMouseEvent", .{ .type = "mouseMoved", .x = x, .y = y });
-                _ = try self.page.command("Input.dispatchMouseEvent", .{ .type = "mousePressed", .x = x, .y = y, .button = "left", .clickCount = @as(u32, 1) });
-                _ = try self.page.command("Input.dispatchMouseEvent", .{ .type = "mouseReleased", .x = x, .y = y, .button = "left", .clickCount = @as(u32, 1) });
+                _ = try self.page.eval("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(true))))");
+                const settled = try self.evalAll("ns=>ns.length===1?__cdp.point(ns[0]):null");
+                if (settled != .object or !std.mem.eql(u8, try json(self.page.a, point), try json(self.page.a, settled))) continue;
+                _ = try self.page.command("Input.dispatchMouseEvent", .{ .type = "mousePressed", .x = x, .y = y, .button = "left", .buttons = @as(u32, 1), .clickCount = @as(u32, 1) });
+                _ = try self.page.command("Input.dispatchMouseEvent", .{ .type = "mouseReleased", .x = x, .y = y, .button = "left", .buttons = @as(u32, 0), .clickCount = @as(u32, 1) });
                 return;
             }
             try self.page.pump();
