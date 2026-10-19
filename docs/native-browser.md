@@ -10,6 +10,9 @@ creates a separate browser context. The allowlist contains exact HTTP origins.
 `Page` exposes navigation, initial document scripts, JSON-valued evaluation,
 observed requests, screenshots and completed downloads. `mark()` followed by
 `response(.{ .after, .method, .path })` correlates actual observed HTTP traffic.
+`responseAny(matches)` returns the first observed matching response when a
+workflow can take several paths. `Request.header(name)` performs case-insensitive
+HTTP header lookup while preserving the observed spelling in `headers`.
 `download(control, output)` activates the control and requires a completed browser
 download before returning its suggested filename and exact bytes. Consumers own
 the destination file, report redaction and workflow assertions. Request captures

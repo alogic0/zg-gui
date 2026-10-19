@@ -60,7 +60,7 @@ pub const Browser = struct {
         var random: [12]u8 = undefined;
         io.random(&random);
         const profile = try a.print("/tmp/owned-cdp-{s}", .{std.fmt.bytesToHex(random, .lower)});
-        try std.Io.Dir.cwd().createDir(io, profile, .default_dir);
+        try std.Io.Dir.cwd().createDir(io, profile, .fromMode(0o700));
         errdefer std.Io.Dir.cwd().deleteTree(io, profile) catch {};
         const arg = try a.print("--user-data-dir={s}", .{profile});
         var child = try std.process.spawn(io, .{ .argv = &.{ cdp.findBrowserExecutable(io) orelse return error.NoBrowserFound, "--headless=new", "--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0", arg, "--no-first-run", "--no-default-browser-check", "--disable-sync", "--disable-background-networking", "--disable-search-engine-choice-screen", "--force-color-profile=srgb", "about:blank" }, .stdin = .close, .stdout = .ignore, .stderr = .ignore });
@@ -152,6 +152,14 @@ pub const Request = struct {
     finished: bool = false,
     failed: bool = false,
     body_unavailable: bool = false,
+    pub fn header(self: *const Request, name: []const u8) V {
+        if (self.headers != .object) return .null;
+        var it = self.headers.object.iterator();
+        while (it.next()) |entry| {
+            if (std.ascii.eqlIgnoreCase(entry.key_ptr.*, name)) return entry.value_ptr.*;
+        }
+        return .null;
+    }
     pub fn response(self: *Request, a: A) !V {
         return val(a, .{ .path = path(self.url), .status = self.status, .body = try parse(a, self.body orelse return error.ResponseBodyUnavailable) });
     }
@@ -237,20 +245,25 @@ pub const Page = struct {
     }
     pub const Match = struct { after: usize, method: []const u8, path: []const u8, query: ?[]const u8 = null, query_key: []const u8 = "q" };
     pub fn response(self: *Page, match: Match) !*Request {
+        return self.responseAny(&.{match});
+    }
+    pub fn responseAny(self: *Page, matches: []const Match) !*Request {
+        if (matches.len == 0) return error.EmptyResponseMatch;
         const deadline = now(self.io) + self.timeout_ms;
         while (now(self.io) < deadline) {
             try self.pump();
-            for (self.requests.items[@min(match.after, self.requests.items.len)..]) |r| {
+            for (self.requests.items, 0..) |r, index| for (matches) |match| {
+                if (index < match.after) continue;
                 if (!std.mem.eql(u8, r.method, match.method) or !std.mem.eql(u8, path(r.url), match.path) or r.status == 0 or !r.finished) continue;
                 if (match.query) |query| {
                     const matched = try self.evaluate("x => (new URL(x.url).searchParams.get(x.key) || '') === x.query", .{ .url = r.url, .key = match.query_key, .query = query });
                     if (!boolean(matched)) continue;
                 }
                 return r;
-            }
+            };
             try std.Io.sleep(self.io, .fromMilliseconds(50), .awake);
         }
-        std.debug.print("Response timeout: {s} {s}\n", .{ match.method, match.path });
+        for (matches) |match| std.debug.print("Response timeout: {s} {s}\n", .{ match.method, match.path });
         return error.ResponseTimeout;
     }
     pub fn pump(self: *Page) !void {

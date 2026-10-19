@@ -2,6 +2,15 @@ const std = @import("std");
 const cdp = @import("cdp.zig");
 const J = cdp.journey;
 
+test "observed response headers are case insensitive" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const r: J.Request = .{ .id = "1", .url = "http://fixture.invalid/", .method = "GET", .post_data = "", .headers = try J.parse(arena.allocator(), "{\"X-Request-Id\":\"receipt\",\"Content-Type\":\"application/json\"}") };
+    try std.testing.expectEqualStrings("receipt", J.str(r.header("x-request-id")));
+    try std.testing.expectEqualStrings("application/json", J.str(r.header("CONTENT-TYPE")));
+    try std.testing.expect(r.header("missing") == .null);
+}
+
 test "CDP exact numeric reply identity" {
     try std.testing.expectEqual(@as(?u32, 10), try cdp.WsSession.responseId(std.testing.allocator, "{\"id\":10,\"result\":{\"id\":1}}"));
     try std.testing.expectEqual(@as(?u32, null), try cdp.WsSession.responseId(std.testing.allocator, "{\"method\":\"Network.responseReceived\",\"params\":{\"id\":1}}"));

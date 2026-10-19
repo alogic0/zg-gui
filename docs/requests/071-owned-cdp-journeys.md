@@ -22,7 +22,8 @@ after closing connections and joining the owned process. Application acceptance,
 cross-engine support and performance claims are outside this contract.
 
 `cdp.journey` is documented in [native browser journeys](../native-browser.md).
-`zig build test-tools --summary all` passes six tests, including actual browser
+`zig build test-tools --summary all` passes seven tests, including case-insensitive
+observed response headers and actual browser
 input/upload/download, context cookie isolation, external-origin denial and
 covered/disabled rejection. Protocol IDs are structurally parsed; interleaved
 events/replies retain owners. General malformed-frame/fault/cancellation matrices
