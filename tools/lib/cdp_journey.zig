@@ -91,9 +91,20 @@ pub const Browser = struct {
         return self;
     }
     pub fn stop(self: *Browser) void {
+        _ = self.command("Browser.close", .{}) catch {};
         self.socket.close();
+        // Give browser children time to finish profile writes before removal.
+        const Closed = union(enum) { process: std.process.Child.WaitError!std.process.Child.Term, deadline: std.Io.Cancelable!void };
+        var results: [2]Closed = undefined;
+        var closing = std.Io.Select(Closed).init(self.io, &results);
+        closing.async(.process, std.process.Child.wait, .{ &self.child, self.io });
+        closing.async(.deadline, std.Io.sleep, .{ self.io, .fromSeconds(2), .awake });
+        _ = closing.await() catch {};
+        closing.cancelDiscard();
         self.child.kill(self.io);
-        std.Io.Dir.cwd().deleteTree(self.io, self.profile) catch {};
+        std.Io.Dir.cwd().deleteTree(self.io, self.profile) catch |err| {
+            std.debug.print("Owned browser profile cleanup failed: {s}: {s}\n", .{ self.profile, @errorName(err) });
+        };
     }
     pub fn command(self: *Browser, method: []const u8, params: anytype) !V {
         return commandValue(self.a, &self.socket, method, params);

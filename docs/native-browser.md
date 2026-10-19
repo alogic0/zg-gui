@@ -4,7 +4,9 @@ Import the public `cdp` build module and use `cdp.journey.Browser.start(allocato
 io)` for an owned headless Chromium process. Allocate a journey in an arena;
 close each `Page`, call `Browser.stop()`, then destroy the arena. The browser
 creates an exclusive temporary profile, discovers its own ephemeral debug port,
-and removes that profile after joining its process. Each `browser.page(origins)`
+and removes that profile after joining its process. Shutdown requests browser
+closure, allows two seconds for process exit, then cancels and joins the wait
+before any forced termination. Cleanup errors are reported. Each `browser.page(origins)`
 creates a separate browser context. The allowlist contains exact HTTP origins.
 
 `Page` exposes navigation, initial document scripts, JSON-valued evaluation,

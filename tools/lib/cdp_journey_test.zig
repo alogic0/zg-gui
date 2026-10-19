@@ -2,6 +2,18 @@ const std = @import("std");
 const cdp = @import("cdp.zig");
 const J = cdp.journey;
 
+test "owned browser shutdown removes the profile after process exit" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const io = std.testing.io;
+    const browser = try J.Browser.start(arena.allocator(), io);
+    browser.stop();
+    try std.testing.expect(browser.child.id == null);
+    try std.testing.expectError(error.FileNotFound, std.Io.Dir.cwd().access(io, browser.profile, .{}));
+    try std.Io.sleep(io, .fromMilliseconds(100), .awake);
+    try std.testing.expectError(error.FileNotFound, std.Io.Dir.cwd().access(io, browser.profile, .{}));
+}
+
 test "observed response headers are case insensitive" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
