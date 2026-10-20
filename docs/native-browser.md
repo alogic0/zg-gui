@@ -1,5 +1,8 @@
 # Native browser journeys
 
+For setup, a runnable example, and common actions, see the
+[CDP README](../tools/lib/README.md).
+
 Import the public `cdp` build module and use `cdp.journey.Browser.start(allocator,
 io)` for an owned headless Chromium process. Allocate a journey in an arena;
 close each `Page`, call `Browser.stop()`, then destroy the arena. The browser

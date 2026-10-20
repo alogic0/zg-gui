@@ -84,6 +84,9 @@ assets use relative paths, including beneath a repository subpath. See the
 
 ## Verify
 
+For native Zig browser automation, see the [CDP README](tools/lib/README.md).
+It covers launching Chrome, page actions, screenshots, and owned cleanup.
+
 ```sh
 npx playwright install chromium
 npm test
