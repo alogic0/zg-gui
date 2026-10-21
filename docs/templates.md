@@ -565,3 +565,12 @@ components. The application owns `showModal()`/`close()`, accessible naming,
 initial/return focus, cancellation and state. An ordinary `data-*` binding can
 communicate that state to its host; compilation adds no modal lifecycle behavior.
 See [request 072](requests/072-native-dialog-templates.md).
+
+
+### Editorial, media and static paint markup
+
+Templates admit semantic `blockquote`, `sup`, `sub` and native `video` markup.
+Consumers own media sources, fallback content, accessibility and playback policy.
+Static SVG `linearGradient`/`radialGradient` definitions admit `stop` children;
+standalone stops and non-stop gradient children are rejected. Preserve SVG name
+case. See [request 073](requests/073-editorial-media-and-svg-gradients.md).

@@ -175,7 +175,7 @@ const Compiler = struct {
                         stack.items.len -= 1;
                     },
                     .start, .start_self => {
-                        if (!oneOf(tag_name, "main header footer section article aside nav dialog div p span h1 h2 h3 h4 h5 h6 a strong em small time b i code pre br hr form fieldset legend label input textarea button output meter progress ul ol li dl dt dd img iframe details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs symbol path circle ellipse rect line polyline polygon use title")) {
+                        if (!oneOf(tag_name, "main header footer section article aside nav dialog blockquote div p span h1 h2 h3 h4 h5 h6 a strong em small time b i sup sub code pre br hr form fieldset legend label input textarea button output meter progress ul ol li dl dt dd img video iframe details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs symbol path circle ellipse rect line polyline polygon use title linearGradient radialGradient stop")) {
                             return c.reject(tag.name.start, "unsupported element; use the documented HTML fragment subset");
                         }
                         if (tag.kind == .start_self and !tag.isVoid(c.input.source, .html) and !isSvg(tag_name)) return c.reject(tag.span.start, "non-void HTML elements require an explicit closing tag");
@@ -1016,7 +1016,7 @@ fn validId(value: []const u8) bool {
     return true;
 }
 fn isPhrasing(name: []const u8) bool {
-    return oneOf(name, "span a strong em small time b i code br label input textarea button output meter progress img select svg");
+    return oneOf(name, "span a strong em small time b i sup sub code br label input textarea button output meter progress img video select svg");
 }
 
 test "compiler preserves literal whitespace and entities and emits leaf bindings" {
@@ -1074,14 +1074,17 @@ test "compiler releases all allocations on failure" {
 }
 
 fn isSvg(name: []const u8) bool {
-    return oneOf(name, "svg g defs symbol path circle ellipse rect line polyline polygon use title");
+    return oneOf(name, "svg g defs symbol path circle ellipse rect line polyline polygon use title linearGradient radialGradient stop");
 }
 fn structureError(input: struct { parent: []const u8, child: []const u8 }) ?[]const u8 {
     const p = input.parent;
     const n = input.child;
     if (std.mem.eql(u8, p, "dl") and !oneOf(n, "div dt dd")) return "description lists require terms, descriptions or div groups";
     if (isSvg(p)) {
-        if (!isSvg(n) or !oneOf(p, "svg g defs symbol")) return "invalid SVG child structure";
+        if (!isSvg(n)) return "invalid SVG child structure";
+        if (oneOf(p, "linearGradient radialGradient")) {
+            if (!std.mem.eql(u8, n, "stop")) return "SVG gradients require stop children";
+        } else if (std.mem.eql(u8, n, "stop") or !oneOf(p, "svg g defs symbol")) return "invalid SVG child structure";
     } else if (isSvg(n) and !std.mem.eql(u8, n, "svg")) return "SVG elements require an SVG container";
     const valid = if (std.mem.eql(u8, p, "table")) oneOf(n, "caption colgroup thead tbody tfoot") else if (oneOf(p, "thead tbody tfoot")) std.mem.eql(u8, n, "tr") else if (std.mem.eql(u8, p, "tr")) oneOf(n, "th td") else if (std.mem.eql(u8, p, "colgroup")) std.mem.eql(u8, n, "col") else if (std.mem.eql(u8, p, "select")) oneOf(n, "option optgroup") else if (std.mem.eql(u8, p, "optgroup")) std.mem.eql(u8, n, "option") else !std.mem.eql(u8, p, "option");
     if (!valid) return "invalid table or select child structure; use explicit section elements";
@@ -1745,5 +1748,24 @@ test "native dialog admission preserves typed bindings and rejects unsafe markup
     for ([_][]const u8{
         "<dialog onclick=\"run()\"></dialog>",
         "<table><dialog></dialog></table>",
+    }) |source| try std.testing.expectError(error.InvalidTemplate, compile(allocator, .{ .source = source, .name = "invalid.gui.html", .diagnostic = &diagnostic }));
+}
+
+test "editorial media and SVG gradients retain semantics and structural validation" {
+    var diagnostic = Diagnostic{};
+    const allocator = std.testing.allocator;
+    const code = try compile(allocator, .{
+        .source = "<blockquote><p :text=\"$quote\"></p></blockquote><p>Example<sup>1</sup> H<sub>2</sub>O</p><video controls src=\"/sample.mp4\">Video unavailable</video><svg viewBox=\"0 0 24 24\"><defs><linearGradient id=\"paint\"><stop offset=\"0%\" stop-color=\"red\"/><stop offset=\"100%\" stop-color=\"blue\"/></linearGradient></defs><rect width=\"24\" height=\"24\" fill=\"url(#paint)\"/></svg>",
+        .name = "editorial.gui.html",
+        .diagnostic = &diagnostic,
+    });
+    defer allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "linearGradient") != null);
+    try std.testing.expect(std.mem.indexOf(u8, code, "stop-color") != null);
+    for ([_][]const u8{
+        "<p><blockquote>Invalid</blockquote></p>",
+        "<video onclick=\"play()\"></video>",
+        "<svg><stop offset=\"0\"/></svg>",
+        "<svg><linearGradient><circle/></linearGradient></svg>",
     }) |source| try std.testing.expectError(error.InvalidTemplate, compile(allocator, .{ .source = source, .name = "invalid.gui.html", .diagnostic = &diagnostic }));
 }
