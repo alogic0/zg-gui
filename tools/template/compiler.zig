@@ -175,7 +175,7 @@ const Compiler = struct {
                         stack.items.len -= 1;
                     },
                     .start, .start_self => {
-                        if (!oneOf(tag_name, "main header footer section article aside nav div p span h1 h2 h3 h4 h5 h6 a strong em small time b i code pre br hr form fieldset legend label input textarea button output meter progress ul ol li dl dt dd img iframe details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs symbol path circle ellipse rect line polyline polygon use title")) {
+                        if (!oneOf(tag_name, "main header footer section article aside nav dialog div p span h1 h2 h3 h4 h5 h6 a strong em small time b i code pre br hr form fieldset legend label input textarea button output meter progress ul ol li dl dt dd img iframe details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs symbol path circle ellipse rect line polyline polygon use title")) {
                             return c.reject(tag.name.start, "unsupported element; use the documented HTML fragment subset");
                         }
                         if (tag.kind == .start_self and !tag.isVoid(c.input.source, .html) and !isSvg(tag_name)) return c.reject(tag.span.start, "non-void HTML elements require an explicit closing tag");
@@ -1728,4 +1728,22 @@ test "form metadata bindings remain scoped to form controls" {
     for ([_][]const u8{ "<div name=\"$name\"></div>", "<span autocomplete=\"$completion\"></span>" }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad-metadata", .diagnostic = &diagnostic }));
     }
+}
+
+test "native dialog admission preserves typed bindings and rejects unsafe markup" {
+    const allocator = std.testing.allocator;
+    var diagnostic = Diagnostic{};
+    const code = try compile(allocator, .{
+        .source = "<dialog :ref=\"dialog\" aria-labelledby=\"title\" data-open=\"$open\"><h2 id=\"title\" :text=\"$title\"></h2><button type=\"button\" :on-click=\"$cancel\">Cancel</button></dialog>",
+        .name = "dialog.gui.html",
+        .diagnostic = &diagnostic,
+    });
+    defer allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "dialog") != null);
+    try std.testing.expect(std.mem.indexOf(u8, code, "data-open") != null);
+    try std.testing.expect(std.mem.indexOf(u8, code, "binding.get(view") != null);
+    for ([_][]const u8{
+        "<dialog onclick=\"run()\"></dialog>",
+        "<table><dialog></dialog></table>",
+    }) |source| try std.testing.expectError(error.InvalidTemplate, compile(allocator, .{ .source = source, .name = "invalid.gui.html", .diagnostic = &diagnostic }));
 }

@@ -556,3 +556,12 @@ Images with `data-object-image="true"` may bind a browser-created object URL to
 `src`. Ordinary image sources retain their existing policy. The DOM host admits
 blob patches only for marked images with the current origin; consumers own URL
 provenance and revocation. Opaque blob origins are unsupported.
+
+
+### Native dialogs
+
+`dialog` is admitted as a flow element with normal refs, bindings and child
+components. The application owns `showModal()`/`close()`, accessible naming,
+initial/return focus, cancellation and state. An ordinary `data-*` binding can
+communicate that state to its host; compilation adds no modal lifecycle behavior.
+See [request 072](requests/072-native-dialog-templates.md).
