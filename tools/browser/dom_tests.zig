@@ -930,3 +930,24 @@ test "browser dom: generated option text patches restore declared selection with
         \\return true;
     );
 }
+
+test "browser dom: focus mode preserves clipped ancestor position and node identity" {
+    var guard = try Harness.getSession(std.testing.allocator, std.testing.io);
+    defer guard.deinit();
+    try guard.goto("/dom.js");
+    try guard.evalCheck(
+        \\const { createDomHost } = await import('/dom.js');
+        \\const root = document.createElement('main'); document.body.append(root);
+        \\const dom = createDomHost({root});
+        \\dom.initialize('<section data-node-id="1" style="width:200px;height:100px;overflow:hidden"><h2 data-node-id="2" tabindex="-1" style="width:400px;margin-left:25px">Wide heading</h2><input data-node-id="3" value="draft"></section>');
+        \\const owner=root.firstElementChild, heading=owner.firstElementChild, control=owner.lastElementChild;
+        \\owner.scrollLeft=10;
+        \\dom.applyPatchStream('F\t2\n');
+        \\assert.equal(document.activeElement,heading); assert.equal(owner.scrollLeft,10);
+        \\assert.equal(root.firstElementChild,owner); assert.equal(owner.lastElementChild,control);
+        \\dom.applyPatchStream('F\t2\tnearest\n');
+        \\assert.equal(document.activeElement,heading); assert.ok(owner.scrollLeft>10);
+        \\assert.equal(root.firstElementChild,owner); assert.equal(owner.lastElementChild,control);
+        \\dom.dispose(); root.remove(); return true;
+    );
+}

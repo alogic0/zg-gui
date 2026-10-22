@@ -84,10 +84,10 @@ pub fn Projection(comptime capacity: usize) type {
         }
         /// A domain revision names a new focus request, so later render passes
         /// never steal focus back from the user's current control.
-        pub fn focus(self: *Self, input: struct { owner: u32, target: ?u32, revision: u32 }) void {
+        pub fn focus(self: *Self, input: struct { owner: u32, target: ?u32, revision: u32, mode: patch.FocusMode = .nearest }) void {
             var value: [16]u8 = undefined;
             const dirty = self.changed(.{ .node = input.owner, .property = "#focus", .value = std.fmt.bufPrint(&value, "{d}", .{input.revision}) catch unreachable });
-            if (dirty and !self.writing and input.revision > 0) if (input.target) |target| if (self.patches) |writer| writer.focus(.{ .node = target, .mode = .nearest });
+            if (dirty and !self.writing and input.revision > 0) if (input.target) |target| if (self.patches) |writer| writer.focus(.{ .node = target, .mode = input.mode });
         }
         pub fn checked(self: *Self, input: struct { node: u32, value: bool }) void {
             const id = input.node;
@@ -299,7 +299,6 @@ pub fn renderHtmlWithNodes(writer: *Html, template_module: anytype, model: anyty
     template_module.project(&renderer, model);
 }
 
-
 test "textarea HTML protects leading newlines without changing value patches" {
     const P = Projection(1);
     var bytes: [128]u8 = undefined;
@@ -459,4 +458,37 @@ test "keyed child membership preserves retained rows and suppresses absent desce
     try std.testing.expect(std.mem.indexOf(u8, output.slice(), "J\t") == null);
     try std.testing.expect(std.mem.indexOf(u8, output.slice(), "D\t") == null);
     try std.testing.expect(std.mem.indexOf(u8, output.slice(), "T\t") == null);
+}
+
+test "revision-owned focus exposes existing protocol modes without repeated requests" {
+    const P = Projection(1);
+    var before = P.Snapshot{};
+    var after = P.Snapshot{};
+    var bytes: [128]u8 = undefined;
+    var patch_bytes: [128]u8 = undefined;
+    var html = Html{ .buffer = &bytes };
+    var output = Html{ .buffer = &patch_bytes };
+    var writer = patch.Writer{ .output = &output };
+    var p = P{ .html = &html, .next = &before };
+    p.focus(.{ .owner = 1, .target = 2, .revision = 1 });
+    try std.testing.expectEqual(@as(usize, 0), output.len);
+    p = .{ .html = &html, .patches = &writer, .previous = &before, .next = &after, .writing = false };
+    p.focus(.{ .owner = 1, .target = 2, .revision = 2 });
+    try std.testing.expectEqualStrings("F\t2\tnearest\n", output.slice());
+    try std.testing.expectEqual(@as(usize, 1), after.len);
+    before = after;
+    after = .{};
+    output.len = 0;
+    p.focus(.{ .owner = 1, .target = 3, .revision = 2, .mode = .preserve_scroll });
+    try std.testing.expectEqual(@as(usize, 0), output.len);
+    before = after;
+    after = .{};
+    p.focus(.{ .owner = 1, .target = 2, .revision = 3, .mode = .preserve_scroll });
+    try std.testing.expectEqualStrings("F\t2\n", output.slice());
+    before = after;
+    after = .{};
+    output.len = 0;
+    p.focus(.{ .owner = 1, .target = 2, .revision = 4, .mode = .end });
+    try std.testing.expectEqualStrings("F\t2\tend\n", output.slice());
+    try std.testing.expect(!html.failed and !output.failed);
 }

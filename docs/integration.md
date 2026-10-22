@@ -159,3 +159,13 @@ Names must be unique. Allocation errors fail compilation. Numeric values may
 change when declarations change: never persist them as business identifiers.
 Reserve a legacy pool when migrating existing aliases; allocation isolates new
 namespaces but does not validate arbitrary arithmetic within the legacy pool.
+
+### Revision-owned focus policy
+
+`Projection.focus(.{ .owner, .target, .revision, .mode = .preserve_scroll })`
+uses the existing focus protocol while retaining the current scroll position.
+The optional mode also accepts `.nearest` (the backward-compatible default) and
+`.end` (for supported text controls). Increment the consumer-owned revision for
+a new request; changing a target or mode alone does not repeat focus. Initial
+static rendering never emits a focus command. Consumers own viewport and
+navigation policy; see request 074 for admission and verification limits.

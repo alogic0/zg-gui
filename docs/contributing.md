@@ -66,3 +66,6 @@ Callers retain creation/revocation ownership; ordinary image policy is unchanged
 
 Form controls support dynamic name/autocomplete metadata and containers support
 direction bindings (request 034). Metadata updates never copy draft values.
+
+Revision-owned focus modes are specified and verified under
+[request 074](requests/074-projection-focus-modes.md).
