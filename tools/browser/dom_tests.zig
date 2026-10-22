@@ -951,3 +951,19 @@ test "browser dom: focus mode preserves clipped ancestor position and node ident
         \\dom.dispose(); root.remove(); return true;
     );
 }
+
+test "browser dom: SVG label patches retain namespaces controls and literal text" {
+    var guard = try Harness.getSession(std.testing.allocator, std.testing.io);
+    defer guard.deinit();
+    try guard.goto("/dom.js");
+    try guard.evalCheck(
+        \\const {createDomHost}=await import('/dom.js');
+        \\const root=document.createElement('main');document.body.append(root);const dom=createDomHost({root});
+        \\dom.initialize('<input data-node-id="1" value="draft"><svg data-node-id="2" viewBox="0 0 100 50"><desc>Sample values</desc><defs><clipPath id="plot" clipPathUnits="userSpaceOnUse"><rect width="100" height="50"/></clipPath></defs><text x="5" y="20"><tspan data-node-id="3">One</tspan></text></svg>');
+        \\const control=root.firstElementChild,label=root.querySelector('tspan'),svg=root.querySelector('svg');control.focus();
+        \\dom.applyPatchStream('T\t3\t'+JSON.stringify('<b>& two')+'\n');
+        \\assert.equal(label.namespaceURI,'http://www.w3.org/2000/svg');assert.equal(root.querySelector('clipPath').namespaceURI,label.namespaceURI);
+        \\assert.equal(label.textContent,'<b>& two');assert.equal(label.children.length,0);assert.equal(root.querySelector('tspan'),label);assert.equal(root.querySelector('svg'),svg);assert.equal(document.activeElement,control);
+        \\dom.dispose();root.remove();return true;
+    );
+}

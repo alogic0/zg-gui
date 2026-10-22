@@ -574,3 +574,9 @@ Consumers own media sources, fallback content, accessibility and playback policy
 Static SVG `linearGradient`/`radialGradient` definitions admit `stop` children;
 standalone stops and non-stop gradient children are rejected. Preserve SVG name
 case. See [request 073](requests/073-editorial-media-and-svg-gradients.md).
+
+SVG charts may contain `text`, nested `tspan`, text-only `desc`, and local
+`clipPath` definitions with static `clipPathUnits`. Tspans require a text/tspan
+parent; labels use the normal escaped `:text` binding and retain their SVG
+namespace during patches. HTML children and foreignObject remain unsupported.
+Consumers own chart scales, layout, descriptions and data. See request 075.

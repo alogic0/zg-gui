@@ -1669,3 +1669,27 @@ test "components invoked inside keyed loops derive deterministic keyed node iden
     try std.testing.expect(std.mem.indexOf(u8, output.slice(), "M\t") != null);
     try std.testing.expect(std.mem.indexOf(u8, output.slice(), "D\t") == null);
 }
+
+test "compiled SVG chart labels escape content and patch only the existing label" {
+    const chart = @import("svg_chart");
+    const C = gui.Projection(chart.snapshot_capacity);
+    var before = C.Snapshot{};
+    var after = C.Snapshot{};
+    var bytes: [4096]u8 = undefined;
+    var patch_bytes: [1024]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var out = gui.html.Writer{ .buffer = &patch_bytes };
+    var writer = gui.patch.Writer{ .output = &out };
+    var p = C{ .html = &html, .next = &before };
+    chart.project(&p, .{ .description = "Sample <values>", .label = "One & two" });
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "clipPathUnits=\"userSpaceOnUse\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "Sample &lt;values&gt;") != null);
+    html.len = 0;
+    p = .{ .html = &html, .patches = &writer, .previous = &before, .next = &after, .writing = false };
+    chart.project(&p, .{ .description = "Sample <values>", .label = "Three" });
+    try std.testing.expect(!html.failed and !out.failed);
+    try std.testing.expect(std.mem.startsWith(u8, out.slice(), "T\t"));
+    try std.testing.expect(std.mem.indexOf(u8, out.slice(), "H\t") == null);
+    try std.testing.expect(std.mem.indexOf(u8, out.slice(), "Three") != null);
+}

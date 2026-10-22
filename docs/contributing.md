@@ -69,3 +69,6 @@ direction bindings (request 034). Metadata updates never copy draft values.
 
 Revision-owned focus modes are specified and verified under
 [request 074](requests/074-projection-focus-modes.md).
+
+SVG chart text, descriptions and clipping containers are specified and verified
+under [request 075](requests/075-svg-chart-labels-and-clipping.md).

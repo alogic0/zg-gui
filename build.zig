@@ -97,6 +97,7 @@ pub fn build(b: *std.Build) void {
     const list_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/list.gui.html") });
     const row_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/list_row.gui.html"), .fragment_context = .ul });
     const radio_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/radio.gui.html") });
+    const svg_chart_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/svg_chart.gui.html") });
     const time_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/time.gui.html") });
     const link_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/link.gui.html") });
     const image_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("tests/templates/image.gui.html") });
@@ -143,6 +144,7 @@ pub fn build(b: *std.Build) void {
             .optimize = .debug,
             .imports = &.{
                 .{ .name = "zg_gui", .module = test_gui },
+                .{ .name = "svg_chart", .module = b.createModule(.{ .root_source_file = svg_chart_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "loop_components_fixture", .module = b.createModule(.{ .root_source_file = loop_components_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "multi_select_fixture", .module = b.createModule(.{ .root_source_file = multi_select_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
                 .{ .name = "nested_loop_fixture", .module = b.createModule(.{ .root_source_file = nested_loop_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
