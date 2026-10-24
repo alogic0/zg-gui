@@ -2,19 +2,29 @@
 //! Starts a headless Chromium instance and a managed preview server on demand,
 //! and provides isolated tabs for each test case.
 const std = @import("std");
-const cdp = @import("lib/cdp.zig");
+const cdp = @import("cdp");
 
 pub const Harness = struct {
-    var browser: ?cdp.BrowserInstance = null;
+    var arena: ?std.heap.ArenaAllocator = null;
+    var browser: ?*cdp.journey.Browser = null;
     var server: ?std.process.Child = null;
-    var client: ?cdp.CdpClient = null;
     var server_port: u16 = 0;
-    const cdp_port: u16 = 9285;
+    var active_sessions: usize = 0;
 
     pub fn getSession(alloc: std.mem.Allocator, io: std.Io) !SessionGuard {
+        errdefer if (active_sessions == 0) deinit();
         if (browser == null) {
-            browser = try cdp.launchHeadless(io, alloc, cdp_port);
-            const serve_child = try std.process.spawn(io, .{
+            arena = std.heap.ArenaAllocator.init(alloc);
+            errdefer {
+                arena.?.deinit();
+                arena = null;
+            }
+            browser = try cdp.journey.Browser.start(arena.?.allocator(), io);
+            errdefer {
+                browser.?.stop();
+                browser = null;
+            }
+            var serve_child = try std.process.spawn(io, .{
                 .argv = &.{
                     "zig-out/bin/serve",
                     "--port",
@@ -27,6 +37,7 @@ pub const Harness = struct {
                 .stdout = .pipe,
                 .stderr = .ignore,
             });
+            errdefer serve_child.kill(io);
             var stdout_pipe = serve_child.stdout.?;
             var rb: [1024]u8 = undefined;
             var r = stdout_pipe.reader(io, &rb);
@@ -35,15 +46,18 @@ pub const Harness = struct {
             defer parsed.deinit();
             server_port = @as(u16, @intCast(parsed.value.object.get("port").?.integer));
             server = serve_child;
-            client = cdp.CdpClient.init(alloc, io, cdp_port);
         }
 
-        const target = try client.?.newTarget("about:blank");
-        const session = try client.?.connectWs(target.web_socket_debugger_url);
+        const client = cdp.CdpClient.init(alloc, io, browser.?.client.port);
+        const target = try client.newTarget("about:blank");
+        errdefer target.deinit(alloc);
+        errdefer client.closeTarget(target.id) catch {};
+        const session = try client.connectWs(target.web_socket_debugger_url);
+        active_sessions += 1;
         return SessionGuard{
             .session = session,
             .target = target,
-            .client = client.?,
+            .client = client,
             .server_port = server_port,
             .alloc = alloc,
             .io = io,
@@ -51,13 +65,18 @@ pub const Harness = struct {
     }
 
     pub fn deinit() void {
+        std.debug.assert(active_sessions == 0);
         if (server) |*s| {
             s.kill(std.testing.io);
             server = null;
         }
-        if (browser) |*b| {
-            b.kill();
+        if (browser) |b| {
+            b.stop();
             browser = null;
+        }
+        if (arena) |*a| {
+            a.deinit();
+            arena = null;
         }
     }
 };
@@ -74,6 +93,8 @@ pub const SessionGuard = struct {
         self.session.close();
         self.client.closeTarget(self.target.id) catch {};
         self.target.deinit(self.alloc);
+        Harness.active_sessions -= 1;
+        if (Harness.active_sessions == 0) Harness.deinit();
     }
 
     pub fn goto(self: *SessionGuard, path: []const u8) !void {

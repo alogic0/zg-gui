@@ -3,6 +3,11 @@
 For setup, a runnable example, and common actions, see the
 [CDP README](../tools/lib/README.md).
 
+The local `zig_cdp` dependency is configured at `../zig-cdp` in `build.zig.zon`.
+zg-gui re-exports its public `cdp` build module; native tools and browser checks
+use the same dependency. The protocol client and journey runtime are maintained
+in that package. See [request 076](requests/076-external-cdp-dependency.md).
+
 Import the public `cdp` build module and use `cdp.journey.Browser.start(allocator,
 io)` for an owned headless Chromium process. Allocate a journey in an arena;
 close each `Page`, call `Browser.stop()`, then destroy the arena. The browser

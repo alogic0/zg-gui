@@ -2,7 +2,7 @@
 const std = @import("std");
 
 test {
-    _ = @import("lib/cdp.zig");
+    _ = @import("cdp");
     _ = @import("lib/cdp_journey_test.zig");
     _ = @import("preview_listener.zig");
     _ = @import("serve.zig");

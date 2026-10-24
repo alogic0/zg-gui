@@ -1,6 +1,9 @@
 # Owned CDP journeys
 
 Status: implemented and verified in the finite checks below, October 19, 2026.
+The implementation is now supplied by the external package under
+[request 076](076-external-cdp-dependency.md); local fixtures verify integration.
+The original verification below records the bundled implementation's evidence.
 
 Native browser consumers need to exercise real file controls, pointer and keyboard
 actions, isolated sessions, HTTP observations and downloads without a JavaScript

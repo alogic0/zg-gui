@@ -16,7 +16,9 @@ keep their DOM identity across updates and reordering.
 
 ## Try the workspace
 
-Use the exact Zig compiler in [`.zigversion`](.zigversion), then:
+Use the exact Zig compiler in [`.zigversion`](.zigversion). Builds also require a
+sibling `zig-cdp` checkout at `../zig-cdp`, as configured in `build.zig.zon`.
+Then:
 
 ```sh
 npm ci

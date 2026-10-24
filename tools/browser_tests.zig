@@ -1,7 +1,7 @@
 //! Native Chromium browser unit test suite for zg-gui using Chrome DevTools Protocol (CDP).
-//! Zero-dependency headless testing of DOM host, WASM demo, and workspace components.
+//! Native headless testing of DOM host, WASM demo, and workspace components.
 const std = @import("std");
-const cdp = @import("lib/cdp.zig");
+const cdp = @import("cdp");
 const harness = @import("browser_harness.zig");
 
 pub const dom_tests = @import("browser/dom_tests.zig");

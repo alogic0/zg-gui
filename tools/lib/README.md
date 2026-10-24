@@ -1,9 +1,10 @@
 # Native Chrome automation with `cdp`
 
-The public `cdp` Zig module launches headless Chrome and controls it through the
-Chrome DevTools Protocol. Use it for browser checks, page inspection, screenshots,
-file uploads, downloads, and observing HTTP responses. It is a library: write a
-Zig executable or test that imports it, then run that program.
+The public `cdp` Zig module is supplied by the `zig-cdp` package dependency. It
+launches headless Chrome and controls it through the Chrome DevTools Protocol.
+Use it for browser checks, page inspection, screenshots, file uploads, downloads,
+and observing HTTP responses. It is a library: write a Zig executable or test
+that imports it, then run that program.
 
 Start with `cdp.journey` for an owned browser and page actions. The lower-level
 `CdpClient` and `WsSession` types can connect to an existing local CDP endpoint.
@@ -69,20 +70,17 @@ pub fn main(init: std.process.Init) !void {
 }
 ```
 
-From that scratch directory, point `-Mcdp` at your zg-gui checkout:
-
-```sh
-zig run --dep cdp -Mroot=cdp-smoke.zig \
-  -Mcdp=/path/to/zg-gui/tools/lib/cdp.zig
-```
-
-The command writes `cdp-smoke.png` in the working directory. Keep the module's
-sibling files in place: it imports `cdp_journey.zig`, which embeds
-`cdp_locators.js`. For a maintained consumer project, use the public build module
-below instead of depending on the source-file layout.
+Use the package integration below to run this example. The dependency's build
+module supplies its transitive imports; source-file imports are unsupported.
+The command writes `cdp-smoke.png` in the working directory.
 
 ## Add the public module to a project
 
+This checkout uses a local `zig_cdp` dependency at `../zig-cdp`. Keep that sibling
+checkout available when building zg-gui, or adjust its `build.zig.zon` dependency
+path. Both packages use the same pinned Zig compiler.
+
+zg-gui re-exports the dependency's public `cdp` module for existing consumers.
 In an existing Zig package, add a dependency to `build.zig.zon`, adjusting the
 relative path:
 
@@ -275,14 +273,15 @@ Run from the zg-gui repository root:
 
 ```sh
 zig build test-tools --summary all
-zig test tools/lib/cdp_journey_test.zig -O debug --test-filter owned
-zig test tools/lib/cdp_journey_test.zig -O safe --test-filter owned
+zig build test-browser --summary all
 ```
 
-The last two commands execute the owned-browser checks in Debug and ReleaseSafe
-(`safe` in this compiler). They cover shutdown/profile cleanup, actual input,
-uploads, downloads, cookie isolation, and origin denial. Expected negative checks
-print actionability diagnostics for disabled and covered controls before passing.
+The tool integration checks cover shutdown/profile cleanup, actual input,
+uploads, downloads, cookie isolation, and origin denial against the external
+module. The browser suite exercises the framework's DOM and WASM host through
+that module. Expected negative checks print actionability diagnostics for disabled
+and covered controls before passing. CDP implementation tests are maintained in
+the dependency.
 
 | Symptom | Check |
 | --- | --- |

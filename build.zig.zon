@@ -3,6 +3,8 @@
     .fingerprint = 0x88b9b24742088d28,
     .version = "0.1.0",
     .minimum_zig_version = "0.17.0",
-    .dependencies = .{},
+    .dependencies = .{
+        .zig_cdp = .{ .path = "../zig-cdp" },
+    },
     .paths = .{ "build.zig", "build.zig.zon", ".zigversion", "src", "web", "examples", "vendor", "tools", "tests/templates", "README.md", "docs" },
 }

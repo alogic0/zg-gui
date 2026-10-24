@@ -340,11 +340,11 @@ pub fn build(b: *std.Build) void {
     workspace_check.dependOn(&b.addRunArtifact(workspace_tests).step);
     b.top_level_steps.get("test").?.step.dependOn(workspace_check);
 
-    _ = b.addModule("cdp", .{
-        .root_source_file = b.path("tools/lib/cdp.zig"),
+    const cdp = b.dependency("zig_cdp", .{
         .target = b.graph.host,
         .optimize = .debug,
-    });
+    }).module("cdp");
+    b.modules.put(b.allocator, "cdp", cdp) catch @panic("OOM");
 
     const serve_exe = b.addExecutable(.{
         .name = "serve",
@@ -366,6 +366,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("tools/tools_test.zig"),
             .target = b.graph.host,
             .optimize = .debug,
+            .imports = &.{.{ .name = "cdp", .module = cdp }},
         }),
     });
     const run_tools_tests = b.addRunArtifact(tools_tests);
@@ -379,6 +380,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("tools/browser_tests.zig"),
             .target = b.graph.host,
             .optimize = .debug,
+            .imports = &.{.{ .name = "cdp", .module = cdp }},
         }),
     });
     const run_browser_unit_tests = b.addRunArtifact(browser_unit_tests);
