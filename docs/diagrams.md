@@ -122,12 +122,12 @@ the headless Chromium journeys:
 
 | Measurement | Observed value |
 | --- | ---: |
-| Optional two-editor example WASM | 208,126 bytes |
+| Optional two-editor example WASM | 213,355 bytes |
 | Existing basics WASM | 51,715 bytes, unchanged |
 | Existing workspace WASM | 173,967 bytes, unchanged |
 | Initial linear memory | 2,228,224 bytes (34 pages) |
 | Maximum linear memory observed in the measured workload | 2,228,224 bytes |
-| Initial HTML for both sample diagrams and editors | 12,532 bytes |
+| Initial HTML for both sample diagrams and editors | 12,539 bytes |
 | One-character flow-node label update, after accepting its draft | 195 bytes / 6 commands |
 
 The label workload changes `Read source` to `Read source!` in the default
@@ -140,3 +140,9 @@ measurements, a universal peak-memory guarantee or a consumer budget.
 Reproduce the report with `zig build test-browser -Ddiagrams=true
 -Dbrowser-filter=diagrams`; inspect `zig-out/diagram-measurements.json`,
 `zig-out/diagram-desktop.png` and `zig-out/diagram-mobile.png`.
+
+
+Layout hardening adds word wrapping, measured sequence rows and note boxes,
+self-links and parallel routes. `LayoutOptions` exposes the wrap width and lane
+spacing. The engine's larger native workload uses 72 nodes, while this example
+retains its smaller UI admission limits. See request 078 for verification.

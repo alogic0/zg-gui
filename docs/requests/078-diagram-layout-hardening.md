@@ -1,6 +1,6 @@
 # Diagram layout edge cases
 
-Status: specified.
+Status: implemented and provider verified.
 
 ## Reusable contract
 
@@ -17,12 +17,25 @@ and lane spacing options with validated finite geometry.
 
 ## Acceptance
 
-- [ ] Neutral workflow fixtures cover long labels, self-links, cycles, parallel
+- [x] Neutral workflow fixtures cover long labels, self-links, cycles, parallel
   edges, multi-rank edges and at least 64 nodes.
-- [ ] Source-to-SVG and owned-scene replay agree; geometry is finite, nodes do
+- [x] Source-to-SVG and owned-scene replay agree; geometry is finite, nodes do
   not overlap, routes stay in bounds and logical labels are emitted once.
-- [ ] Allocation failure and admission limits discard the candidate safely.
-- [ ] GUI/browser checks retain named primitives, controls and focus when label
+- [x] Allocation failure and admission limits discard the candidate safely.
+- [x] GUI/browser checks retain named primitives, controls and focus when label
   wrapping, source membership or layout changes.
-- [ ] Document limits and repeatable workload measurements separately from
+- [x] Document limits and repeatable workload measurements separately from
   application adoption and visual acceptance.
+
+## Verification
+
+`zig build test-diagrams -Ddiagrams=true -j4` and
+`zig build test-browser -Ddiagrams=true -Dbrowser-filter=diagrams -j4` pass.
+The shared engine also passes its native allocation-failure and exact SVG replay
+checks. A 72-node workflow with cycles, a self-link and a long transition fits a
+2 MiB caller allocator. Browser geometry checks keep wrapped lines inside their
+retained rectangle, preserving the first label, SVG owner and input focus.
+
+Wrapping is word-based. An unbreakable word expands its shape rather than being
+truncated. The optional example still enforces its existing 32-node/128-primitive
+admission limits; these are separate from the larger engine workload.

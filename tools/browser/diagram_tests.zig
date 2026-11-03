@@ -35,6 +35,12 @@ test "browser diagrams: retained geometry focus two namespaces failed sources an
         \\set('graph TD\n Read[Recovered] --> Extra[Another step]');
         \\assert.equal(root.querySelector('#flow-error').textContent, ''); assert.ok(!input.hasAttribute('aria-invalid'));
         \\assert.ok(document.activeElement === input && sequence === root.querySelectorAll('svg')[1]);
+        \\set('graph TD\n Read[Read a detailed source document with enough words to wrap into several readable lines] --> Extra[Another step]\n Read -->|again| Read');
+        \\const wrapped = [...flow.querySelectorAll('[data-diagram-kind="flow_node"][data-diagram-name="Read"] text')];
+        \\assert.ok(wrapped.length > 1 && wrapped[0] === label && shape === flow.querySelector('[data-diagram-name="Read"][data-diagram-part="0"] rect'));
+        \\const box = shape.getBBox();
+        \\for (const line of wrapped) { const bounds = line.getBBox(); assert.ok(bounds.x >= box.x - 2 && bounds.x + bounds.width <= box.x + box.width + 2 && bounds.y >= box.y - 2 && bounds.y + bounds.height <= box.y + box.height + 2, 'Wrapped label escapes its node'); }
+        \\assert.ok(document.activeElement === input); set('graph TD\n Read[Recovered] --> Extra[Another step]');
         \\assert.equal(app.wasm.exportSvg(0), 1);
         \\const exported = new TextDecoder().decode(new Uint8Array(app.wasm.memory.buffer, app.wasm.getSvgBuffer(), app.wasm.getSvgLength()));
         \\assert.ok(exported.includes('<svg') && exported.includes('Recovered'));
