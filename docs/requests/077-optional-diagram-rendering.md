@@ -57,14 +57,14 @@ Each working slice receives focused verification and a separate commit.
 
 - [x] Compiler admits valid markers and rejects invalid SVG nesting.
 - [x] Bindings and host reject non-local or malformed dynamic references.
-- [ ] Shared drawing covers flowcharts and sequence diagrams; standalone SVG
+- [x] Shared drawing covers flowcharts and sequence diagrams; standalone SVG
   export retains the engine's existing behavior.
-- [ ] Public registration works from an independent consumer package.
-- [ ] Core-only builds do not require or link a diagram engine.
-- [ ] Two diagrams have distinct marker references and disjoint node IDs.
+- [x] Public registration works from an independent consumer package.
+- [x] Core-only builds do not require or link a diagram engine.
+- [x] Two diagrams have distinct marker references and disjoint node IDs.
 - [ ] Browser checks retain SVG, shapes, labels, unrelated controls and focus
   through label changes, layout updates and insertion/removal.
-- [ ] Native checks cover empty/invalid sources, allocator failure, scene limits,
+- [x] Native checks cover empty/invalid sources, allocator failure, scene limits,
   output/snapshot exhaustion, failed-update retry and namespace overflow.
 - [ ] Example supports accessible descriptions, keyboard-operated controls,
   narrow layouts and SVG export.
@@ -83,3 +83,10 @@ provider behavior; application visual and accessibility acceptance is separate.
 SVG primitive slice: `zig build test -j4` and `zig build test-browser -j4`
 pass with Zig 0.17.0. Browser coverage includes retained SVG geometry, sibling
 focus, optional marker removal and refusal of outside-resource references.
+
+Adapter slice: `zig build test-diagrams -Ddiagrams=true -j4` and
+`zig build test -Ddiagrams=true -j4` pass. Checks exercise a generated independent
+consumer package through public build registration, named-node reordering,
+geometry/text patches, two namespaces, distinct insertion/removal slots, local
+shape replacement, failed writer/snapshot retry and invalid admission. Shared
+scene capture checks exact SVG replay and all allocation failures in the engine.

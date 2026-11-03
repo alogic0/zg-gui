@@ -397,9 +397,49 @@ pub fn build(b: *std.Build) void {
     const test_all_step = b.step("test-all", "Run all tests: core, templates, tools, and browser");
     test_all_step.dependOn(&b.top_level_steps.get("test").?.step);
     test_all_step.dependOn(browser_step);
+
+    if (b.option(bool, "diagrams", "Build the optional diagram example and checks") orelse false) {
+        if (b.lazyDependency("diagram_engine", .{ .target = b.graph.host, .optimize = std.builtin.OptimizeMode.debug })) |dependency| {
+            const engine = dependency.module("mermaid");
+            const options = b.addOptions();
+            options.addOption([]const u8, "gui_root", b.root.joinString(b.allocator, "") catch @panic("OOM"));
+            options.addOption([]const u8, "engine_root", dependency.builder.root.joinString(b.allocator, "") catch @panic("OOM"));
+            const diagram_tests = b.addTest(.{ .root_module = b.createModule(.{
+                .root_source_file = b.path("tests/diagrams_test.zig"),
+                .target = b.graph.host,
+                .optimize = .debug,
+                .imports = &.{
+                    .{ .name = "zg_gui", .module = test_gui },
+                    .{ .name = "zg_diagrams", .module = diagramModule(b, .{ .source = b.path("src/diagrams.zig"), .gui = test_gui, .engine = engine }) },
+                    .{ .name = "diagram_test_options", .module = options.createModule() },
+                },
+            }) });
+            const run_diagram_tests = b.addRunArtifact(diagram_tests);
+            run_diagram_tests.setCwd(b.path("."));
+            const step = b.step("test-diagrams", "Verify optional typed diagram projections");
+            step.dependOn(&run_diagram_tests.step);
+            b.top_level_steps.get("test").?.step.dependOn(step);
+        }
+    }
 }
 
 pub const FragmentContext = enum { flow, dl, ul, ol, thead, tbody, tfoot, tr, select, optgroup };
+
+/// Opt into typed scene projection with an explicitly selected layout module.
+/// Core consumers do not instantiate or link an engine dependency.
+pub fn addDiagrams(b: *std.Build, input: struct { dependency: *std.Build.Dependency, engine: *std.Build.Module }) *std.Build.Module {
+    const gui = input.dependency.module("zg_gui");
+    return diagramModule(b, .{ .source = input.dependency.path("src/diagrams.zig"), .gui = gui, .engine = input.engine });
+}
+
+fn diagramModule(b: *std.Build, input: struct { source: std.Build.LazyPath, gui: *std.Build.Module, engine: *std.Build.Module }) *std.Build.Module {
+    return b.createModule(.{
+        .root_source_file = input.source,
+        .target = input.gui.resolved_target,
+        .optimize = input.gui.optimize,
+        .imports = &.{ .{ .name = "zg_gui", .module = input.gui }, .{ .name = "diagram_engine", .module = input.engine } },
+    });
+}
 
 pub const TemplateComponent = struct { name: []const u8, source: std.Build.LazyPath };
 

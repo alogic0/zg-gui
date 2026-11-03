@@ -3,6 +3,10 @@
 This roadmap tracks reusable capabilities and framework verification.
 Application integration and product acceptance belong to consumers.
 
+Optional typed diagram projection is specified in
+[request 077](requests/077-optional-diagram-rendering.md), with public integration
+documented in [diagrams](diagrams.md).
+
 ## Available capabilities
 
 - [x] Scoped projections, disjoint node ranges and generated semantic references.

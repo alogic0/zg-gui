@@ -5,6 +5,7 @@
     .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .zig_cdp = .{ .path = "../zig-cdp" },
+        .diagram_engine = .{ .path = "../zig-mermaid-viewer", .lazy = true },
     },
     .paths = .{ "build.zig", "build.zig.zon", ".zigversion", "src", "web", "examples", "vendor", "tools", "tests/templates", "README.md", "docs" },
 }
