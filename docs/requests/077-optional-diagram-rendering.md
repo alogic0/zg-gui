@@ -55,8 +55,8 @@ Each working slice receives focused verification and a separate commit.
 
 ## Acceptance
 
-- [ ] Compiler admits valid markers and rejects invalid SVG nesting.
-- [ ] Bindings and host reject non-local or malformed dynamic references.
+- [x] Compiler admits valid markers and rejects invalid SVG nesting.
+- [x] Bindings and host reject non-local or malformed dynamic references.
 - [ ] Shared drawing covers flowcharts and sequence diagrams; standalone SVG
   export retains the engine's existing behavior.
 - [ ] Public registration works from an independent consumer package.
@@ -77,3 +77,9 @@ The first delivery supports the selected engine's flowchart and sequence
 vocabulary. Diagram editing, pan/zoom policy and numerical chart scales remain
 separate consumer or future capability work. Framework verification establishes
 provider behavior; application visual and accessibility acceptance is separate.
+
+## Verification
+
+SVG primitive slice: `zig build test -j4` and `zig build test-browser -j4`
+pass with Zig 0.17.0. Browser coverage includes retained SVG geometry, sibling
+focus, optional marker removal and refusal of outside-resource references.

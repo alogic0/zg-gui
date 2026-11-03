@@ -1693,3 +1693,31 @@ test "compiled SVG chart labels escape content and patch only the existing label
     try std.testing.expect(std.mem.indexOf(u8, out.slice(), "H\t") == null);
     try std.testing.expect(std.mem.indexOf(u8, out.slice(), "Three") != null);
 }
+
+test "compiled SVG markers validate initial references and patch optional removal" {
+    const marker = @import("svg_marker");
+    const MarkerProjection = gui.Projection(marker.snapshot_capacity);
+    const MarkerView = struct { marker_id: []const u8 = "diagram-arrow", start: ?[]const u8 = null, mid: ?[]const u8 = null, end: ?[]const u8 = "url(#diagram-arrow)" };
+    var previous = MarkerProjection.Snapshot{};
+    var next = MarkerProjection.Snapshot{};
+    var bytes: [4096]u8 = undefined;
+    var patch_bytes: [1024]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var out = gui.html.Writer{ .buffer = &patch_bytes };
+    var writer = gui.patch.Writer{ .output = &out };
+    var p = MarkerProjection{ .html = &html, .next = &previous };
+    marker.project(&p, MarkerView{});
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "markerUnits=\"strokeWidth\"") != null);
+    html.len = 0;
+    p = .{ .html = &html, .patches = &writer, .previous = &previous, .next = &next, .writing = false };
+    marker.project(&p, MarkerView{ .end = null, .start = "none" });
+    try std.testing.expect(!html.failed and !out.failed);
+    try std.testing.expect(std.mem.indexOf(u8, out.slice(), "marker-end\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out.slice(), "marker-start\tnone\n") != null);
+    html = .{ .buffer = &bytes };
+    next = .{};
+    p = .{ .html = &html, .next = &next };
+    marker.project(&p, MarkerView{ .end = "url(https://outside.test/a#x)" });
+    try std.testing.expect(html.failed);
+}

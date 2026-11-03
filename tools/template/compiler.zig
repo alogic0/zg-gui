@@ -175,7 +175,7 @@ const Compiler = struct {
                         stack.items.len -= 1;
                     },
                     .start, .start_self => {
-                        if (!oneOf(tag_name, "main header footer section article aside nav dialog blockquote div p span h1 h2 h3 h4 h5 h6 a strong em small time b i sup sub code pre br hr form fieldset legend label input textarea button output meter progress ul ol li dl dt dd img video iframe details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs symbol path circle ellipse rect line polyline polygon use title desc text tspan clipPath linearGradient radialGradient stop")) {
+                        if (!oneOf(tag_name, "main header footer section article aside nav dialog blockquote div p span h1 h2 h3 h4 h5 h6 a strong em small time b i sup sub code pre br hr form fieldset legend label input textarea button output meter progress ul ol li dl dt dd img video iframe details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs marker symbol path circle ellipse rect line polyline polygon use title desc text tspan clipPath linearGradient radialGradient stop")) {
                             return c.reject(tag.name.start, "unsupported element; use the documented HTML fragment subset");
                         }
                         if (tag.kind == .start_self and !tag.isVoid(c.input.source, .html) and !isSvg(tag_name)) return c.reject(tag.span.start, "non-void HTML elements require an explicit closing tag");
@@ -459,9 +459,9 @@ const Compiler = struct {
                 }
                 try c.binding(.{ .attr = a, .loop_depth = input.loop_depth });
             } else {
-                if (!(attributeName(n) or (isSvg(tag_name) and oneOf(n, "viewBox preserveAspectRatio clipPathUnits"))) or std.mem.startsWith(u8, n, "on") or oneOf(n, "data-node-id data-event data-input-kind data-select-value data-select-values")) return c.reject(a.name.start, "reserved or unsupported attribute name");
+                if (!(attributeName(n) or (isSvg(tag_name) and oneOf(n, "viewBox preserveAspectRatio clipPathUnits refX refY markerWidth markerHeight markerUnits"))) or std.mem.startsWith(u8, n, "on") or oneOf(n, "data-node-id data-event data-input-kind data-select-value data-select-values")) return c.reject(a.name.start, "reserved or unsupported attribute name");
                 if (a.value) |v| if (std.mem.startsWith(u8, v.span.slice(c.input.source), "$")) {
-                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (oneOf(tag_name, "img iframe") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter progress") and std.mem.eql(u8, n, "value")) or (std.mem.eql(u8, tag_name, "progress") and std.mem.eql(u8, n, "max")) or (oneOf(tag_name, "input select textarea") and std.mem.eql(u8, n, "required")) or (std.mem.eql(u8, tag_name, "input") and oneOf(n, "min max step type")) or (oneOf(tag_name, "input select textarea") and oneOf(n, "name autocomplete")) or (oneOf(tag_name, "td th") and oneOf(n, "colspan rowspan")) or (std.mem.eql(u8, tag_name, "form") and std.mem.eql(u8, n, "action")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
+                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform marker-start marker-mid marker-end stroke-dasharray text-anchor dx dy")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (oneOf(tag_name, "img iframe") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter progress") and std.mem.eql(u8, n, "value")) or (std.mem.eql(u8, tag_name, "progress") and std.mem.eql(u8, n, "max")) or (oneOf(tag_name, "input select textarea") and std.mem.eql(u8, n, "required")) or (std.mem.eql(u8, tag_name, "input") and oneOf(n, "min max step type")) or (oneOf(tag_name, "input select textarea") and oneOf(n, "name autocomplete")) or (oneOf(tag_name, "td th") and oneOf(n, "colspan rowspan")) or (std.mem.eql(u8, tag_name, "form") and std.mem.eql(u8, n, "action")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
                     try c.binding(.{ .attr = a, .loop_depth = input.loop_depth });
                 };
             }
@@ -1074,7 +1074,7 @@ test "compiler releases all allocations on failure" {
 }
 
 fn isSvg(name: []const u8) bool {
-    return oneOf(name, "svg g defs symbol path circle ellipse rect line polyline polygon use title desc text tspan clipPath linearGradient radialGradient stop");
+    return oneOf(name, "svg g defs marker symbol path circle ellipse rect line polyline polygon use title desc text tspan clipPath linearGradient radialGradient stop");
 }
 fn structureError(input: struct { parent: []const u8, child: []const u8 }) ?[]const u8 {
     const p = input.parent;
@@ -1082,11 +1082,12 @@ fn structureError(input: struct { parent: []const u8, child: []const u8 }) ?[]co
     if (std.mem.eql(u8, p, "dl") and !oneOf(n, "div dt dd")) return "description lists require terms, descriptions or div groups";
     if (isSvg(p)) {
         if (!isSvg(n)) return "invalid SVG child structure";
+        if (std.mem.eql(u8, n, "marker") and !std.mem.eql(u8, p, "defs")) return "SVG markers require defs";
         if (oneOf(p, "linearGradient radialGradient")) {
             if (!std.mem.eql(u8, n, "stop")) return "SVG gradients require stop children";
         } else if (oneOf(p, "text tspan")) {
             if (!std.mem.eql(u8, n, "tspan")) return "SVG text accepts only tspan children";
-        } else if (oneOf(p, "title desc")) return "SVG metadata accepts text only" else if (std.mem.eql(u8, n, "stop") or std.mem.eql(u8, n, "tspan") or !oneOf(p, "svg g defs symbol clipPath")) return "invalid SVG child structure";
+        } else if (oneOf(p, "title desc")) return "SVG metadata accepts text only" else if (std.mem.eql(u8, n, "stop") or std.mem.eql(u8, n, "tspan") or !oneOf(p, "svg g defs symbol clipPath marker")) return "invalid SVG child structure";
     } else if (isSvg(n) and !std.mem.eql(u8, n, "svg")) return "SVG elements require an SVG container";
     const valid = if (std.mem.eql(u8, p, "table")) oneOf(n, "caption colgroup thead tbody tfoot") else if (oneOf(p, "thead tbody tfoot")) std.mem.eql(u8, n, "tr") else if (std.mem.eql(u8, p, "tr")) oneOf(n, "th td") else if (std.mem.eql(u8, p, "colgroup")) std.mem.eql(u8, n, "col") else if (std.mem.eql(u8, p, "select")) oneOf(n, "option optgroup") else if (std.mem.eql(u8, p, "optgroup")) std.mem.eql(u8, n, "option") else !std.mem.eql(u8, p, "option");
     if (!valid) return "invalid table or select child structure; use explicit section elements";
@@ -1780,5 +1781,16 @@ test "SVG chart labels metadata and clipping retain namespace-safe structures" {
     try std.testing.expect(std.mem.indexOf(u8, code, "clipPath") != null);
     for ([_][]const u8{ "<div><text>wrong</text></div>", "<svg><tspan>wrong</tspan></svg>", "<svg><text><rect/></text></svg>", "<svg><desc><tspan>wrong</tspan></desc></svg>", "<svg><clipPath><div>wrong</div></clipPath></svg>" }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad-chart.gui.html", .diagnostic = &diagnostic }));
+    }
+}
+
+test "SVG marker definitions preserve geometry spelling and require defs" {
+    var d = Diagnostic{};
+    const code = try compile(std.testing.allocator, .{ .source = "<svg><defs><marker id=\"arrow\" refX=\"9\" refY=\"5\" markerWidth=\"6\" markerHeight=\"6\" markerUnits=\"strokeWidth\" orient=\"auto\"><path d=\"M0 0L10 5L0 10z\"/></marker></defs><line marker-end=\"$arrow\"/></svg>", .name = "markers.gui.html", .diagnostic = &d });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "markerWidth") != null);
+    try std.testing.expect(std.mem.indexOf(u8, code, "marker-end") != null);
+    for ([_][]const u8{ "<marker></marker>", "<svg><marker></marker></svg>", "<svg><defs><marker><div></div></marker></defs></svg>", "<svg><defs><marker><marker></marker></marker></defs></svg>" }) |source| {
+        try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad.gui.html", .diagnostic = &d }));
     }
 }

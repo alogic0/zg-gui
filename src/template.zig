@@ -115,6 +115,12 @@ pub noinline fn attribute(p: anytype, comptime name: []const u8, input: anytype)
         p.html.failed = true;
         return;
     };
+    if (comptime std.mem.eql(u8, name, "marker-start") or std.mem.eql(u8, name, "marker-mid") or std.mem.eql(u8, name, "marker-end")) {
+        if (!validMarkerReference(value)) {
+            p.html.failed = true;
+            return;
+        }
+    }
     if (comptime std.mem.eql(u8, name, "value") or std.mem.eql(u8, name, "data-select-value") or std.mem.eql(u8, name, "data-select-values")) {
         if (std.mem.indexOfAny(u8, value, "\t\r\n") != null) {
             p.html.failed = true;
@@ -122,6 +128,16 @@ pub noinline fn attribute(p: anytype, comptime name: []const u8, input: anytype)
         }
     }
     p.attr(.{ .node = input.node, .name = name, .value = value });
+}
+
+/// Inert, document-local SVG marker reference. Removal uses an optional null.
+pub fn validMarkerReference(value: []const u8) bool {
+    if (std.mem.eql(u8, value, "none")) return true;
+    if (!std.mem.startsWith(u8, value, "url(#") or !std.mem.endsWith(u8, value, ")") or value.len <= 6) return false;
+    for (value[5 .. value.len - 1]) |c| {
+        if (!(std.ascii.isAlphanumeric(c) or c == '_' or c == '-')) return false;
+    }
+    return true;
 }
 
 /// External destinations require explicit template opt-in and caller approval.
@@ -747,3 +763,19 @@ test "validation bindings synchronize aria-invalid and aria-describedby" {
     try std.testing.expectEqualStrings("A\t10\taria-invalid\ttrue\n", output.slice());
 }
 
+test "marker references admit only inert local fragments before publication" {
+    for ([_][]const u8{ "none", "url(#arrow)", "url(#diagram_2-arrow)" }) |value|
+        try std.testing.expect(validMarkerReference(value));
+    for ([_][]const u8{ "", "url(#)", "url(https://outside.test/a#x)", "url(//outside.test/a#x)", "url(javascript:evil)", "url(#x) red", "url(#x y)", "url('#x')", "url(#x\n)" }) |value| {
+        try std.testing.expect(!validMarkerReference(value));
+        var bytes: [256]u8 = undefined;
+        var html = @import("html.zig").Writer{ .buffer = &bytes };
+        const P = @import("projection.zig").Projection(2);
+        var next = P.Snapshot{};
+        var p = P{ .html = &html, .next = &next };
+        attribute(&p, "marker-end", .{ .node = 1, .value = value });
+        try std.testing.expect(html.failed);
+        try std.testing.expectEqual(@as(usize, 0), html.len);
+        try std.testing.expectEqual(@as(usize, 0), next.len);
+    }
+}

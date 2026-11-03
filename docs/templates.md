@@ -580,3 +580,11 @@ SVG charts may contain `text`, nested `tspan`, text-only `desc`, and local
 parent; labels use the normal escaped `:text` binding and retain their SVG
 namespace during patches. HTML children and foreignObject remain unsupported.
 Consumers own chart scales, layout, descriptions and data. See request 075.
+
+SVG `defs` may contain `marker` definitions with preserved `refX`, `refY`,
+`markerWidth`, `markerHeight` and `markerUnits`. Marker children use SVG
+shapes/groups. Dynamic `marker-start`, `marker-mid` and `marker-end` accept
+`none`, a local `url(#identifier)`, or an optional null for removal. Identifiers
+contain ASCII letters, digits, underscores and hyphens. Consumers namespace
+definition IDs for independently mounted diagrams. SVG `stroke-dasharray`,
+`text-anchor`, `dx` and `dy` also accept ordinary attribute bindings.

@@ -967,3 +967,25 @@ test "browser dom: SVG label patches retain namespaces controls and literal text
         \\dom.dispose();root.remove();return true;
     );
 }
+
+test "browser dom: SVG marker references retain geometry and reject outside resources" {
+    var guard = try Harness.getSession(std.testing.allocator, std.testing.io);
+    defer guard.deinit();
+    try guard.goto("/dom.js");
+    try guard.evalCheck(
+        \\const { createDomHost } = await import('/dom.js');
+        \\const root = document.createElement('main'); document.body.append(root);
+        \\const dom = createDomHost({ root });
+        \\dom.initialize('<input data-node-id="1" value="draft"><svg data-node-id="2"><defs><marker id="one-arrow" refX="9" refY="5" markerWidth="6" markerHeight="6"><path d="M0 0L10 5L0 10z"/></marker></defs><path data-node-id="3" d="M0 0L10 0" marker-end="url(#one-arrow)"/></svg>');
+        \\const input = root.querySelector('input'), svg = root.querySelector('svg'), edge = root.querySelector('[data-node-id="3"]'); input.focus();
+        \\dom.applyPatchStream('A\t3\tmarker-end\tnone\nA\t3\tmarker-start\turl(#one-arrow)\nR\t3\tmarker-end\n');
+        \\assert.ok(svg === root.querySelector('svg') && edge === root.querySelector('[data-node-id="3"]') && edge.namespaceURI === 'http://www.w3.org/2000/svg' && document.activeElement === input);
+        \\assert.equal(edge.getAttribute('marker-start'), 'url(#one-arrow)'); assert.ok(!edge.hasAttribute('marker-end'));
+        \\for (const bad of ['url(https://outside.test/a#x)', 'url(#)', 'url(#x) red', 'url(javascript:evil)']) {
+        \\  let refused = false; try { dom.applyPatchStream('A\t3\tmarker-start\t' + bad + '\n'); } catch { refused = true; } assert.ok(refused);
+        \\  assert.equal(edge.getAttribute('marker-start'), 'url(#one-arrow)');
+        \\}
+        \\let refused = false; try { dom.applyPatchStream('A\t1\tmarker-start\turl(#one-arrow)\n'); } catch { refused = true; } assert.ok(refused);
+        \\dom.dispose(); root.remove(); return true;
+    );
+}

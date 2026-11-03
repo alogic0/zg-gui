@@ -44,7 +44,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
   // Attribute names Zig is allowed to set through the A/R operations. Names
   // are Zig literals, so this is defense in depth: an unexpected name fails
   // the stream (and resyncs) instead of reaching setAttribute.
-  const attributePattern = /^(?:viewBox|d|fill|stroke|stroke-width|x|y|x1|x2|y1|y2|cx|cy|r|rx|ry|width|height|points|transform|id|for|class|lang|dir|hidden|disabled|required|readonly|datetime|draggable|inert|role|title|href|src|alt|type|name|placeholder|autofocus|autocomplete|min|max|step|minlength|maxlength|colspan|rowspan|aria-[a-z]+(?:-[a-z]+)*|data-[a-z]+(?:-[a-z]+)*)$/;
+  const attributePattern = /^(?:marker-start|marker-mid|marker-end|stroke-dasharray|text-anchor|dx|dy|viewBox|d|fill|stroke|stroke-width|x|y|x1|x2|y1|y2|cx|cy|r|rx|ry|width|height|points|transform|id|for|class|lang|dir|hidden|disabled|required|readonly|datetime|draggable|inert|role|title|href|src|alt|type|name|placeholder|autofocus|autocomplete|min|max|step|minlength|maxlength|colspan|rowspan|aria-[a-z]+(?:-[a-z]+)*|data-[a-z]+(?:-[a-z]+)*)$/;
 
   function scrollPosition(value, target) {
     if (!(target instanceof window.HTMLElement) || !/^(0|[1-9][0-9]*)$/.test(value) || Number(value) > 16777216) {
@@ -789,6 +789,11 @@ export function createDomHost({ root, onStructure = () => {} }) {
         throw new Error(`Zig patch names an attribute outside the allowlist: ${attribute}`);
       }
       if (operation === "A" && fields.length === 4) {
+        if (['marker-start', 'marker-mid', 'marker-end'].includes(attribute)) {
+          if (!(target instanceof window.SVGElement) || !/^(?:none|url\(#[A-Za-z0-9_-]+\))$/.test(fields[3])) {
+            throw new Error('Zig SVG marker patch requires a document-local fragment');
+          }
+        }
         if (attribute === 'href') {
           const url = new URL(fields[3], document.baseURI);
           if (!['http:', 'https:', 'mailto:', 'tel:'].includes(url.protocol) || url.username || url.password)
