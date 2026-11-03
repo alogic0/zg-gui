@@ -205,6 +205,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    _ = b.addModule("zg_charts", .{ .root_source_file = b.path("src/charts.zig"), .target = target, .optimize = optimize });
     const unit_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/root.zig"),

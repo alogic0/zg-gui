@@ -411,6 +411,19 @@ test "template compiler: independent Zig package compiles and imports its own HT
     const root_dir = try std.fs.path.resolve(alloc, &.{"."});
     defer alloc.free(root_dir);
 
+    {
+        var f = try std.Io.Dir.cwd().createFile(io, tmp_dir ++ "/math.zig", .{});
+        defer f.close(io);
+        try f.writeStreamingAll(io,
+            \\const std = @import("std");
+            \\const c = @import("zg_charts");
+            \\test "standalone numerical module" {
+            \\    const scale = try c.Linear.init(.{ .domain = .{ .start = 2, .end = 6 }, .range = .{ .start = 0, .end = 100 } });
+            \\    try std.testing.expectEqual(@as(f64, 50), try scale.map(4));
+            \\}
+        );
+    }
+
     // build.zig.zon
     {
         const zon_content =
@@ -455,6 +468,8 @@ test "template compiler: independent Zig package compiles and imports its own HT
             \\    const target = b.standardTargetOptions(.{});
             \\    const dep = b.dependency("zg_gui", .{ .target = target, .optimize = std.builtin.OptimizeMode.debug });
             \\    const gui = dep.module("zg_gui");
+            \\    const math_tests = b.addTest(.{ .root_module = b.createModule(.{ .root_source_file = b.path("math.zig"), .target = target, .imports = &.{.{ .name = "zg_charts", .module = dep.module("zg_charts") }} }) });
+            \\    b.getInstallStep().dependOn(&b.addRunArtifact(math_tests).step);
             \\    const tests = b.addTest(.{ .root_module = b.createModule(.{
             \\        .root_source_file = b.path("main.zig"), .target = target,
             \\        .imports = &.{.{ .name = "zg_gui", .module = gui }} }) });
@@ -473,6 +488,17 @@ test "template compiler: independent Zig package compiles and imports its own HT
             \\const std = @import("std");
             \\const gui = @import("zg_gui");
             \\const template = @import("view");
+            \\test "external numerical chart helpers need no diagram engine" {
+            \\    const c = gui.charts;
+            \\    const scale = try c.Linear.init(.{ .domain = .{ .start = -10, .end = 10 }, .range = .{ .start = 200, .end = 0 } });
+            \\    try std.testing.expectEqual(@as(f64, 100), try scale.map(0));
+            \\    var values: [16]f64 = undefined;
+            \\    const tick = try c.ticks(.{ .domain = scale.domain, .output = &values });
+            \\    try std.testing.expect(tick.values.len > 1);
+            \\    var path: [128]u8 = undefined;
+            \\    const result = try c.linePath(.{ .points = &.{.{ .x = -10, .y = 10 }, .{ .x = 10, .y = -10 }}, .x_scale = scale, .y_scale = scale, .buffer = &path });
+            \\    try std.testing.expectEqualStrings("M200,0L0,200", result);
+            \\}
             \\test "external generated template" {
             \\    var bytes: [256]u8 = undefined;
             \\    var html = gui.html.Writer{ .buffer = &bytes };
@@ -667,4 +693,3 @@ test "template formatter: CLI diagnostics on invalid template" {
     try std.testing.expect(term != .exited or term.exited != 0);
     try std.testing.expect(std.mem.indexOf(u8, err_out, "mismatched closing tag") != null);
 }
-
