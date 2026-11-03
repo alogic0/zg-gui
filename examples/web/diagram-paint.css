@@ -1,0 +1,17 @@
+.zig-diagram-svg { color: var(--ink, #262b38); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
+.zig-diagram-node-box { fill: var(--tint, #eff0fe); stroke: var(--accent, #4351bf); stroke-width: 1.5; }
+.zig-diagram-label, .zig-diagram-edge-label, .zig-diagram-title, .zig-diagram-note-text, .zig-diagram-subgraph-label { fill: currentColor; }
+.zig-diagram-title, .zig-diagram-subgraph-label { font-weight: 650; }
+.zig-diagram-edge-line, .zig-diagram-lifeline { fill: none; stroke: var(--muted, #596174); stroke-width: 1.5; }
+.zig-diagram-edge-dotted { stroke-dasharray: 4,4; }
+.zig-diagram-edge-thick { stroke-width: 3; }
+.zig-diagram-arrow { fill: var(--muted, #596174); }
+.zig-diagram-arrow-open, .zig-diagram-cross { fill: none; stroke: var(--muted, #596174); stroke-width: 1.5; }
+.zig-diagram-note-box, .zig-diagram-activation { fill: var(--surface, #fff); stroke: var(--accent, #4351bf); stroke-width: 1.5; }
+.zig-diagram-subgraph-box { fill: var(--input, #f7f8fb); stroke: var(--line, #d9deea); stroke-width: 1; }
+@media (forced-colors: active) {
+  .zig-diagram-svg { color: CanvasText; }
+  .zig-diagram-node-box, .zig-diagram-note-box, .zig-diagram-activation, .zig-diagram-subgraph-box { fill: Canvas; stroke: CanvasText; }
+  .zig-diagram-edge-line, .zig-diagram-lifeline, .zig-diagram-arrow-open, .zig-diagram-cross { stroke: CanvasText; }
+  .zig-diagram-arrow { fill: CanvasText; }
+}

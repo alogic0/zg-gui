@@ -1,6 +1,6 @@
 # Optional diagram rendering
 
-Status: specified; implementation and verification pending.
+Status: implemented and provider verified.
 
 ## Reusable contract
 
@@ -62,20 +62,20 @@ Each working slice receives focused verification and a separate commit.
 - [x] Public registration works from an independent consumer package.
 - [x] Core-only builds do not require or link a diagram engine.
 - [x] Two diagrams have distinct marker references and disjoint node IDs.
-- [ ] Browser checks retain SVG, shapes, labels, unrelated controls and focus
+- [x] Browser checks retain SVG, shapes, labels, unrelated controls and focus
   through label changes, layout updates and insertion/removal.
 - [x] Native checks cover empty/invalid sources, allocator failure, scene limits,
   output/snapshot exhaustion, failed-update retry and namespace overflow.
-- [ ] Example supports accessible descriptions, keyboard-operated controls,
+- [x] Example supports accessible descriptions, keyboard-operated controls,
   narrow layouts and SVG export.
-- [ ] Public documentation and reproducible size/memory/patch measurements
+- [x] Public documentation and reproducible size/memory/patch measurements
   state workload and limits separately from correctness.
 
 ## Limits
 
 The first delivery supports the selected engine's flowchart and sequence
-vocabulary. Diagram editing, pan/zoom policy and numerical chart scales remain
-separate consumer or future capability work. Framework verification establishes
+vocabulary. Direct manipulation of nodes/edges, pan/zoom policy and numerical
+chart scales remain separate consumer or future capability work. Verification establishes
 provider behavior; application visual and accessibility acceptance is separate.
 
 ## Verification
@@ -90,3 +90,16 @@ consumer package through public build registration, named-node reordering,
 geometry/text patches, two namespaces, distinct insertion/removal slots, local
 shape replacement, failed writer/snapshot retry and invalid admission. Shared
 scene capture checks exact SVG replay and all allocation failures in the engine.
+
+Example/browser slice: `zig build test-all -Ddiagrams=true -j4` passes with
+Zig 0.17.0. Both source editors retain named drawing primitives and focus through
+edits/reordering, invalid/empty sources preserve accepted output, and SVG
+download succeeds or reports a recoverable failure. Native keyboard activation,
+two themes and desktop/390px geometry pass. Core-only builds also pass when the
+lazy layout dependency points to an absent directory. Browser steps always run
+against current installed assets instead of reusing a cached executable result.
+
+The strict UI audit and design-context lint pass without warnings. See
+[diagram integration and measurements](../diagrams.md) for the public API,
+bounded example workload and artifact/memory/patch evidence. Browser screenshots,
+measurement JSON and the static audit report are written under `zig-out`.

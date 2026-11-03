@@ -1,0 +1,45 @@
+<main class="diagram-page">
+  <header class="diagram-intro">
+    <p class="eyebrow">Diagrams</p>
+    <h1>From a few lines to a clear picture.</h1>
+    <p>
+      Edit either source and render it. Each drawing updates independently. If a source needs fixing, its last drawing stays visible.
+    </p>
+  </header>
+  <div class="diagram-grid">
+    <section class="diagram-panel" aria-labelledby="flow-heading">
+      <div class="diagram-heading">
+        <h2 id="flow-heading">A process, connected</h2>
+        <button type="button" data-download="0">Download SVG</button>
+      </div>
+      <div class="diagram-canvas" :slot="$flow"></div>
+      <form novalidate>
+        <label for="flow-source">Flowchart source</label>
+        <textarea id="flow-source" maxlength="1024" spellcheck="false" :value="$flow_source" :input="$inputs.flow" aria-describedby="flow-error" :invalid="$flow_invalid"></textarea>
+        <p id="flow-error" class="diagram-error" role="status" :text="$flow_error"></p>
+        <div class="diagram-actions">
+          <button type="button" class="primary" :on-click="$actions.apply_flow">Render flowchart</button>
+          <button type="button" :on-click="$actions.reset_flow">Reset sample</button>
+        </div>
+      </form>
+    </section>
+    <section class="diagram-panel" aria-labelledby="sequence-heading">
+      <div class="diagram-heading">
+        <h2 id="sequence-heading">A conversation, in order</h2>
+        <button type="button" data-download="1">Download SVG</button>
+      </div>
+      <div class="diagram-canvas" :slot="$sequence"></div>
+      <form novalidate>
+        <label for="sequence-source">Sequence source</label>
+        <textarea id="sequence-source" maxlength="1024" spellcheck="false" :value="$sequence_source" :input="$inputs.sequence" aria-describedby="sequence-error" :invalid="$sequence_invalid"></textarea>
+        <p id="sequence-error" class="diagram-error" role="status" :text="$sequence_error"></p>
+        <div class="diagram-actions">
+          <button type="button" class="primary" :on-click="$actions.apply_sequence">Render sequence</button>
+          <button type="button" :on-click="$actions.reset_sequence">Reset sample</button>
+        </div>
+      </form>
+    </section>
+  </div>
+  <p class="diagram-help">Try changing a label, adding a step, or switching the flowchart from <code>TD</code> to <code>LR</code>. The source also provides a text alternative to each drawing.</p>
+  <p id="download-status" role="status" class="diagram-download-status"></p>
+</main>

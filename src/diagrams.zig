@@ -12,7 +12,9 @@ pub const ProjectOptions = struct {
 
 /// Caller-owned identity state. Copy accepted state before composing a larger
 /// candidate render; commit all copies/snapshots only after every writer passes.
-pub fn Diagram(comptime max_elements: usize, comptime max_key_bytes: usize) type {
+pub fn Diagram(comptime capacity: struct { max_elements: usize, max_key_bytes: usize = 192 }) type {
+    const max_elements = capacity.max_elements;
+    const max_key_bytes = capacity.max_key_bytes;
     if (max_elements == 0 or max_elements > (std.math.maxInt(u32) - 3) / 4) @compileError("invalid diagram element capacity");
     return struct {
         const Self = @This();

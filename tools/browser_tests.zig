@@ -4,6 +4,8 @@ const std = @import("std");
 const cdp = @import("cdp");
 const harness = @import("browser_harness.zig");
 
+pub const diagram_tests = if (@import("browser_options").diagrams) @import("browser/diagram_tests.zig") else struct {};
+
 pub const dom_tests = @import("browser/dom_tests.zig");
 pub const worker_tests = @import("browser/worker_tests.zig");
 pub const workspace_tests = @import("browser/workspace_tests.zig");

@@ -69,6 +69,11 @@ capabilities and limits, including unsupported nested keyed loops and multiple
 selection. Consumer state, effects, routing, styling, and application policy
 remain outside the framework.
 
+Optional [diagram projections](docs/diagrams.md) add flowcharts, sequence diagrams
+and SVG export through a caller-selected layout engine. Run
+`zig build serve -Ddiagrams=true` and open **http://127.0.0.1:4180/diagrams.html**
+for the two-source example. Core-only builds keep the engine dependency unused.
+
 ## Explore the example
 
 | File | Responsibility |

@@ -20,11 +20,15 @@ support, and `scene.renderSvg(allocator)` for standalone export. Every returned
 scene owns its strings/geometry and requires `scene.deinit()`; callers free
 exported SVG through its allocator.
 
+Instantiate the GUI and layout dependencies for the same target/optimization.
+Programmatic consumers may also build the engine's public diagram structures
+and capture `layout.draw(.{ .allocator, .sink })` through its owned scene builder.
+
 ## Projection and transactions
 
 ```zig
 const diagrams = @import("zg_diagrams");
-const Diagram = diagrams.Diagram(128, 192);
+const Diagram = diagrams.Diagram(.{ .max_elements = 128, .max_key_bytes = 192 });
 // Reserve Diagram.node_count IDs through the normal namespace registry.
 // Add Diagram.snapshot_capacity to the surrounding projection's capacity.
 var candidate = accepted_diagram;
@@ -37,7 +41,8 @@ try candidate.project(&projection, .{
 // and projections succeed. On error discard the candidate output/snapshot.
 ```
 
-`Diagram(max_elements, max_key_bytes)` owns fixed storage for compact identities.
+`Diagram` accepts named `max_elements` and `max_key_bytes` capacities and owns
+fixed storage for compact identities.
 It performs no heap allocation. The byte capacity includes the entity kind,
 index and primitive part as well as the source name. Two banks of compact slots
 reserve removed entities until new entities have their own IDs; this prevents
@@ -69,8 +74,69 @@ or arena overhead. Keep the last accepted source/scene when a new source fails.
 
 ## Build and verification
 
-`-Ddiagrams=true` enables diagram checks. Normal builds
-leave the lazy layout dependency unused. Run `zig build test-diagrams
--Ddiagrams=true` for projection, failure/retry and independent-consumer checks.
-Framework evidence is tracked in request 077; application visual acceptance
-and interaction policy remain consumer responsibilities.
+```sh
+zig build serve -Ddiagrams=true
+```
+
+Open `http://127.0.0.1:4180/diagrams.html`. Each source editor has an explicit
+render action, inline error recovery and reset. Invalid input preserves its
+accepted drawing. Download SVG exports the accepted scene through the engine
+and embeds the current theme's shared paint stylesheet. Both editors support
+native keyboard operation; the panels stack on narrow screens. Source edits are
+transient; theme preference follows the other examples.
+
+`-Ddiagrams=true` enables the example and diagram checks. Normal builds leave the
+lazy layout dependency unused. An isolated core-only package copy was also built
+with its optional layout dependency deliberately absent. The public adapter
+helper accepts an application-selected module independently of that example
+dependency.
+
+Run `zig build test-diagrams -Ddiagrams=true` for native projection, failure/retry,
+example and independent-consumer checks. Run `zig build test-all -Ddiagrams=true`
+for the complete native/compiler/browser suite. For a focused browser journey,
+use `zig build test-browser -Ddiagrams=true -Dbrowser-filter=diagrams`. Browser
+steps always execute because their installed assets and browser state can change
+independently of the test executable.
+
+Browser verification covers both source editors, named-participant reordering,
+retained SVG/shape/label/input identities, focus, insertion/removal, two marker
+namespaces, invalid and empty sources, recovery, valid XML export, download
+failure, keyboard activation, themes and a 390px viewport. The runs write
+measurements, desktop/mobile screenshots and the UI audit under `zig-out`.
+
+Framework evidence is tracked in request 077. These checks establish provider
+behavior; consumer visual acceptance and interaction policy remain separate.
+
+## Example limits and measurements
+
+The example admits 32 nodes/participants, 64 links/events and 128 drawing
+primitives per scene. Editor markup limits each source to 1024 UTF-16 code units;
+the UTF-8 exchange and owned source buffers hold 4096 bytes. Each primitive's
+serialized identity fits 128 bytes. A shared fixed allocator reserves 512 KiB
+for both scenes and layout scratch; HTML scratch, patch output and SVG export
+each reserve 128 KiB. The WASM stack reserves 1 MiB. Exceeding admission or output
+capacity preserves the prior accepted drawing and reports an inline error.
+
+Recorded with Zig 0.17.0, safe optimization, stripped wasm32-freestanding, and
+the headless Chromium journeys:
+
+| Measurement | Observed value |
+| --- | ---: |
+| Optional two-editor example WASM | 208,126 bytes |
+| Existing basics WASM | 51,715 bytes, unchanged |
+| Existing workspace WASM | 173,967 bytes, unchanged |
+| Initial linear memory | 2,228,224 bytes (34 pages) |
+| Maximum linear memory observed in the measured workload | 2,228,224 bytes |
+| Initial HTML for both sample diagrams and editors | 12,532 bytes |
+| One-character flow-node label update, after accepting its draft | 195 bytes / 6 commands |
+
+The label workload changes `Read source` to `Read source!` in the default
+flowchart. Its projection contains text/geometry commands and no subtree
+replacement or append. The browser also checks no linear-memory growth while
+editing both diagrams and exporting SVG. These measurements describe this
+bounded example and observed workloads; they do not establish process-RAM
+measurements, a universal peak-memory guarantee or a consumer budget.
+
+Reproduce the report with `zig build test-browser -Ddiagrams=true
+-Dbrowser-filter=diagrams`; inspect `zig-out/diagram-measurements.json`,
+`zig-out/diagram-desktop.png` and `zig-out/diagram-mobile.png`.

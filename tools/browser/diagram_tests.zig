@@ -1,0 +1,134 @@
+const std = @import("std");
+const Harness = @import("../browser_harness.zig").Harness;
+
+test "browser diagrams: retained geometry focus two namespaces failed sources and export" {
+    var guard = try Harness.getSession(std.testing.allocator, std.testing.io);
+    defer guard.deinit();
+    const viewport = try guard.session.call("Emulation.setDeviceMetricsOverride", "{\"width\":1280,\"height\":1000,\"deviceScaleFactor\":1,\"mobile\":false}");
+    defer guard.alloc.free(viewport);
+    try guard.goto("/diagrams.html");
+    try guard.evalCheck(
+        \\for (let i = 0; !window.diagramExample && i < 250; i++) await new Promise(r => setTimeout(r, 20));
+        \\assert.ok(window.diagramExample, document.querySelector('#app').textContent);
+        \\const app = window.diagramExample, root = document.querySelector('#app'), input = root.querySelector('#flow-source');
+        \\const initialMemory = app.wasm.memory.buffer.byteLength;
+        \\const svgs = [...root.querySelectorAll('svg')], flow = svgs[0], sequence = svgs[1];
+        \\assert.equal(svgs.length, 2); assert.ok(flow.getAttribute('aria-label') && sequence.querySelector('desc'));
+        \\const markers = [...root.querySelectorAll('marker')].map(n => n.id); assert.equal(new Set(markers).size, 8);
+        \\const shape = flow.querySelector('[data-diagram-name="Read"][data-diagram-part="0"] rect');
+        \\const label = flow.querySelector('[data-diagram-name="Read"][data-diagram-part="1"] text');
+        \\const set = source => { input.focus(); input.value = source; input.dispatchEvent(new Event('input', { bubbles: true })); app.dispatch({ action: 1 }); };
+        \\set('flowchart LR\n Draw[Draw the result]\n Read[Changed <&>]\n Check{Is it ready?}\n Read --> Check\n Check --> Draw');
+        \\assert.ok(flow === root.querySelector('svg') && sequence === root.querySelectorAll('svg')[1]);
+        \\assert.ok(shape === flow.querySelector('[data-diagram-name="Read"][data-diagram-part="0"] rect'));
+        \\assert.ok(label === flow.querySelector('[data-diagram-name="Read"][data-diagram-part="1"] text'));
+        \\assert.equal(label.textContent, 'Changed <&>'); assert.ok(!label.querySelector('*'));
+        \\assert.ok(document.activeElement === input && input === root.querySelector('#flow-source'));
+        \\set('graph TD\n Read[Changed <&>] --> Extra[Another step]');
+        \\assert.ok(shape === flow.querySelector('[data-diagram-name="Read"][data-diagram-part="0"] rect'));
+        \\assert.ok(flow.querySelector('[data-diagram-name="Extra"]') && !flow.querySelector('[data-diagram-name="Check"]'));
+        \\const before = flow.innerHTML;
+        \\set('classDiagram');
+        \\assert.equal(flow.innerHTML, before); assert.ok(root.querySelector('#flow-error').textContent.length > 0);
+        \\assert.equal(input.getAttribute('aria-invalid'), 'true'); assert.ok(document.activeElement === input);
+        \\set(''); assert.equal(flow.innerHTML, before);
+        \\set('graph TD\n Read[Recovered] --> Extra[Another step]');
+        \\assert.equal(root.querySelector('#flow-error').textContent, ''); assert.ok(!input.hasAttribute('aria-invalid'));
+        \\assert.ok(document.activeElement === input && sequence === root.querySelectorAll('svg')[1]);
+        \\assert.equal(app.wasm.exportSvg(0), 1);
+        \\const exported = new TextDecoder().decode(new Uint8Array(app.wasm.memory.buffer, app.wasm.getSvgBuffer(), app.wasm.getSvgLength()));
+        \\assert.ok(exported.includes('<svg') && exported.includes('Recovered'));
+        \\const xml = new DOMParser().parseFromString(exported, 'image/svg+xml'); assert.equal(xml.querySelectorAll('parsererror').length, 0);
+        \\assert.equal(app.wasm.exportSvg(1), 1);
+        \\const ids = [...root.querySelectorAll('[data-node-id]')].map(n => n.dataset.nodeId); assert.equal(new Set(ids).size, ids.length);
+        \\assert.ok([...flow.querySelectorAll('*')].every(n => n.namespaceURI === 'http://www.w3.org/2000/svg'));
+        \\const sequenceSource = root.querySelector('#sequence-source');
+        \\const participant = sequence.querySelector('[data-diagram-kind="participant"][data-diagram-name="Engine"][data-diagram-part="0"] rect');
+        \\const untouchedFlow = flow.innerHTML;
+        \\sequenceSource.focus(); sequenceSource.value = 'sequenceDiagram\n participant Engine as Processor\n participant Reader\n Reader->>Engine: A different message';
+        \\sequenceSource.dispatchEvent(new Event('input', { bubbles: true })); app.dispatch({ action: 2 });
+        \\assert.ok(sequence === root.querySelectorAll('svg')[1] && participant === sequence.querySelector('[data-diagram-kind="participant"][data-diagram-name="Engine"][data-diagram-part="0"] rect'));
+        \\assert.equal(sequence.querySelector('[data-diagram-kind="participant"][data-diagram-name="Engine"][data-diagram-part="1"] text').textContent, 'Processor');
+        \\assert.equal(flow.innerHTML, untouchedFlow); assert.ok(document.activeElement === sequenceSource);
+        \\assert.equal(app.wasm.memory.buffer.byteLength, initialMemory);
+        \\return true;
+    );
+    try guard.evalCheck("scrollTo(0, 0); await new Promise(requestAnimationFrame); return true;");
+    const screenshot = try guard.session.captureScreenshot();
+    defer guard.alloc.free(screenshot);
+    var file = try std.Io.Dir.cwd().createFile(std.testing.io, "zig-out/diagram-desktop.png", .{});
+    defer file.close(std.testing.io);
+    try file.writeStreamingAll(std.testing.io, screenshot);
+}
+
+test "browser diagrams: keyboard theme narrow layout export effect and measurements" {
+    var guard = try Harness.getSession(std.testing.allocator, std.testing.io);
+    defer guard.deinit();
+    const emulation = try guard.session.call("Emulation.setDeviceMetricsOverride", "{\"width\":390,\"height\":844,\"deviceScaleFactor\":1,\"mobile\":false}");
+    defer guard.alloc.free(emulation);
+    try guard.goto("/diagrams.html");
+    try guard.evalCheck(
+        \\for (let i = 0; !window.diagramExample && i < 250; i++) await new Promise(r => setTimeout(r, 20));
+        \\assert.ok(window.diagramExample);
+        \\const app = window.diagramExample, root = document.querySelector('#app');
+        \\assert.ok(document.documentElement.scrollWidth <= innerWidth, 'Page overflows at narrow width');
+        \\const panels = root.querySelectorAll('.diagram-panel'); assert.ok(panels[1].getBoundingClientRect().top > panels[0].getBoundingClientRect().bottom);
+        \\for (const input of root.querySelectorAll('textarea')) { assert.ok(input.labels.length === 1); input.focus(); assert.ok(document.activeElement === input); }
+        \\const theme = document.querySelector('.theme-toggle'), beforeTheme = document.documentElement.dataset.theme; theme.click();
+        \\assert.ok(document.documentElement.dataset.theme !== beforeTheme);
+        \\assert.ok(getComputedStyle(root.querySelector('.zig-diagram-label')).fill !== 'none');
+        \\assert.ok(getComputedStyle(document.documentElement).scrollbarColor !== 'auto');
+        \\theme.click(); assert.equal(document.documentElement.dataset.theme, beforeTheme);
+        \\const bytes = await (await fetch('./diagrams.wasm')).arrayBuffer();
+        \\const module = await WebAssembly.compile(bytes); const fresh = new WebAssembly.Instance(module, {});
+        \\const initialMemory = fresh.exports.memory.buffer.byteLength; fresh.exports.init();
+        \\const initialHtmlBytes = fresh.exports.getRenderLength();
+        \\const source = 'flowchart TD\n Read[Read source!] --> Check{Is it ready?}\n Check -->|Yes| Draw[Draw the result]\n Check -->|Edit| Read';
+        \\const encoded = new TextEncoder().encode(source);
+        \\new Uint8Array(fresh.exports.memory.buffer, fresh.exports.getExchangeBuffer(), encoded.length).set(encoded);
+        \\fresh.exports.setInput(1, encoded.length); fresh.exports.dispatch(1, 0);
+        \\const patch = new TextDecoder().decode(new Uint8Array(fresh.exports.memory.buffer, fresh.exports.getRenderBuffer(), fresh.exports.getRenderLength()));
+        \\assert.ok(patch.includes('T\t') && !patch.includes('H\t') && !patch.includes('J\t'));
+        \\const oldCreate = URL.createObjectURL, oldRevoke = URL.revokeObjectURL, oldClick = HTMLAnchorElement.prototype.click;
+        \\let blob, clicked = false; URL.createObjectURL = value => { blob = value; return 'blob:test'; }; URL.revokeObjectURL = () => {}; HTMLAnchorElement.prototype.click = function() { clicked = this.download === 'flowchart.svg'; };
+        \\try { await app.download(0); } finally { URL.createObjectURL = oldCreate; URL.revokeObjectURL = oldRevoke; HTMLAnchorElement.prototype.click = oldClick; }
+        \\assert.ok(clicked && blob && (await blob.text()).includes('<style>'));
+        \\assert.equal(new DOMParser().parseFromString(await blob.text(), 'image/svg+xml').querySelectorAll('parsererror').length, 0);
+        \\assert.equal(root.querySelector('#download-status').textContent, 'SVG downloaded.');
+        \\const originalFetch = window.fetch, originalError = console.error;
+        \\window.fetch = async () => new Response(null, { status: 503 }); console.error = () => {};
+        \\try { await app.download(1); } finally { window.fetch = originalFetch; console.error = originalError; }
+        \\assert.equal(root.querySelector('#download-status').textContent, 'The SVG could not download. Try again.');
+        \\assert.ok([...root.querySelectorAll('[data-download]')].every(button => !button.disabled));
+        \\window.diagramMeasurements = { wasmBytes: bytes.byteLength, initialMemory, observedPeakMemory: Math.max(initialMemory, fresh.exports.memory.buffer.byteLength), initialHtmlBytes, labelPatchBytes: fresh.exports.getRenderLength(), labelPatchCommands: patch.trim().split('\n').length };
+        \\const input = root.querySelector('#flow-source'); input.value = 'classDiagram'; input.dispatchEvent(new Event('input', { bubbles: true })); app.dispatch({ action: 1 });
+        \\root.querySelector('[data-event="3"]').focus();
+        \\return true;
+    );
+    const activated = try guard.session.call("Page.bringToFront", "{}");
+    defer guard.alloc.free(activated);
+    const key_down = try guard.session.call("Input.dispatchKeyEvent", "{\"type\":\"keyDown\",\"key\":\"Enter\",\"code\":\"Enter\",\"windowsVirtualKeyCode\":13,\"text\":\"\\r\"}");
+    defer guard.alloc.free(key_down);
+    const key_up = try guard.session.call("Input.dispatchKeyEvent", "{\"type\":\"keyUp\",\"key\":\"Enter\",\"code\":\"Enter\",\"windowsVirtualKeyCode\":13,\"text\":\"\\r\"}");
+    defer guard.alloc.free(key_up);
+    try guard.evalCheck(
+        \\assert.ok(document.querySelector('#flow-source').value.startsWith('flowchart TD'), JSON.stringify({source: document.querySelector('#flow-source').value, action: document.activeElement.dataset.event, focus: document.hasFocus()}));
+        \\assert.equal(document.querySelector('#flow-error').textContent, '');
+        \\assert.equal(document.activeElement.dataset.event, '3');
+        \\return true;
+    );
+    const measurements = try guard.session.evaluate("JSON.stringify(window.diagramMeasurements)");
+    defer guard.alloc.free(measurements);
+    const parsed = try std.json.parseFromSlice(std.json.Value, guard.alloc, measurements, .{});
+    defer parsed.deinit();
+    const data = parsed.value.object.get("result").?.object.get("result").?.object.get("value").?.string;
+    var report = try std.Io.Dir.cwd().createFile(std.testing.io, "zig-out/diagram-measurements.json", .{});
+    defer report.close(std.testing.io);
+    try report.writeStreamingAll(std.testing.io, data);
+    try guard.evalCheck("scrollTo(0, 0); await new Promise(requestAnimationFrame); return true;");
+    const screenshot = try guard.session.captureScreenshot();
+    defer guard.alloc.free(screenshot);
+    var file = try std.Io.Dir.cwd().createFile(std.testing.io, "zig-out/diagram-mobile.png", .{});
+    defer file.close(std.testing.io);
+    try file.writeStreamingAll(std.testing.io, screenshot);
+}

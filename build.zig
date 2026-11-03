@@ -9,6 +9,8 @@ pub fn build(b: *std.Build) void {
     }
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const diagrams_enabled = b.option(bool, "diagrams", "Build the optional diagram example and checks") orelse false;
+    const browser_filter = b.option([]const u8, "browser-filter", "Run browser tests whose names contain this text");
     const syntax_types = b.createModule(.{
         .root_source_file = b.path("vendor/superhtml/src/syntax_types.zig"),
         .target = b.graph.host,
@@ -377,16 +379,21 @@ pub fn build(b: *std.Build) void {
     tools_step.dependOn(&run_tools_tests.step);
     b.top_level_steps.get("test").?.step.dependOn(tools_step);
 
+    const browser_options = b.addOptions();
+    browser_options.addOption(bool, "diagrams", diagrams_enabled);
     const browser_unit_tests = b.addTest(.{
+        .filters = if (browser_filter) |filter| b.allocator.dupe([]const u8, &.{filter}) catch @panic("OOM") else &.{},
         .root_module = b.createModule(.{
             .root_source_file = b.path("tools/browser_tests.zig"),
             .target = b.graph.host,
             .optimize = .debug,
-            .imports = &.{.{ .name = "cdp", .module = cdp }},
+            .imports = &.{ .{ .name = "cdp", .module = cdp }, .{ .name = "browser_options", .module = browser_options.createModule() } },
         }),
     });
     const run_browser_unit_tests = b.addRunArtifact(browser_unit_tests);
     run_browser_unit_tests.setCwd(b.path("."));
+    // Browser journeys consume installed assets and external browser state.
+    run_browser_unit_tests.has_side_effects = true;
     run_browser_unit_tests.step.dependOn(b.getInstallStep());
     const browser_unit_step = b.step("test-browser-unit", "Test native CDP browser unit harness");
     browser_unit_step.dependOn(&run_browser_unit_tests.step);
@@ -398,7 +405,7 @@ pub fn build(b: *std.Build) void {
     test_all_step.dependOn(&b.top_level_steps.get("test").?.step);
     test_all_step.dependOn(browser_step);
 
-    if (b.option(bool, "diagrams", "Build the optional diagram example and checks") orelse false) {
+    if (diagrams_enabled) {
         if (b.lazyDependency("diagram_engine", .{ .target = b.graph.host, .optimize = std.builtin.OptimizeMode.debug })) |dependency| {
             const engine = dependency.module("mermaid");
             const options = b.addOptions();
@@ -419,6 +426,36 @@ pub fn build(b: *std.Build) void {
             const step = b.step("test-diagrams", "Verify optional typed diagram projections");
             step.dependOn(&run_diagram_tests.step);
             b.top_level_steps.get("test").?.step.dependOn(step);
+            const diagram_template = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("examples/diagrams.gui.html") });
+            const native_example = b.addTest(.{ .root_module = b.createModule(.{
+                .root_source_file = b.path("examples/diagrams.zig"),
+                .target = b.graph.host,
+                .optimize = .debug,
+                .imports = &.{
+                    .{ .name = "zg_gui", .module = test_gui },
+                    .{ .name = "zg_diagrams", .module = diagramModule(b, .{ .source = b.path("src/diagrams.zig"), .gui = test_gui, .engine = engine }) },
+                    .{ .name = "diagrams_template", .module = b.createModule(.{ .root_source_file = diagram_template, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) },
+                },
+            }) });
+            step.dependOn(&b.addRunArtifact(native_example).step);
+            if (b.lazyDependency("diagram_engine", .{ .target = wasm_target, .optimize = std.builtin.OptimizeMode.safe })) |wasm_dependency| {
+                const example = b.addExecutable(.{ .name = "diagrams", .root_module = b.createModule(.{
+                    .root_source_file = b.path("examples/diagrams.zig"),
+                    .target = wasm_target,
+                    .optimize = .safe,
+                    .strip = true,
+                    .imports = &.{
+                        .{ .name = "zg_gui", .module = wasm_gui },
+                        .{ .name = "zg_diagrams", .module = diagramModule(b, .{ .source = b.path("src/diagrams.zig"), .gui = wasm_gui, .engine = wasm_dependency.module("mermaid") }) },
+                        .{ .name = "diagrams_template", .module = b.createModule(.{ .root_source_file = diagram_template, .target = wasm_target, .optimize = .safe, .imports = &.{.{ .name = "zg_gui", .module = wasm_gui }} }) },
+                    },
+                }) });
+                example.entry = .disabled;
+                example.rdynamic = true;
+                example.export_memory = true;
+                example.stack_size = 1024 * 1024;
+                b.getInstallStep().dependOn(&b.addInstallFile(example.getEmittedBin(), "web/diagrams.wasm").step);
+            }
         }
     }
 }

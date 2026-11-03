@@ -2,7 +2,7 @@ const std = @import("std");
 const gui = @import("zg_gui");
 const diagrams = @import("zg_diagrams");
 const engine = diagrams.engine;
-const View = diagrams.Diagram(64, 128);
+const View = diagrams.Diagram(.{ .max_elements = 64, .max_key_bytes = 128 });
 const P = gui.Projection(View.snapshot_capacity);
 const ns = gui.namespace.Range{ .first = 100, .count = View.node_count };
 
@@ -151,7 +151,7 @@ test "diagram public build registration works in an independent consumer package
         \\test "external diagram projection" {
         \\ var scene = try diagrams.engine.buildScene(.{ .allocator = std.testing.allocator, .source = "graph LR\n A --> B" });
         \\ defer scene.deinit();
-        \\ const View = diagrams.Diagram(32, 128);
+        \\ const View = diagrams.Diagram(.{ .max_elements = 32, .max_key_bytes = 128 });
         \\ const P = gui.Projection(View.snapshot_capacity);
         \\ var view = View{};
         \\ var snapshot = P.Snapshot{};
@@ -180,9 +180,9 @@ test "diagram admission refuses capacity key collisions and invalid geometry bef
     var html = gui.html.Writer{ .buffer = &bytes };
     var snapshot = P.Snapshot{};
     var p = P{ .html = &html, .next = &snapshot };
-    var small = diagrams.Diagram(1, 128){};
+    var small = diagrams.Diagram(.{ .max_elements = 1, .max_key_bytes = 128 }){};
     try std.testing.expectError(error.CapacityExceeded, small.project(&p, .{ .scene = &scene, .namespace = ns, .description = "Example" }));
-    var short = diagrams.Diagram(64, 1){};
+    var short = diagrams.Diagram(.{ .max_elements = 64, .max_key_bytes = 1 }){};
     try std.testing.expectError(error.KeyTooLong, short.project(&p, .{ .scene = &scene, .namespace = ns, .description = "Example" }));
     var view = View{};
     const old_key = scene.elements.items[1].key;
