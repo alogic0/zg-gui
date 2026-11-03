@@ -146,3 +146,28 @@ Layout hardening adds word wrapping, measured sequence rows and note boxes,
 self-links and parallel routes. `LayoutOptions` exposes the wrap width and lane
 spacing. The engine's larger native workload uses 72 nodes, while this example
 retains its smaller UI admission limits. See request 078 for verification.
+
+## Pinned example engine
+
+The optional example uses the reviewed source snapshot in
+`vendor/diagram_engine`, version 0.9.0 at commit
+`37b4d4960ad85b4455fb03cc45f58164fd48bb46`. Its upstream LICENSE is included.
+`vendor/diagram_engine.lock.json` records the exact source revision, version and
+SHA-256 of every snapshot file. Native verification rejects modified, missing,
+unexpected and symbolic-link files. Builds never refresh source automatically.
+
+```sh
+zig build verify-diagram-engine
+zig build test-diagrams -Ddiagrams=true
+# Explicit maintenance, only after reviewing the chosen complete commit:
+python3 tools/update_diagram_engine.py /path/to/engine FULL_40_CHARACTER_COMMIT
+zig build verify-diagram-engine test-diagrams -Ddiagrams=true
+zig build test-browser -Ddiagrams=true -Dbrowser-filter=diagrams
+```
+
+The updater reads immutable Git objects, excludes caches, Git internals and
+repository-only agent instructions, and replaces source plus provenance. Review
+both in the same commit. Python is needed only for this explicit update command;
+normal builds and verification use Zig. Application adapters may select their
+own compatible engine, including this same snapshot as a local path dependency.
+Core-only builds import no engine and do not require the snapshot directory.

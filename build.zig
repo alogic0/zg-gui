@@ -405,7 +405,14 @@ pub fn build(b: *std.Build) void {
     test_all_step.dependOn(&b.top_level_steps.get("test").?.step);
     test_all_step.dependOn(browser_step);
 
+    const verify_engine = b.addExecutable(.{ .name = "verify-diagram-engine", .root_module = b.createModule(.{ .root_source_file = b.path("tools/verify_diagram_engine.zig"), .target = b.graph.host, .optimize = .safe }) });
+    const run_verify_engine = b.addRunArtifact(verify_engine);
+    run_verify_engine.setCwd(b.path("."));
+    run_verify_engine.has_side_effects = true;
+    b.step("verify-diagram-engine", "Verify pinned source revision, version and complete file digests").dependOn(&run_verify_engine.step);
     if (diagrams_enabled) {
+        b.getInstallStep().dependOn(&run_verify_engine.step);
+
         if (b.lazyDependency("diagram_engine", .{ .target = b.graph.host, .optimize = std.builtin.OptimizeMode.debug })) |dependency| {
             const engine = dependency.module("mermaid");
             const options = b.addOptions();
@@ -425,6 +432,7 @@ pub fn build(b: *std.Build) void {
             run_diagram_tests.setCwd(b.path("."));
             const step = b.step("test-diagrams", "Verify optional typed diagram projections");
             step.dependOn(&run_diagram_tests.step);
+            step.dependOn(&run_verify_engine.step);
             b.top_level_steps.get("test").?.step.dependOn(step);
             const diagram_template = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("examples/diagrams.gui.html") });
             const native_example = b.addTest(.{ .root_module = b.createModule(.{

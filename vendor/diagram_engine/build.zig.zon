@@ -1,0 +1,21 @@
+.{
+    .name = .zig_mermaid,
+    .version = "0.9.0",
+    .fingerprint = 0xa10f6223a2a602b0,
+    .minimum_zig_version = "0.17.0",
+    .dependencies = .{},
+    .paths = .{
+        ".gitignore",
+        "AGENTS.md",
+        "CHANGELOG.md",
+        "LICENSE",
+        "PLAN.md",
+        "README.md",
+        "build.sh",
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "tests",
+        "tools",
+    },
+}

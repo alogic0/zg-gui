@@ -6,6 +6,7 @@ test {
     _ = @import("lib/cdp_journey_test.zig");
     _ = @import("preview_listener.zig");
     _ = @import("serve.zig");
+    _ = @import("verify_diagram_engine.zig");
 }
 
 test "std.json surrogate pair unescaping" {
