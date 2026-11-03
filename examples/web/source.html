@@ -11,7 +11,7 @@
 </head>
 <body>
   <main class="source-page">
-    <nav class="site-header" aria-label="Demo pages"><a class="site-brand" href="index.html">zg-gui<span>Zig + WebAssembly</span></a><div class="site-nav"><a href="index.html">Showcase</a><a href="basics.html">Basics</a><a href="source.html" aria-current="page">Source</a></div><button class="theme-toggle" data-source-theme aria-label="Use dark theme">Dark theme</button></nav>
+    <nav class="site-header" aria-label="Demo pages"><a class="site-brand" href="index.html">zg-gui<span>Zig + WebAssembly</span></a><div class="site-nav"><a href="index.html">Showcase</a><a href="basics.html">Basics</a><a href="source.html" aria-current="page">Source</a><a href="charts.html">Charts</a></div><button class="theme-toggle" data-source-theme aria-label="Use dark theme">Dark theme</button></nav>
     <a href="index.html">← Back to the workspace</a>
     <h1>From interaction to source.</h1>
     <p>Fieldwork is a synthetic planning workspace built with zg-gui. Its tasks, filters, selection, and activity live in Zig. A small browser host applies the resulting DOM commands.</p>
@@ -45,9 +45,10 @@ return render(.{ .candidate = next, .mode = .patch });</code></pre>
       <li><a href="source/workspace.zig" download>workspace.zig</a> — state, validation, view derivation, ABI, and native tests</li>
       <li><a href="source/workspace.gui.html" download>workspace.gui.html</a> — the complete compiled layout</li>
       <li><a href="source/workspace-metric.gui.html" download>workspace-metric.gui.html</a> — a reusable summary card</li>
+      <li><a href="charts.html">Numerical charts</a> — linear and band scales, axes, line/bar series and a shared data table</li>
       <li><a href="basics.html">The basics demo</a> — a smaller place to start</li>
     </ul>
-    <p>Run locally with <code>npm ci</code> and <code>npm run dev</code>, using the Zig compiler pinned in <code>.zigversion</code>. The generated <code>zig-out/web</code> directory is a static site, ready to serve beneath a repository subpath.</p>
+    <p>Run locally with <code>zig build serve</code>, using the Zig compiler pinned in <code>.zigversion</code>. The generated <code>zig-out/web</code> directory is a static site, ready to serve beneath a repository subpath.</p>
   </main>
 </body>
 </html>

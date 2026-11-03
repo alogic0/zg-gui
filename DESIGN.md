@@ -113,3 +113,18 @@ popups, remote search or business CRUD. No motion is added.
 - Keep retained drawing nodes mounted when geometry or labels change.
 - Reuse the existing theme and semantic tokens across every example state.
 - Keep last accepted output visible when a draft cannot render.
+
+## Numerical chart example
+
+A shared dataset links a line chart, zero-based bar chart and native data table.
+Use the existing system sans, accent/ink/line tokens, 12px panel corners and
+7px controls. No additional palette or theme state is introduced. Charts sit
+side by side above the editor/table on wide screens, stack below 850px, and
+retain readable 12px axis labels by recalculating geometry at the actual canvas
+width. Reserve 330px per canvas and 72px for validation. The document owns scroll;
+canvas overflow inherits the page scrollbar baseline. Shapes, labels, sign and
+the table explain data independently of color. Source is transient; only theme
+persists. Finite comma-separated values update on explicit keyboard-accessible
+action. Invalid drafts retain accepted drawings; missing entries leave gaps;
+empty data has correction guidance. SVG clipping and a clearly stated fixed
+scale contain outliers. Category reversal keeps keys and focus. No motion is added.

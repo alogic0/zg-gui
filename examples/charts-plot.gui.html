@@ -1,0 +1,18 @@
+<svg viewBox="$view_box" class="numerical-chart" role="img" aria-label="$description" data-series="$kind">
+  <desc :text="$description"></desc>
+  <defs><clipPath id="$clip_id" clipPathUnits="userSpaceOnUse"><rect x="48" y="24" width="$plot_width" height="248"/></clipPath></defs>
+  <g :loop="$y_ticks" :key="id" :limit="16" class="y-axis">
+    <g><line x1="$item.grid.start.x" y1="$item.grid.start.y" x2="$item.grid.end.x" y2="$item.grid.end.y" class="chart-grid"/><line x1="$item.mark.start.x" y1="$item.mark.start.y" x2="$item.mark.end.x" y2="$item.mark.end.y" class="chart-axis"/><text x="$item.label_point.x" y="$item.label_point.y" text-anchor="$item.anchor" dominant-baseline="middle" :text="$item.label"></text></g>
+  </g>
+  <line x1="48" y1="$zero" x2="$right" y2="$zero" class="chart-zero"/>
+  <g :loop="$x_ticks" :key="id" :limit="8" class="x-axis">
+    <g><line x1="$item.mark.start.x" y1="$item.mark.start.y" x2="$item.mark.end.x" y2="$item.mark.end.y" class="chart-axis"/><text x="$item.label_point.x" y="$item.label_point.y" text-anchor="$item.anchor" dominant-baseline="hanging" :text="$item.label"></text></g>
+  </g>
+  <g class="chart-marks">
+    <path d="$path" class="line-series"/>
+    <g :loop="$bars" :key="id" :limit="8" class="bar-series"><rect x="$item.rect.x" y="$item.rect.y" width="$item.rect.width" height="$item.rect.height" data-sample="$item.id" class="chart-bar"/></g>
+    <g :loop="$points" :key="id" :limit="8" class="point-series"><circle cx="$item.point.x" cy="$item.point.y" r="3" data-sample="$item.id" class="chart-point"/></g>
+  </g>
+  <text x="$middle" y="318" text-anchor="middle" class="chart-axis-title">Sample</text>
+  <text x="48" y="14" class="chart-axis-title">Value</text>
+</svg>

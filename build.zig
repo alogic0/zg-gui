@@ -345,6 +345,19 @@ pub fn build(b: *std.Build) void {
     workspace_check.dependOn(&b.addRunArtifact(workspace_tests).step);
     b.top_level_steps.get("test").?.step.dependOn(workspace_check);
 
+    const charts_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("examples/charts.gui.html"), .components = &.{.{ .name = "plot", .source = b.path("examples/charts-plot.gui.html") }} });
+    const charts = b.addExecutable(.{ .name = "charts", .root_module = b.createModule(.{ .root_source_file = b.path("examples/charts.zig"), .target = wasm_target, .optimize = .safe, .strip = true, .imports = &.{ .{ .name = "zg_gui", .module = wasm_gui }, .{ .name = "charts_template", .module = b.createModule(.{ .root_source_file = charts_source, .target = wasm_target, .optimize = .safe, .imports = &.{.{ .name = "zg_gui", .module = wasm_gui }} }) } } }) });
+    charts.entry = .disabled;
+    charts.rdynamic = true;
+    charts.export_memory = true;
+    charts.stack_size = 256 * 1024;
+    b.getInstallStep().dependOn(&b.addInstallFile(charts.getEmittedBin(), "web/charts.wasm").step);
+    const charts_tests = b.addTest(.{ .root_module = b.createModule(.{ .root_source_file = b.path("examples/charts.zig"), .target = b.graph.host, .optimize = .debug, .imports = &.{ .{ .name = "zg_gui", .module = test_gui }, .{ .name = "charts_template", .module = b.createModule(.{ .root_source_file = charts_source, .target = b.graph.host, .optimize = .debug, .imports = &.{.{ .name = "zg_gui", .module = test_gui }} }) } } }) });
+    const chart_check = b.step("test-charts", "Test numerical chart example admission and retained projection");
+    chart_check.dependOn(&b.addRunArtifact(charts_tests).step);
+    b.top_level_steps.get("test").?.step.dependOn(chart_check);
+    inline for (.{ "charts.zig", "charts.gui.html", "charts-plot.gui.html" }) |file| b.installFile("examples/" ++ file, "web/source/" ++ file);
+
     const cdp = b.dependency("zig_cdp", .{
         .target = b.graph.host,
         .optimize = .debug,

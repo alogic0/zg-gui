@@ -1,0 +1,54 @@
+* { box-sizing: border-box; }
+html { scrollbar-color: var(--line) var(--bg); scrollbar-width: auto; }
+body { margin: 0; font-size: 16px; line-height: 1.55; }
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--line); border: 3px solid var(--bg); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+::-webkit-scrollbar-thumb:active { background: var(--accent); }
+.chart-site-header { max-width: 1248px; margin: auto; padding: 24px; border-bottom: 1px solid var(--line); }
+.chart-site-header .theme-toggle { margin-left: auto; }
+.chart-page { max-width: 1248px; margin: auto; padding: 40px 24px; }
+.chart-intro { max-width: 700px; margin-bottom: 32px; }
+.eyebrow { color: var(--accent); margin: 0 0 12px; font-weight: 650; }
+h1 { font-size: clamp(28px, 4vw, 42px); letter-spacing: -0.035em; line-height: 1.15; margin: 0 0 18px; }
+h2 { font-size: 20px; margin: 0 0 8px; }
+.chart-intro > p:last-child, .chart-panel > p, #chart-help { color: var(--muted); }
+.chart-grid-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.chart-panel { min-width: 0; padding: 24px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.chart-panel > p { margin: 0 0 16px; font-size: 14px; }
+.chart-canvas { min-width: 0; min-height: 330px; overflow: auto; }
+.numerical-chart { display: block; width: 100%; height: auto; font-size: 12px; overflow: hidden; }
+.numerical-chart text { fill: var(--muted); }
+.chart-grid { stroke: var(--line); stroke-width: 1; }
+.chart-axis, .chart-zero { stroke: var(--muted); stroke-width: 1; }
+.chart-zero { stroke-dasharray: 4,3; }
+.numerical-chart[data-series="line"] .chart-marks { clip-path: url(#line-plot); }
+.numerical-chart[data-series="bar"] .chart-marks { clip-path: url(#bar-plot); }
+.line-series { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; }
+.chart-point { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
+.chart-bar { fill: var(--accent); }
+.chart-axis-title { font-weight: 600; }
+.chart-data { display: grid; grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr); gap: 40px; margin-top: 32px; padding-top: 32px; border-top: 1px solid var(--line); }
+.chart-data label { display: block; font-weight: 600; margin-top: 16px; }
+#chart-help { font-size: 14px; margin: 6px 0 12px; }
+textarea { width: 100%; min-height: 88px; resize: none; font: 14px/1.6 ui-monospace, "SFMono-Regular", Consolas, monospace; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 12px; }
+textarea[aria-invalid="true"] { border-color: var(--danger); }
+.chart-error { min-height: 72px; margin: 8px 0; font-size: 14px; color: var(--danger); }
+.chart-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.chart-actions button { min-height: 44px; border: 1px solid var(--line); border-radius: 7px; padding: 8px 12px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
+.chart-actions button:first-child { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+.chart-actions button:hover { box-shadow: inset 0 0 0 1px var(--accent); }
+.chart-actions button:active { transform: translateY(1px); }
+.chart-actions button[aria-pressed="true"] { border-color: var(--accent); background: var(--tint); }
+.chart-empty { margin-top: 16px; color: var(--muted); }
+.chart-table-wrap { min-width: 0; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+caption { text-align: left; font-weight: 600; margin-bottom: 12px; }
+th, td { padding: 8px 12px; text-align: right; border-bottom: 1px solid var(--line); }
+th:first-child { text-align: left; }
+thead th { color: var(--muted); font-weight: 500; }
+@media (max-width: 850px) { .chart-grid-layout { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 600px) { .chart-data { grid-template-columns: minmax(0, 1fr); gap: 24px; } }
+@media (max-width: 500px) { .chart-page { padding: 28px 16px; } .chart-site-header { padding: 20px 16px; } .chart-panel { padding: 16px; } }
+@media (forced-colors: active) { html { scrollbar-color: auto; } .numerical-chart text { fill: CanvasText; } .chart-bar { fill: Highlight; } .chart-point { fill: Canvas; stroke: Highlight; } .line-series { stroke: Highlight; } .chart-grid, .chart-axis, .chart-zero { stroke: CanvasText; } }

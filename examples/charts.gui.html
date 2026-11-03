@@ -1,0 +1,11 @@
+<main class="chart-page">
+  <header class="chart-intro"><p class="eyebrow">Numerical charts</p><h1>One dataset, two views.</h1><p>Edit the values to compare a line with bars. Both views share a fixed scale from −20 to 80; values beyond it are clipped.</p></header>
+  <div class="chart-grid-layout">
+    <section class="chart-panel" aria-labelledby="line-heading"><h2 id="line-heading">Line chart</h2><p>Missing values leave gaps in the line.</p><div class="chart-canvas"><template :component="plot" :view="$line" :ref="line"></template></div></section>
+    <section class="chart-panel" aria-labelledby="bar-heading"><h2 id="bar-heading">Bar chart</h2><p>Positive and negative values share zero.</p><div class="chart-canvas"><template :component="plot" :view="$bar" :ref="bar"></template></div></section>
+  </div>
+  <section class="chart-data" aria-labelledby="data-heading">
+    <div><h2 id="data-heading">Your values</h2><form novalidate><label for="chart-data">Comma-separated values</label><p id="chart-help">Use up to eight numbers from −1,000 to 1,000. Leave an entry blank for a missing value.</p><textarea id="chart-data" rows="3" maxlength="256" :input="$input" :value="$draft" aria-invalid="$invalid" aria-describedby="chart-help chart-error"></textarea><p id="chart-error" class="chart-error" role="status" :text="$error_message"></p><div class="chart-actions"><button type="button" :on-click="$actions.apply">Update charts</button><button type="button" :on-click="$actions.reverse" aria-pressed="$reversed">Reverse categories</button><button type="button" :on-click="$actions.empty">Clear data</button><button type="button" :on-click="$actions.reset">Reset example</button></div></form><p :visible="$empty" class="chart-empty" role="status">No values to plot. Add numbers above, then choose Update charts.</p></div>
+    <div class="chart-table-wrap"><table><caption>Values shown in both charts</caption><thead><tr><th scope="col">Sample</th><th scope="col">Value</th></tr></thead><tbody :loop="$rows" :key="id" :limit="8"><tr><th scope="row" :text="$item.id"></th><td :text="$item.value"></td></tr></tbody></table></div>
+  </section>
+</main>

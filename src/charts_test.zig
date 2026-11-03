@@ -115,7 +115,7 @@ test "bars share zero baseline preserve signed values and caller keys with clipp
     const band = try c.Band.init(.{ .count = 4, .range = .{ .start = 0, .end = 400 } });
     const values = try c.Linear.init(.{ .domain = .{ .start = -10, .end = 10 }, .range = .{ .start = 200, .end = 0 } });
     const data = [_]c.BarDatum{ .{ .key = 42, .category = 0, .value = 5 }, .{ .key = 7, .category = 1, .value = -5 }, .{ .key = 11, .category = 2, .value = 0 }, .{ .key = 3, .category = 3, .value = null } };
-    var output: [4]c.Bar = undefined;
+    var output: [4]c.Bar = @splat(.{ .key = 0, .value = 0, .rect = .{ .x = 0, .y = 0, .width = 0, .height = 0 } });
     const bars = try c.bars(.{ .data = &data, .categories = band, .values = values, .output = &output });
     try expect(bars.len == 3 and bars[0].key == 42 and bars[1].key == 7);
     try close(100, bars[0].rect.y + bars[0].rect.height);
