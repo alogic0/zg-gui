@@ -94,7 +94,7 @@ pub noinline fn attribute(p: anytype, comptime name: []const u8, input: anytype)
             return;
         }
         var bytes: [128]u8 = undefined;
-        const encoded = std.fmt.bufPrint(&bytes, "{d}", .{value}) catch {
+        const encoded = std.fmt.bufPrint(&bytes, "{d}", .{if (value == 0) @as(f64, 0) else value}) catch {
             p.html.failed = true;
             return;
         };
@@ -821,8 +821,10 @@ test "dynamic filter parameters reject invalid candidates without snapshot publi
     attribute(&p, "stdDeviation", .{ .node = 2, .value = @as(f64, 2.5) });
     try std.testing.expect(!html.failed);
     try std.testing.expectEqual(@as(usize, 2), next.len);
+    attribute(&p, "stdDeviation", .{ .node = 3, .value = @as(f64, -0.0) });
+    try std.testing.expect(std.mem.endsWith(u8, html.slice(), " stdDeviation=\"0\""));
     var tiny = @import("html.zig").Writer{ .buffer = bytes[0..1] };
     p.html = &tiny;
-    attribute(&p, "stdDeviation", .{ .node = 3, .value = 4 });
+    attribute(&p, "stdDeviation", .{ .node = 4, .value = 4 });
     try std.testing.expect(tiny.failed);
 }

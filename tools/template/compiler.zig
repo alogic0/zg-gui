@@ -501,7 +501,7 @@ const Compiler = struct {
                 std.mem.trim(u8, c.input.source[node.tag.span.end..node.close_start], " \t\r\n").len != 0)
                 return c.reject(a.name.start, ":slot requires an empty flow, list, table-section or select container with no other child owner");
         }
-        if (oneOf(tag_name, "ul ol dl table colgroup thead tbody tfoot tr select optgroup")) {
+        if (oneOf(tag_name, "ul ol dl table colgroup thead tbody tfoot tr select optgroup") or filters.isElement(tag_name)) {
             if (has_text) return c.reject(node.tag.span.start, "this container requires structural children, not text");
             var previous: usize = node.tag.span.end;
             for (node.children.items) |child| {
@@ -1824,6 +1824,9 @@ test "SVG filters admit finite primitives and reject invalid structure and param
         "<svg><defs><filter><feComposite operator=\"dilate\"/></filter></defs></svg>",
         "<svg><defs><filter><feGaussianBlur stdDeviation=\"-1\"/></filter></defs></svg>",
         "<svg><defs><filter><feGaussianBlur stdDeviation=\"nan\"/></filter></defs></svg>",
+        "<svg><defs><filter><feGaussianBlur stdDeviation=\"0x1p2\"/></filter></defs></svg>",
+        "<svg><defs><filter><feGaussianBlur :text=\"$text\"/></filter></defs></svg>",
+        "<svg><defs><filter>text<feGaussianBlur/></filter></defs></svg>",
         "<svg><defs><filter><feOffset href=\"elsewhere\"/></filter></defs></svg>",
         "<svg><defs><filter><feOffset dx=\"$offset\"/></filter></defs></svg>",
         "<svg><circle stdDeviation=\"$blur\"/></svg>",

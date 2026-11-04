@@ -45,7 +45,7 @@ and `lighten`. Composite operators are `over`, `in`, `out`, `atop`, `xor`, and
 `arithmetic`; morphology uses `erode`/`dilate`. Matrix types are `matrix`,
 `saturate`, `hueRotate`, `luminanceToAlpha`; channel types are `identity`,
 `table`, `discrete`, `linear`, `gamma`. Blur edge modes are `duplicate`, `wrap`,
-`none`. Numeric values must be finite. Regions accept percentages; width/height,
+`none`. Numeric values use finite decimal/exponent notation. Regions accept percentages; width/height,
 blur deviation and morphology radii are nonnegative. Matrix values are bounded
 to twenty scalars, radii to two, channel tables to 256. Browser SVG semantics
 still determine matrix arity, channel defaults and named input resolution.

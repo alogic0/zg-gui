@@ -43,6 +43,8 @@ pub fn localReference(value: []const u8) bool {
     return std.mem.startsWith(u8, value, "url(#") and std.mem.endsWith(u8, value, ")") and value.len > 6 and identifier(value[5 .. value.len - 1]);
 }
 fn number(value: []const u8, nonnegative: bool) bool {
+    if (value.len == 0) return false;
+    for (value) |byte| if (std.mem.indexOfScalar(u8, "0123456789+-.eE", byte) == null) return false;
     const n = std.fmt.parseFloat(f64, value) catch return false;
     return std.math.isFinite(n) and (!nonnegative or n >= 0);
 }
