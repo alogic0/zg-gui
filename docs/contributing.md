@@ -72,3 +72,6 @@ Revision-owned focus modes are specified and verified under
 
 SVG chart text, descriptions and clipping containers are specified and verified
 under [request 075](requests/075-svg-chart-labels-and-clipping.md).
+
+Local SVG effects are documented in [SVG filters](svg-filters.md) and
+[request 082](requests/082-svg-filter-primitives.md).

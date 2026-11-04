@@ -4,6 +4,7 @@ const html = @import("html-tokenizer");
 const syntax = @import("template-syntax");
 const Allocator = std.mem.Allocator;
 const composition = @import("composition.zig");
+const filters = @import("svg_filters.zig");
 const Attr = html.Tokenizer.Attr;
 const Error = error{ OutOfMemory, InvalidTemplate };
 pub const max_source_bytes = composition.max_source_bytes;
@@ -175,7 +176,7 @@ const Compiler = struct {
                         stack.items.len -= 1;
                     },
                     .start, .start_self => {
-                        if (!oneOf(tag_name, "main header footer section article aside nav dialog blockquote div p span h1 h2 h3 h4 h5 h6 a strong em small time b i sup sub code pre br hr form fieldset legend label input textarea button output meter progress ul ol li dl dt dd img video iframe details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs marker symbol path circle ellipse rect line polyline polygon use title desc text tspan clipPath linearGradient radialGradient stop")) {
+                        if (!oneOf(tag_name, "main header footer section article aside nav dialog blockquote div p span h1 h2 h3 h4 h5 h6 a strong em small time b i sup sub code pre br hr form fieldset legend label input textarea button output meter progress ul ol li dl dt dd img video iframe details summary table caption colgroup col thead tbody tfoot tr th td select optgroup option svg g defs marker symbol path circle ellipse rect line polyline polygon use title desc text tspan clipPath linearGradient radialGradient stop filter feGaussianBlur feOffset feColorMatrix feBlend feComposite feMorphology feComponentTransfer feFuncR feFuncG feFuncB feFuncA")) {
                             return c.reject(tag.name.start, "unsupported element; use the documented HTML fragment subset");
                         }
                         if (tag.kind == .start_self and !tag.isVoid(c.input.source, .html) and !isSvg(tag_name)) return c.reject(tag.span.start, "non-void HTML elements require an explicit closing tag");
@@ -459,9 +460,17 @@ const Compiler = struct {
                 }
                 try c.binding(.{ .attr = a, .loop_depth = input.loop_depth });
             } else {
-                if (!(attributeName(n) or (isSvg(tag_name) and oneOf(n, "viewBox preserveAspectRatio clipPathUnits refX refY markerWidth markerHeight markerUnits"))) or std.mem.startsWith(u8, n, "on") or oneOf(n, "data-node-id data-event data-input-kind data-select-value data-select-values")) return c.reject(a.name.start, "reserved or unsupported attribute name");
+                if (!(attributeName(n) or (isSvg(tag_name) and oneOf(n, "viewBox preserveAspectRatio clipPathUnits refX refY markerWidth markerHeight markerUnits filterUnits primitiveUnits stdDeviation tableValues"))) or std.mem.startsWith(u8, n, "on") or oneOf(n, "data-node-id data-event data-input-kind data-select-value data-select-values")) return c.reject(a.name.start, "reserved or unsupported attribute name");
+                const raw_value = if (a.value != null) try c.value(a) else "";
+                if (filters.isElement(tag_name) and a.value == null) return c.reject(a.name.start, "SVG filter attributes require a value");
+                if (filters.isElement(tag_name) and !filters.attributeAllowed(tag_name, n)) return c.reject(a.name.start, "unsupported SVG filter attribute");
+                if (!std.mem.startsWith(u8, raw_value, "$")) {
+                    if (isSvg(tag_name) and std.mem.eql(u8, n, "filter") and !filters.localReference(raw_value)) return c.reject(a.name.start, "filter requires none or a local url(#identifier)");
+                    if (filters.isElement(tag_name) and !filters.validValue(.{ .tag = tag_name, .name = n, .value = raw_value })) return c.reject(a.name.start, "invalid SVG filter parameter or mode");
+                }
                 if (a.value) |v| if (std.mem.startsWith(u8, v.span.slice(c.input.source), "$")) {
-                    if (!(dynamicAttribute(n) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform marker-start marker-mid marker-end stroke-dasharray text-anchor dx dy")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (oneOf(tag_name, "img iframe") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter progress") and std.mem.eql(u8, n, "value")) or (std.mem.eql(u8, tag_name, "progress") and std.mem.eql(u8, n, "max")) or (oneOf(tag_name, "input select textarea") and std.mem.eql(u8, n, "required")) or (std.mem.eql(u8, tag_name, "input") and oneOf(n, "min max step type")) or (oneOf(tag_name, "input select textarea") and oneOf(n, "name autocomplete")) or (oneOf(tag_name, "td th") and oneOf(n, "colspan rowspan")) or (std.mem.eql(u8, tag_name, "form") and std.mem.eql(u8, n, "action")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
+                    if (filters.isElement(tag_name) and !(oneOf(n, "id class role stdDeviation") or std.mem.startsWith(u8, n, "aria-") or std.mem.startsWith(u8, n, "data-"))) return c.reject(a.name.start, "filter parameters are static except scalar blur deviation");
+                    if (!(dynamicAttribute(n) or (std.mem.eql(u8, tag_name, "feGaussianBlur") and std.mem.eql(u8, n, "stdDeviation")) or (isSvg(tag_name) and oneOf(n, "viewBox d fill stroke stroke-width x y x1 x2 y1 y2 cx cy r rx ry width height points transform marker-start marker-mid marker-end filter stroke-dasharray text-anchor dx dy")) or (oneOf(tag_name, "use a") and std.mem.eql(u8, n, "href")) or (oneOf(tag_name, "img iframe") and std.mem.eql(u8, n, "src")) or (oneOf(tag_name, "option meter progress") and std.mem.eql(u8, n, "value")) or (std.mem.eql(u8, tag_name, "progress") and std.mem.eql(u8, n, "max")) or (oneOf(tag_name, "input select textarea") and std.mem.eql(u8, n, "required")) or (std.mem.eql(u8, tag_name, "input") and oneOf(n, "min max step type")) or (oneOf(tag_name, "input select textarea") and oneOf(n, "name autocomplete")) or (oneOf(tag_name, "td th") and oneOf(n, "colspan rowspan")) or (std.mem.eql(u8, tag_name, "form") and std.mem.eql(u8, n, "action")))) return c.reject(a.name.start, "unsupported dynamic attribute; use a property directive for form state");
                     try c.binding(.{ .attr = a, .loop_depth = input.loop_depth });
                 };
             }
@@ -1074,16 +1083,19 @@ test "compiler releases all allocations on failure" {
 }
 
 fn isSvg(name: []const u8) bool {
-    return oneOf(name, "svg g defs marker symbol path circle ellipse rect line polyline polygon use title desc text tspan clipPath linearGradient radialGradient stop");
+    return oneOf(name, "svg g defs marker symbol path circle ellipse rect line polyline polygon use title desc text tspan clipPath linearGradient radialGradient stop filter feGaussianBlur feOffset feColorMatrix feBlend feComposite feMorphology feComponentTransfer feFuncR feFuncG feFuncB feFuncA");
 }
 fn structureError(input: struct { parent: []const u8, child: []const u8 }) ?[]const u8 {
     const p = input.parent;
     const n = input.child;
     if (std.mem.eql(u8, p, "dl") and !oneOf(n, "div dt dd")) return "description lists require terms, descriptions or div groups";
+    if (filters.structureError(.{ .parent = p, .child = n })) |message| return message;
     if (isSvg(p)) {
         if (!isSvg(n)) return "invalid SVG child structure";
         if (std.mem.eql(u8, n, "marker") and !std.mem.eql(u8, p, "defs")) return "SVG markers require defs";
-        if (oneOf(p, "linearGradient radialGradient")) {
+        if (filters.isElement(p)) {
+            // Filter-specific parent/child admission was checked above.
+        } else if (oneOf(p, "linearGradient radialGradient")) {
             if (!std.mem.eql(u8, n, "stop")) return "SVG gradients require stop children";
         } else if (oneOf(p, "text tspan")) {
             if (!std.mem.eql(u8, n, "tspan")) return "SVG text accepts only tspan children";
@@ -1793,4 +1805,28 @@ test "SVG marker definitions preserve geometry spelling and require defs" {
     for ([_][]const u8{ "<marker></marker>", "<svg><marker></marker></svg>", "<svg><defs><marker><div></div></marker></defs></svg>", "<svg><defs><marker><marker></marker></marker></defs></svg>" }) |source| {
         try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad.gui.html", .diagnostic = &d }));
     }
+}
+
+test "SVG filters admit finite primitives and reject invalid structure and parameters" {
+    var d = Diagnostic{};
+    const valid = "<svg><defs><filter id=\"glow\" x=\"-40%\" width=\"180%\" filterUnits=\"objectBoundingBox\"><feGaussianBlur stdDeviation=\"$blur\" result=\"soft\"/><feOffset in=\"soft\" dx=\"1\" dy=\"2\"/><feColorMatrix type=\"saturate\" values=\"0\"/><feBlend in=\"SourceGraphic\" mode=\"screen\"/><feComposite operator=\"over\"/><feMorphology operator=\"dilate\" radius=\"1 2\"/><feComponentTransfer><feFuncR type=\"linear\" slope=\"1\"/><feFuncG type=\"gamma\" exponent=\"2\"/><feFuncB type=\"identity\"/><feFuncA type=\"table\" tableValues=\"0 1\"/></feComponentTransfer></filter></defs><circle filter=\"$effect\"/></svg>";
+    const code = try compile(std.testing.allocator, .{ .source = valid, .name = "effects.gui.html", .diagnostic = &d });
+    defer std.testing.allocator.free(code);
+    try std.testing.expect(std.mem.indexOf(u8, code, "stdDeviation") != null);
+    for ([_][]const u8{
+        "<svg><filter/></svg>",
+        "<svg><defs><feGaussianBlur/></defs></svg>",
+        "<svg><defs><filter><circle/></filter></defs></svg>",
+        "<svg><defs><filter><feFuncR/></filter></defs></svg>",
+        "<svg><defs><filter><feComponentTransfer><feOffset/></feComponentTransfer></filter></defs></svg>",
+        "<svg><defs><filter><feGaussianBlur><feOffset/></feGaussianBlur></filter></defs></svg>",
+        "<svg><defs><filter><feBlend mode=\"unknown\"/></filter></defs></svg>",
+        "<svg><defs><filter><feComposite operator=\"dilate\"/></filter></defs></svg>",
+        "<svg><defs><filter><feGaussianBlur stdDeviation=\"-1\"/></filter></defs></svg>",
+        "<svg><defs><filter><feGaussianBlur stdDeviation=\"nan\"/></filter></defs></svg>",
+        "<svg><defs><filter><feOffset href=\"elsewhere\"/></filter></defs></svg>",
+        "<svg><defs><filter><feOffset dx=\"$offset\"/></filter></defs></svg>",
+        "<svg><circle stdDeviation=\"$blur\"/></svg>",
+        "<svg><circle filter=\"url(https://outside.test/f)\"/></svg>",
+    }) |source| try std.testing.expectError(error.InvalidTemplate, compile(std.testing.allocator, .{ .source = source, .name = "bad-effect.gui.html", .diagnostic = &d }));
 }

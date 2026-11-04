@@ -1721,3 +1721,32 @@ test "compiled SVG markers validate initial references and patch optional remova
     marker.project(&p, MarkerView{ .end = "url(https://outside.test/a#x)" });
     try std.testing.expect(html.failed);
 }
+
+test "compiled SVG filter changes emit scalar patches and reject failed candidates" {
+    const filter = @import("svg_filter");
+    const FP = gui.Projection(filter.snapshot_capacity);
+    const FilterView = struct { filter_id: []const u8 = "drawing-soft", deviation: f64 = 2, effect: ?[]const u8 = "url(#drawing-soft)" };
+    var before = FP.Snapshot{};
+    var next = FP.Snapshot{};
+    var bytes: [2048]u8 = undefined;
+    var commands: [512]u8 = undefined;
+    var html = gui.html.Writer{ .buffer = &bytes };
+    var out = gui.html.Writer{ .buffer = &commands };
+    var writer = gui.patch.Writer{ .output = &out };
+    var p = FP{ .html = &html, .next = &before };
+    filter.project(&p, FilterView{});
+    try std.testing.expect(!html.failed);
+    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "<feGaussianBlur") != null);
+    p = .{ .html = &html, .patches = &writer, .previous = &before, .next = &next, .writing = false };
+    filter.project(&p, FilterView{ .deviation = 3.5, .effect = null });
+    try std.testing.expect(!html.failed and !out.failed);
+    try std.testing.expectEqualStrings(try std.fmt.bufPrint(&bytes, "A\t{d}\tstdDeviation\t3.5\nR\t{d}\tfilter\n", .{ filter.nodes.blur, filter.nodes.shape }), out.slice());
+    // The owner keeps 'before' until candidate output is fully admitted.
+    const accepted_len = before.len;
+    html = .{ .buffer = &bytes };
+    next = .{};
+    p = .{ .html = &html, .next = &next };
+    filter.project(&p, FilterView{ .deviation = std.math.nan(f64) });
+    try std.testing.expect(html.failed);
+    try std.testing.expectEqual(accepted_len, before.len);
+}

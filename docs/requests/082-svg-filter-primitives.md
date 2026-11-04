@@ -1,6 +1,6 @@
 # SVG filter primitives and local references
 
-Status: specified; implementation and verification pending.
+Status: implemented and verified in native and Chromium checks.
 
 ## Reusable contract
 
@@ -28,11 +28,23 @@ is added to the browser host.
 
 ## Acceptance
 
-- [ ] Compiler covers valid structure and rejects misplaced/unknown primitives.
-- [ ] Static/dynamic reference and parameter validation have native checks.
-- [ ] Browser checks verify namespaces, real filters, identity and sibling focus.
-- [ ] Independent consumer uses documented public APIs and isolated definitions.
-- [ ] Public documentation and applicable regression checks pass.
+- [x] Compiler covers valid structure and rejects misplaced/unknown primitives.
+- [x] Static/dynamic reference and parameter validation have native checks.
+- [x] Browser checks verify namespaces, real filters, identity and sibling focus.
+- [x] Independent consumer uses documented public APIs and isolated definitions.
+- [x] Public documentation and applicable regression checks pass.
 
 Provider verification is separate from consumer visual acceptance. Record patch
 work and relevant artifact/memory measurements with their workload and limits.
+
+## Verification record
+
+`zig build test-templates test` passes compiler admission, generated projection,
+capacity rejection and the independent public-build-helper consumer.
+`zig test src/root.zig -O safe` passes 51 tests with optimized safety checks.
+`zig build test-browser -Dbrowser-filter='SVG filters'` passes the retained
+filter/blur/shape and sibling-focus fixture (plus the suite declaration test).
+See [public filter API](../svg-filters.md). Full host regression is also required
+when combined with subsequent host changes. The fixture's blur update emits one
+attribute command; filter removal emits one removal command. No engine, heap
+storage or host lifecycle resource was added for filters.

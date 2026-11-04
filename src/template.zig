@@ -83,6 +83,24 @@ pub noinline fn attribute(p: anytype, comptime name: []const u8, input: anytype)
         if (input.value) |value| attribute(p, name, .{ .node = input.node, .value = value }) else p.attr(.{ .node = input.node, .name = name, .value = null });
         return;
     }
+    if (comptime std.mem.eql(u8, name, "stdDeviation")) {
+        const value: f64 = switch (@typeInfo(@TypeOf(input.value))) {
+            .int, .comptime_int => @floatFromInt(input.value),
+            .float, .comptime_float => @floatCast(input.value),
+            else => @compileError("stdDeviation requires a finite nonnegative numeric scalar"),
+        };
+        if (!std.math.isFinite(value) or value < 0) {
+            p.html.failed = true;
+            return;
+        }
+        var bytes: [128]u8 = undefined;
+        const encoded = std.fmt.bufPrint(&bytes, "{d}", .{value}) catch {
+            p.html.failed = true;
+            return;
+        };
+        p.attr(.{ .node = input.node, .name = name, .value = encoded });
+        return;
+    }
     if (comptime std.mem.eql(u8, name, "src")) {
         const value: []const u8 = input.value;
         if (!validImageSource(value)) {
@@ -115,7 +133,7 @@ pub noinline fn attribute(p: anytype, comptime name: []const u8, input: anytype)
         p.html.failed = true;
         return;
     };
-    if (comptime std.mem.eql(u8, name, "marker-start") or std.mem.eql(u8, name, "marker-mid") or std.mem.eql(u8, name, "marker-end")) {
+    if (comptime std.mem.eql(u8, name, "marker-start") or std.mem.eql(u8, name, "marker-mid") or std.mem.eql(u8, name, "marker-end") or std.mem.eql(u8, name, "filter")) {
         if (!validMarkerReference(value)) {
             p.html.failed = true;
             return;
@@ -778,4 +796,33 @@ test "marker references admit only inert local fragments before publication" {
         try std.testing.expectEqual(@as(usize, 0), html.len);
         try std.testing.expectEqual(@as(usize, 0), next.len);
     }
+}
+
+test "dynamic filter parameters reject invalid candidates without snapshot publication" {
+    const P = @import("projection.zig").Projection(4);
+    for ([_]f64{ -1, std.math.nan(f64), std.math.inf(f64) }) |bad| {
+        var bytes: [256]u8 = undefined;
+        var html = @import("html.zig").Writer{ .buffer = &bytes };
+        var next = P.Snapshot{};
+        var p = P{ .html = &html, .next = &next };
+        attribute(&p, "stdDeviation", .{ .node = 1, .value = bad });
+        try std.testing.expect(html.failed);
+        try std.testing.expectEqual(@as(usize, 0), next.len);
+        try std.testing.expectEqual(@as(usize, 0), html.len);
+    }
+    var bytes: [256]u8 = undefined;
+    var html = @import("html.zig").Writer{ .buffer = &bytes };
+    var next = P.Snapshot{};
+    var p = P{ .html = &html, .next = &next };
+    attribute(&p, "filter", .{ .node = 1, .value = "url(https://outside.test/f)" });
+    try std.testing.expect(html.failed);
+    html.failed = false;
+    attribute(&p, "filter", .{ .node = 1, .value = "url(#drawing-blur)" });
+    attribute(&p, "stdDeviation", .{ .node = 2, .value = @as(f64, 2.5) });
+    try std.testing.expect(!html.failed);
+    try std.testing.expectEqual(@as(usize, 2), next.len);
+    var tiny = @import("html.zig").Writer{ .buffer = bytes[0..1] };
+    p.html = &tiny;
+    attribute(&p, "stdDeviation", .{ .node = 3, .value = 4 });
+    try std.testing.expect(tiny.failed);
 }

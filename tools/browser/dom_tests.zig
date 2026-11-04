@@ -989,3 +989,29 @@ test "browser dom: SVG marker references retain geometry and reject outside reso
         \\dom.dispose(); root.remove(); return true;
     );
 }
+
+test "browser dom: SVG filters retain definitions geometry and sibling focus" {
+    var guard = try Harness.getSession(std.testing.allocator, std.testing.io);
+    defer guard.deinit();
+    try guard.goto("/dom.js");
+    try guard.evalCheck(
+        \\const { createDomHost } = await import('/dom.js');
+        \\const root = document.createElement('main'); document.body.append(root);
+        \\const dom = createDomHost({root});
+        \\dom.initialize('<button data-node-id="1">Keep focus</button><svg data-node-id="2"><defs><filter id="one-soft" data-node-id="3"><feGaussianBlur data-node-id="4" stdDeviation="1"/></filter></defs><circle data-node-id="5" r="12" filter="url(#one-soft)"/></svg><svg><defs><filter id="two-soft"><feGaussianBlur stdDeviation="3"/></filter></defs><rect filter="url(#two-soft)"/></svg>');
+        \\const svg=root.querySelector('svg'), defs=svg.querySelector('defs'), filter=svg.querySelector('filter'), blur=svg.querySelector('feGaussianBlur'), shape=svg.querySelector('circle'), button=root.querySelector('button'); button.focus();
+        \\dom.applyPatchStream('A\t4\tstdDeviation\t2.5\nA\t5\tfilter\tnone\n');
+        \\assert.equal(blur.stdDeviationX.baseVal,2.5); assert.equal(shape.getAttribute('filter'),'none');
+        \\dom.applyPatchStream('A\t5\tfilter\turl(#one-soft)\n');
+        \\assert.ok(getComputedStyle(shape).filter.includes('#one-soft'));
+        \\assert.ok(svg===root.querySelector('svg') && defs===svg.querySelector('defs') && filter===svg.querySelector('filter') && blur===svg.querySelector('feGaussianBlur') && shape===svg.querySelector('circle') && button===document.activeElement);
+        \\assert.ok([...svg.querySelectorAll('*')].every(e=>e.namespaceURI==='http://www.w3.org/2000/svg'));
+        \\assert.equal(root.querySelectorAll('filter').length,2); assert.equal(root.querySelectorAll('#one-soft').length,1); assert.equal(root.querySelectorAll('#two-soft').length,1);
+        \\for(const [node,attribute,value] of [[5,'filter','url(https://outside.test/f)'],[1,'filter','url(#one-soft)'],[4,'stdDeviation','NaN'],[4,'stdDeviation','-1'],[4,'stdDeviation','1 2'],[4,'stdDeviation',''],[5,'stdDeviation','2']]) {
+        \\  let refused=false; try {dom.applyPatchStream(`A\t${node}\t${attribute}\t${value}\n`);} catch {refused=true;} assert.ok(refused);
+        \\}
+        \\assert.equal(blur.getAttribute('stdDeviation'),'2.5'); assert.equal(shape.getAttribute('filter'),'url(#one-soft)');
+        \\dom.applyPatchStream('R\t5\tfilter\n'); assert.ok(!shape.hasAttribute('filter'));
+        \\dom.dispose(); root.remove(); return true;
+    );
+}

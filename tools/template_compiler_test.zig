@@ -424,6 +424,12 @@ test "template compiler: independent Zig package compiles and imports its own HT
         );
     }
 
+    {
+        var f = try std.Io.Dir.cwd().createFile(io, tmp_dir ++ "/effect.gui.html", .{});
+        defer f.close(io);
+        try f.writeStreamingAll(io, "<svg><defs><filter id=\"$id\"><feGaussianBlur stdDeviation=\"$deviation\"/></filter></defs><circle filter=\"$effect\"/></svg>");
+    }
+
     // build.zig.zon
     {
         const zon_content =
@@ -475,6 +481,7 @@ test "template compiler: independent Zig package compiles and imports its own HT
             \\        .imports = &.{.{ .name = "zg_gui", .module = gui }} }) });
             \\    @import("zg_gui").addTemplate(b, .{ .dependency = dep, .owner = tests.root_module, .name = "view", .source = b.path("view.gui.html"), .components = &.{.{ .name = "field", .source = b.path("field.gui.html") }} });
             \\    @import("zg_gui").addTemplate(b, .{ .dependency = dep, .owner = tests.root_module, .name = "row", .source = b.path("row.gui.html"), .fragment_context = .tbody });
+            \\    @import("zg_gui").addTemplate(b, .{ .dependency = dep, .owner = tests.root_module, .name = "effect", .source = b.path("effect.gui.html") });
             \\    b.getInstallStep().dependOn(&b.addRunArtifact(tests).step);
             \\}
         ;
@@ -498,6 +505,13 @@ test "template compiler: independent Zig package compiles and imports its own HT
             \\    var path: [128]u8 = undefined;
             \\    const result = try c.linePath(.{ .points = &.{.{ .x = -10, .y = 10 }, .{ .x = 10, .y = -10 }}, .x_scale = scale, .y_scale = scale, .buffer = &path });
             \\    try std.testing.expectEqualStrings("M200,0L0,200", result);
+            \\}
+            \\test "external SVG filters use the public template helper" {
+            \\    var bytes: [1024]u8 = undefined;
+            \\    var html = gui.html.Writer{ .buffer = &bytes };
+            \\    @import("effect").renderHtml(&html, .{ .id = "external-soft", .deviation = @as(f64, 2.5), .effect = "url(#external-soft)" });
+            \\    try std.testing.expect(!html.failed);
+            \\    try std.testing.expect(std.mem.indexOf(u8, html.slice(), "stdDeviation=\"2.5\"") != null);
             \\}
             \\test "external generated template" {
             \\    var bytes: [256]u8 = undefined;
