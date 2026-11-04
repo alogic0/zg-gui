@@ -10,7 +10,7 @@ export function createFileHost({root,onInput,onError = error => console.error(er
     if (!/^[1-9][0-9]{0,9}$/.test(raw || '') || Number(raw) > max) throw new Error(`Invalid ${name}`);
     return Number(raw);
   };
-  const permitted = node => node.isConnected && root.contains(node) && !node.disabled && !node.closest('[inert]');
+  const permitted = node => node.isConnected && root.contains(node) && !node.matches(':disabled') && !node.closest('[inert]');
   function deliver(kind,value) { try { onInput({kind,value}); } catch(error) { onError(error); } }
   function sync() {
     if (disposed) return;
@@ -45,7 +45,9 @@ export function createFileHost({root,onInput,onError = error => console.error(er
     if (files.length !== 1) { deliver(record.error,'read_failed');return; }
     const file = files[0];
     if (file.size > record.limit) { deliver(record.error,'too_large');return; }
-    const reader = new window.FileReader(); record.reader = reader;
+    let reader;
+    try { reader = new window.FileReader(); } catch { deliver(record.error,'read_failed');return; }
+    record.reader = reader;
     const active = () => !disposed && permitted(input) && reads.get(input) === record && record.reader === reader;
     reader.onload = () => {
       const accepted = active();

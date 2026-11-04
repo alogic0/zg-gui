@@ -38,10 +38,10 @@ removal/disable, late callbacks, platform errors, exact Blob bytes and disposal
 checks. `zig build test-browser -Dbrowser-filter='shared startup'` passes three
 selected tests, including version 1/2 admission, optional input delivery and
 failure after browser/math owners exist. A core startup requests no file module.
-`zig build test-all -Ddiagrams=true --summary all` passes all 122 steps: 125
+`zig build test-all -Ddiagrams=true --summary all` passes all 122 steps: 127
 freshly executed tests (69 browser tests), with other checks cached.
 
-The file adapter adds 5,932 uncompressed source bytes when selected. Shared
+The file adapter adds 6,020 uncompressed source bytes when selected. Shared
 startup is 6,158 bytes; the six shared core modules total 61,423 bytes. No new
 native allocation ABI is added. Each sync scans at most 16 declared controls
 and retains matching reader records; read buffers are bounded by the declared

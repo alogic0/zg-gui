@@ -28,9 +28,11 @@ try{
   input.dataset.textRevision='2';host.sync();assert.ok(old.aborted);old.finish('late');assert.equal(events.length,4);
   select('first');const first=readers.at(-1);select('second');assert.ok(first.aborted);first.finish('late');assert.equal(events.length,4);readers.at(-1).finish('second');assert.equal(events[4].value,'second');
   select('disabled');input.disabled=true;readers.at(-1).finish('disabled');assert.equal(events.length,5);assert.equal(host.stats().readers,0);input.disabled=false;
+  const fieldset=document.createElement('fieldset');root.append(fieldset);fieldset.append(input);select('fieldset');fieldset.disabled=true;readers.at(-1).finish('disabled');assert.equal(events.length,5);assert.equal(host.stats().readers,0);root.prepend(input);fieldset.remove();
   select('removed');const removed=readers.at(-1);input.remove();host.sync();assert.ok(removed.aborted);removed.finish('removed');assert.equal(events.length,5);root.prepend(input);host.sync();
   select('failure');readers.at(-1).onerror();assert.equal(events[5].value,'read_failed');
-  select('dispose');const pending=readers.at(-1);host.dispose();host.dispose();assert.ok(pending.aborted);pending.finish('late');assert.equal(events.length,6);
+  window.FileReader=class{constructor(){throw new Error('Unavailable reader');}};select('constructor');assert.equal(events[6].value,'read_failed');window.FileReader=PendingReader;
+  select('dispose');const pending=readers.at(-1);host.dispose();host.dispose();assert.ok(pending.aborted);pending.finish('late');assert.equal(events.length,7);
   assert.deepEqual(host.stats(),{disposed:true,controls:0,readers:0,urls:0,listeners:0});
 }finally{window.FileReader=FileReader;}
 // Inspect exact Blob bytes and ownership before the browser download begins.
