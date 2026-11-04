@@ -3,10 +3,10 @@ const root=document.querySelector('#app');
 for(let i=0;i<300&&!getApp(root);i++)await new Promise(r=>setTimeout(r,20));
 const app=getApp(root);assert.ok(app,root.textContent);
 assert.equal(root.dataset.zgStatus,'ready');assert.ok(!root.hasAttribute('aria-busy'));
-assert.deepEqual(app.features,{browser:false,math:false});
+assert.deepEqual(app.features,{browser:false,math:false,files:false});
 assert.equal(window.demo,undefined); // No example-specific bootstrap or global.
 const requests=performance.getEntriesByType('resource').map(e=>new URL(e.name).pathname);
-assert.ok(!requests.some(p=>/\/(math-host|browser-host|prepaint)\.js$/.test(p)));
+assert.ok(!requests.some(p=>/\/(math-host|browser-host|file-host|prepaint)\.js$/.test(p)));
 const input=root.querySelector('#name'), button=root.querySelector('button[data-event="1"]'), count=root.querySelector('output');
 input.focus();input.value='Steady';input.dispatchEvent(new Event('input',{bubbles:true}));
 button.click();assert.equal(root.querySelector('#name'),input);assert.equal(document.activeElement,input);

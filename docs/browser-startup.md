@@ -27,7 +27,9 @@ The helper adds installation steps for `web/<artifact-name>.wasm`,
 
 The six core modules are runtime, DOM host, node registry, local date/time input,
 startup and auto-start. Browser requests, math surfaces and pre-paint styling are
-separately selected. A fresh installation contains only selected modules; worker
+separately selected. Text-file controls select `.files = true`, emit manifest
+version 2 with an additional `"files":true` field, and install `file-host.js`.
+Version 2 also accepts explicit `files:false`; version 1 has no files field. A fresh installation contains only selected modules; worker
 transport is outside this helper. A reused installation may retain old files.
 Use a fresh deployment directory or explicitly clean obsolete generated assets.
 The helper does not install project HTML/CSS, configure native math providers,
@@ -72,7 +74,8 @@ app.dispose();
 `start` owns one connected HTML root and a fresh native instance, including native
 exports supplied by the caller. Duplicate ownership fails while starting or
 mounted. Optional `imports` are available for programmatic instantiation. The
-manifest form excludes direct native/URL/capability options. Browser capability
+manifest form excludes direct native/URL/capability options. The optional files capability uses the ordinary native input ABI; see
+[text-file controls](text-files.md). Browser capability
 requires the optional native host-event ABI; math requires declared surfaces.
 The shared startup uses main-thread execution.
 
@@ -95,9 +98,10 @@ exports, selected `features`, `initialMemoryBytes`, `diagnostics()` and
 error count and optional host counters. Disabled math reports zero surface/work
 counters. This is introspection, not an application controller.
 
-Startup synchronizes math then browser requests after each completed projection.
+Startup synchronizes math, browser requests and text-file declarations after
+each completed projection.
 Browser events use deferred native delivery. Failure or idempotent disposal
-releases browser and math hosts, calls optional native `deinit` once, and disposes
+releases file, browser and math hosts, calls optional native `deinit` once, and disposes
 the GUI owner. Every cleanup is attempted even if another throws. Queued callbacks
 are suppressed and the root can be remounted with a new instance. Disposal leaves
 the last DOM in place. Startup returns its owner after initialization; cancelling

@@ -86,3 +86,7 @@ Bounded post-projection browser requests are specified in
 Shared browser startup and selected asset installation are documented in
 [browser startup](browser-startup.md) under
 [request 085](requests/085-shared-browser-startup.md).
+
+Optional bounded text-file selection/download is documented in
+[text-file controls](text-files.md) under
+[request 086](requests/086-text-file-host.md). Consumers own contents and acceptance.

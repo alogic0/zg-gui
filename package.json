@@ -11,7 +11,8 @@
     "./projection-worker": "./web/projection-worker.js",
     "./math-host": "./web/math-host.js",
     "./browser-host": "./web/browser-host.js",
-    "./startup": "./web/startup.js"
+    "./startup": "./web/startup.js",
+    "./file-host": "./web/file-host.js"
   },
   "scripts": {
     "build": "zig build",

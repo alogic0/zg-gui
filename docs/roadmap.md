@@ -17,6 +17,8 @@ documented in [diagrams](diagrams.md).
 - [x] Public build registration verified by an independent consumer package.
 - [x] Bounded post-projection browser requests and optional host events; see
   [request 084](requests/084-browser-requests.md). Consumer policy stays in Zig.
+- [x] Optional bounded text-file selection/download with cancellable reads; see
+  [request 086](requests/086-text-file-host.md).
 - [x] Shared declarative browser startup and selected asset installation; see
   [request 085](requests/085-shared-browser-startup.md).
 
