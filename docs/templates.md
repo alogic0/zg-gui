@@ -247,6 +247,11 @@ view.project(&projection, .{
 });
 ```
 
+`:on-click` accepts a positive enum or optional enum. A null action removes
+its click binding with a retained attribute update; a later value restores it.
+Zero/negative/out-of-range values reject the candidate. `:input` remains a
+nonoptional positive enum. Native button keyboard behavior remains unchanged.
+
 Each `:view` is an explicit struct or single-item struct pointer. Bindings read
 only that view's fields; missing fields and incorrect property/action types fail
 Zig compilation. Even a static component requires a valid view. This is the same

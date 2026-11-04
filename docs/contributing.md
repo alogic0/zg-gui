@@ -90,3 +90,6 @@ Shared browser startup and selected asset installation are documented in
 Optional bounded text-file selection/download is documented in
 [text-file controls](text-files.md) under
 [request 086](requests/086-text-file-host.md). Consumers own contents and acceptance.
+
+Optional typed click actions retain read-only/interactive elements through
+attribute updates; see [request 087](requests/087-optional-click-actions.md).

@@ -1015,3 +1015,10 @@ test "browser dom: SVG filters retain definitions geometry and sibling focus" {
         \\dom.dispose(); root.remove(); return true;
     );
 }
+
+test "optional actions: removal suppresses commands and preserves DOM and focus" {
+    var guard = try Harness.getSession(std.testing.allocator, std.testing.io);
+    defer guard.deinit();
+    try guard.goto("/runtime.js");
+    try guard.evalCheck(@embedFile("optional_action_checks.js"));
+}

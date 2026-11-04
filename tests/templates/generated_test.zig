@@ -2,7 +2,7 @@ const std = @import("std");
 const gui = @import("zg_gui");
 const view = @import("fixture");
 const P = gui.Projection(view.snapshot_capacity);
-const Action = enum(u32) { increment = 1 };
+const Action = enum(u32) { invalid = 0, increment = 1 };
 const Input = enum(u32) { name = 1, checked = 2 };
 const Row = struct { id: u32, label: []const u8 };
 const View = struct {
@@ -16,7 +16,7 @@ const View = struct {
     title: ?[]const u8 = null,
     rows: []const Row = &.{},
     other_rows: []const Row = &.{},
-    actions: struct { increment: Action = .increment } = .{},
+    actions: struct { increment: ?Action = .increment } = .{},
     inputs: struct { name: Input = .name, checked: Input = .checked } = .{},
 };
 const Harness = struct {
@@ -1749,4 +1749,26 @@ test "compiled SVG filter changes emit scalar patches and reject failed candidat
     filter.project(&p, FilterView{ .deviation = std.math.nan(f64) });
     try std.testing.expect(html.failed);
     try std.testing.expectEqual(accepted_len, before.len);
+}
+
+test "generated optional click actions remove and restore only their attribute" {
+    var h = Harness{};
+    var model = View{};
+    _ = try h.render(.{ .value = model, .mode = .full });
+    model.actions.increment = null;
+    const removed = try h.render(.{ .value = model, .mode = .patch });
+    try std.testing.expect(std.mem.indexOf(u8, removed, "\tdata-event\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, removed, "H\t") == null);
+    var bytes: [8192]u8 = undefined;
+    var writer = gui.html.Writer{ .buffer = &bytes };
+    view.renderHtml(&writer, model);
+    try std.testing.expect(!writer.failed and std.mem.indexOf(u8, writer.slice(), "data-event=") == null);
+    model.actions.increment = .invalid;
+    const accepted = h.snapshot.len;
+    try std.testing.expectError(error.Rejected, h.render(.{ .value = model, .mode = .patch }));
+    try std.testing.expectEqual(accepted, h.snapshot.len);
+    model.actions.increment = .increment;
+    const restored = try h.render(.{ .value = model, .mode = .patch });
+    try std.testing.expect(std.mem.indexOf(u8, restored, "\tdata-event\t1\n") != null);
+    try std.testing.expect(std.mem.indexOf(u8, restored, "H\t") == null);
 }

@@ -7,6 +7,9 @@ Optional typed diagram projection is specified in
 [request 077](requests/077-optional-diagram-rendering.md), with public integration
 documented in [diagrams](diagrams.md).
 
+Optional retained click actions are delivered under
+[request 087](requests/087-optional-click-actions.md).
+
 ## Available capabilities
 
 - [x] Scoped projections, disjoint node ranges and generated semantic references.

@@ -288,6 +288,14 @@ pub fn inputType(p: anytype, input: struct { node: u32, value: InputType }) void
 }
 
 pub noinline fn event(p: anytype, comptime name: []const u8, input: anytype) void {
+    if (@typeInfo(@TypeOf(input.value)) == .optional) {
+        const Child = @typeInfo(@TypeOf(input.value)).optional.child;
+        if (comptime !std.mem.eql(u8, name, "data-event") or @typeInfo(Child) != .@"enum") @compileError("only click actions accept optional enum values");
+        if (input.value) |value| {
+            event(p, name, .{ .node = input.node, .value = value });
+        } else attribute(p, name, .{ .node = input.node, .value = @as(?u32, null) });
+        return;
+    }
     if (@typeInfo(@TypeOf(input.value)) != .@"enum") @compileError("template actions and input kinds must be enum values");
     const value = std.math.cast(u32, @backingInt(input.value)) orelse {
         p.html.failed = true;
