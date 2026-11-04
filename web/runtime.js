@@ -6,13 +6,13 @@ const requiredExports = ['init', 'resync', 'dispatch', 'setInput', 'getRenderBuf
   'getRenderLength', 'getRenderMode', 'getExchangeBuffer', 'getExchangeCapacity'];
 
 // A single WASM instance owns one application. Instantiate separately for each root.
-export function mount({ root, wasm, hydrate = false, onError = error => console.error(error), onStructure }) {
+export function mount({ root, wasm, hydrate = false, onError = error => console.error(error), onStructure, onPatch }) {
   if (owners.has(root)) throw new Error('Root already has a mounted GUI');
   for (const name of requiredExports) {
     if (typeof wasm[name] !== 'function') throw new Error(`Missing WASM export: ${name}`);
   }
   if (!(wasm.memory instanceof WebAssembly.Memory)) throw new Error('Missing WASM memory');
-  const dom = createDomHost({ root, onStructure });
+  const dom = createDomHost({ root, onStructure, onPatch });
   const window = root.ownerDocument.defaultView;
   const controller = new window.AbortController();
   const encoder = new TextEncoder();
@@ -107,7 +107,7 @@ export function mount({ root, wasm, hydrate = false, onError = error => console.
   return api;
 }
 
-export async function load({ root, url, wasmBytes, imports = {}, hydrate = false, onError, onStructure }) {
+export async function load({ root, url, wasmBytes, imports = {}, hydrate = false, onError, onStructure, onPatch }) {
   let bytes = wasmBytes;
   if (!bytes && url) {
     const response = await fetch(url);
@@ -115,7 +115,7 @@ export async function load({ root, url, wasmBytes, imports = {}, hydrate = false
     bytes = await response.arrayBuffer();
   }
   const { instance } = await WebAssembly.instantiate(bytes, imports);
-  return mount({ root, wasm: instance.exports, hydrate, onError, onStructure });
+  return mount({ root, wasm: instance.exports, hydrate, onError, onStructure, onPatch });
 }
 
 export async function createApp({
@@ -129,6 +129,7 @@ export async function createApp({
   hydrate = false,
   onError = error => console.error(error),
   onStructure,
+  onPatch,
 }) {
   const window = root.ownerDocument?.defaultView || globalThis;
   const hasWorkerSupport = typeof window.Worker === 'function';
@@ -146,6 +147,7 @@ export async function createApp({
         hydrate,
         onError,
         onStructure,
+        onPatch,
       });
       await app.ready;
       return app;
@@ -163,6 +165,6 @@ export async function createApp({
   const { instance } = wasmModule
     ? await WebAssembly.instantiate(wasmModule, imports)
     : await WebAssembly.instantiate(bytes, imports);
-  return mount({ root, wasm: instance.exports, hydrate, onError, onStructure });
+  return mount({ root, wasm: instance.exports, hydrate, onError, onStructure, onPatch });
 }
 

@@ -14,12 +14,13 @@ export function mountWorker({
   hydrate = false,
   onError = error => console.error(error),
   onStructure,
+  onPatch,
 }) {
   if (owners.has(root)) throw new Error('Root already has a mounted GUI');
 
   const document = root.ownerDocument;
   const window = document.defaultView;
-  const dom = createDomHost({ root, onStructure });
+  const dom = createDomHost({ root, onStructure, onPatch });
   const controller = new window.AbortController();
 
   let actualWorker = worker;

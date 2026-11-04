@@ -169,3 +169,8 @@ The optional mode also accepts `.nearest` (the backward-compatible default) and
 a new request; changing a target or mode alone does not repeat focus. Initial
 static rendering never emits a focus command. Consumers own viewport and
 navigation policy; see request 074 for admission and verification limits.
+
+Optional [MathML surfaces](math.md) use an explicit provider build helper and a
+completed-projection `onPatch(root)` hook. Core consumers need neither the math
+provider nor the optional browser module. See [SVG filters](svg-filters.md) for
+local retained effects.

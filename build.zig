@@ -235,6 +235,30 @@ pub fn build(b: *std.Build) void {
     b.installDirectory(.{ .source_dir = b.path("web"), .install_dir = .prefix, .install_subdir = "web" });
 
     const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding });
+    const math_check = b.step("test-math", "Test optional math ownership without a core provider dependency");
+    const math_fixture = b.createModule(.{ .root_source_file = b.path("tests/math_provider.zig"), .target = b.graph.host, .optimize = optimize });
+    const math_tests = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/math.zig"),
+        .target = b.graph.host,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "math_typesetter", .module = math_fixture }},
+    }) });
+    math_check.dependOn(&b.addRunArtifact(math_tests).step);
+    const math_wasm = b.addExecutable(.{ .name = "math-optional-check", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/math_wasm.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+    }) });
+    math_wasm.root_module.addImport("zg_math", b.createModule(.{
+        .root_source_file = b.path("src/math.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "math_typesetter", .module = b.createModule(.{ .root_source_file = b.path("tests/math_provider.zig"), .target = wasm_target, .optimize = optimize }) }},
+    }));
+    math_wasm.entry = .disabled;
+    math_wasm.rdynamic = true;
+    math_check.dependOn(&math_wasm.step);
+    b.top_level_steps.get("test").?.step.dependOn(math_check);
     const controls_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("examples/panels.gui.html"), .components = &.{.{ .name = "controls", .source = b.path("examples/controls.gui.html") }} });
     const demo_source = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("examples/demo.gui.html") });
     const wasm_gui = b.createModule(.{ .root_source_file = b.path("src/root.zig"), .target = wasm_target, .optimize = .safe });
@@ -485,6 +509,18 @@ pub fn build(b: *std.Build) void {
 }
 
 pub const FragmentContext = enum { flow, dl, ul, ol, thead, tbody, tfoot, tr, select, optgroup };
+
+/// Optional MathML caching through a caller-selected public typesetter module.
+/// Core GUI modules do not instantiate a typesetter dependency.
+pub fn addMath(b: *std.Build, input: struct { dependency: *std.Build.Dependency, typesetter: *std.Build.Module }) *std.Build.Module {
+    const gui = input.dependency.module("zg_gui");
+    return b.createModule(.{
+        .root_source_file = input.dependency.path("src/math.zig"),
+        .target = gui.resolved_target,
+        .optimize = gui.optimize,
+        .imports = &.{.{ .name = "math_typesetter", .module = input.typesetter }},
+    });
+}
 
 /// Opt into typed scene projection with an explicitly selected layout module.
 /// Core consumers do not instantiate or link an engine dependency.

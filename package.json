@@ -8,7 +8,8 @@
     "./dom": "./web/dom.js",
     "./node-registry": "./web/node-registry.js",
     "./worker-host": "./web/worker-host.js",
-    "./projection-worker": "./web/projection-worker.js"
+    "./projection-worker": "./web/projection-worker.js",
+    "./math-host": "./web/math-host.js"
   },
   "scripts": {
     "build": "zig build",

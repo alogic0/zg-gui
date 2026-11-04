@@ -75,3 +75,6 @@ under [request 075](requests/075-svg-chart-labels-and-clipping.md).
 
 Local SVG effects are documented in [SVG filters](svg-filters.md) and
 [request 082](requests/082-svg-filter-primitives.md).
+
+Optional formula ownership and finite MathML surfaces are documented in
+[the math adapter](math.md) and [request 083](requests/083-optional-math-rendering.md).

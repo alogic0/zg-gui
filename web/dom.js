@@ -34,7 +34,7 @@ export function calculateWindowSlice({ scrollTop = 0, viewportHeight = 0, itemHe
 
 // Only this module writes the DOM after initialization. Hooks bind host-owned
 // capabilities to explicitly introduced subtrees; they do not choose UI state.
-export function createDomHost({ root, onStructure = () => {} }) {
+export function createDomHost({ root, onStructure = () => {}, onPatch = () => {} }) {
   const document = root.ownerDocument;
   const window = document.defaultView;
   let patchTextFocus = null;
@@ -501,6 +501,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
       if (activeInRoot && activeIsText && draftValue !== null && active.value !== draftValue) {
         active.value = draftValue;
       }
+      onPatch(root);
     } catch (err) {
       initialize(html);
       throw err;
@@ -523,6 +524,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
     layoutElements.clear();
     registerLayoutElements(root);
     onStructure(root);
+    onPatch(root);
   }
 
   const exiting = new Map(); // target -> { id, transitionName, parent, timeoutId, onEnd }
@@ -866,6 +868,7 @@ export function createDomHost({ root, onStructure = () => {} }) {
     }
     patchTextFocus = null;
     playFlipTransitions();
+    onPatch(root);
   }
 
   function dispose() {

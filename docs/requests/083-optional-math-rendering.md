@@ -1,6 +1,6 @@
 # Optional mathematical rendering surfaces
 
-Status: specified; implementation and verification pending.
+Status: implemented and verified with neutral native/Wasm and Chromium fixtures.
 
 ## Reusable contract
 
@@ -38,14 +38,28 @@ their GUI. Main content and unrelated focus survive formula changes.
 
 ## Acceptance
 
-- [ ] Public registration works in native and freestanding-Wasm consumers.
-- [ ] Formula caching, source diagnostics, allocator failure and output limits
+- [x] Public registration works in native and freestanding-Wasm consumers.
+- [x] Formula caching, source diagnostics, allocator failure and output limits
       preserve accepted state and have native tests.
-- [ ] Browser checks cover real semantic output, malformed payload refusal,
+- [x] Browser checks cover real semantic output, malformed payload refusal,
       stable wrappers/unrelated focus, removal, resync and disposal.
-- [ ] Core-only consumers build without a provider or math browser module.
-- [ ] Public APIs, output vocabulary and failure/lifetime limits are documented.
+- [x] Core-only consumers build without a provider or math browser module.
+- [x] Public APIs, output vocabulary and failure/lifetime limits are documented.
 
 Provider success does not establish application acceptance. Visual HTML/fonts,
 math editing, arbitrary markup injection and complete TeX compatibility are
 outside this contract.
+
+## Verification record
+
+See [the public API and finite MathML vocabulary](../math.md).
+`zig build test-math` and `zig build test-math -Doptimize=safe` pass caching,
+revision/output limits, diagnostic and exhaustive allocator-failure ownership
+checks with a synthetic public provider, plus freestanding-Wasm compilation.
+`zig build test-browser -Dbrowser-filter='browser math'` passes semantic-tree,
+identity/focus, malformed/over-limit payload, removal/resync and disposal checks.
+`zig build test-all -Ddiagrams=true` passes the full existing host integration
+suite (122 build steps, with 73 freshly executed tests in that run; remaining
+checks reused successful cache entries). The optional adapter is absent from
+`src/root.zig`, and the host module has no core imports or installed lifecycle
+resources. Real-provider selection and consumer acceptance are separate checks.
