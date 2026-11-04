@@ -78,3 +78,7 @@ Local SVG effects are documented in [SVG filters](svg-filters.md) and
 
 Optional formula ownership and finite MathML surfaces are documented in
 [the math adapter](math.md) and [request 083](requests/083-optional-math-rendering.md).
+
+Bounded post-projection browser requests are specified in
+[request 084](requests/084-browser-requests.md) and documented in
+[browser requests](browser-requests.md). Consumers own policy and callback tickets.

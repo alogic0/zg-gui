@@ -75,6 +75,13 @@ export function mount({ root, wasm, hydrate = false, onError = error => console.
       throw new TypeError('Input requires a positive kind and string value');
     render(wasm.setInput(kind, writeExchange(value)));
   }
+  function hostEvent({ kind, value = '' }) {
+    assertActive();
+    if (!Number.isInteger(kind) || kind <= 0 || kind > 0xffffffff || typeof value !== 'string')
+      throw new TypeError('Host event requires a positive kind and string value');
+    if (typeof wasm.hostEvent !== 'function') throw new Error('WASM does not expose optional hostEvent');
+    render(wasm.hostEvent(kind, writeExchange(value)));
+  }
   function listen(type, handler) {
     root.addEventListener(type, event => {
       try { handler(event); } catch (error) { onError(error); }
@@ -94,7 +101,7 @@ export function mount({ root, wasm, hydrate = false, onError = error => console.
     if ((type === 'change') !== changeOnly) return;
     setInput({ kind: Number(control.dataset.inputKind), value: declaredInputValue(control) });
   });
-  const api = Object.freeze({ render, dispatch, setInput, dispose() {
+  const api = Object.freeze({ render, dispatch, setInput, hostEvent, dispose() {
     if (disposed) return;
     disposed = true;
     dom.dispose();

@@ -7,6 +7,7 @@ const harness = @import("browser_harness.zig");
 pub const diagram_tests = if (@import("browser_options").diagrams) @import("browser/diagram_tests.zig") else struct {};
 
 pub const chart_tests = @import("browser/chart_tests.zig");
+pub const browser_requests_tests = @import("browser/browser_requests_tests.zig");
 pub const math_tests = @import("browser/math_tests.zig");
 pub const dom_tests = @import("browser/dom_tests.zig");
 pub const worker_tests = @import("browser/worker_tests.zig");

@@ -170,6 +170,11 @@ a new request; changing a target or mode alone does not repeat focus. Initial
 static rendering never emits a focus command. Consumers own viewport and
 navigation policy; see request 074 for admission and verification limits.
 
+Optional [browser requests](browser-requests.md) provide post-projection focus
+after native dialog reconciliation, viewport scroll, color-preference
+observations and revision-owned frame callbacks. Consumers select requests in
+Zig; the browser host executes the finite platform operations.
+
 Optional [MathML surfaces](math.md) use an explicit provider build helper and a
 completed-projection `onPatch(root)` hook. Core consumers need neither the math
 provider nor the optional browser module. See [SVG filters](svg-filters.md) for

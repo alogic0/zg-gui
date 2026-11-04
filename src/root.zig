@@ -1,6 +1,7 @@
 //! Zig-owned UI projections and a browser-applied DOM command stream.
 pub const html = @import("html.zig");
 pub const patch = @import("patch.zig");
+pub const browser = @import("browser.zig");
 pub const Projection = @import("projection.zig").Projection;
 pub const StaticRenderer = @import("projection.zig").StaticRenderer;
 pub const renderHtml = @import("projection.zig").renderHtml;
@@ -18,6 +19,7 @@ pub const Window = window.Window;
 test {
     _ = html;
     _ = patch;
+    _ = browser;
     _ = @import("projection.zig");
     _ = template;
     _ = snapshot;

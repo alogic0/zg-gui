@@ -15,6 +15,8 @@ documented in [diagrams](diagrams.md).
 - [x] Controlled single selects, keyed options and selection recovery.
 - [x] Native and browser checks for identity, focus, invalid input and overflow.
 - [x] Public build registration verified by an independent consumer package.
+- [x] Bounded post-projection browser requests and optional host events; see
+  [request 084](requests/084-browser-requests.md). Consumer policy stays in Zig.
 
 - [x] Semantic description lists with retained value leaves; see
   [request 002](requests/002-description-lists.md).

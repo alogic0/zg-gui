@@ -9,7 +9,8 @@
     "./node-registry": "./web/node-registry.js",
     "./worker-host": "./web/worker-host.js",
     "./projection-worker": "./web/projection-worker.js",
-    "./math-host": "./web/math-host.js"
+    "./math-host": "./web/math-host.js",
+    "./browser-host": "./web/browser-host.js"
   },
   "scripts": {
     "build": "zig build",
