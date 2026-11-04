@@ -59,7 +59,7 @@ checks with a synthetic public provider, plus freestanding-Wasm compilation.
 `zig build test-browser -Dbrowser-filter='browser math'` passes semantic-tree,
 identity/focus, malformed/over-limit payload, removal/resync and disposal checks.
 `zig build test-all -Ddiagrams=true` passes the full existing host integration
-suite (122 build steps, with 73 freshly executed tests in that run; remaining
+suite (122 build steps, with 127 freshly executed tests in the final run; remaining
 checks reused successful cache entries). The optional adapter is absent from
 `src/root.zig`, and the host module has no core imports or installed lifecycle
 resources. Real-provider selection and consumer acceptance are separate checks.
