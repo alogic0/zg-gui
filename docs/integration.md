@@ -27,6 +27,11 @@ Copy/install the package's `web` directory next to your browser entrypoint and
 WASM file, preserving the relative JavaScript imports. Use your own HTML and CSS.
 No npm package is required at runtime; these are plain browser ES modules.
 
+For applications that need no custom browser startup, use the public
+[`addWebApp` build helper and shared entry point](browser-startup.md). It installs
+selected runtime modules and a manifest alongside your WASM; HTML declarations
+start the app and optional hosts with a single lifecycle owner.
+
 ```js
 import { load } from './runtime.js';
 const app = await load({

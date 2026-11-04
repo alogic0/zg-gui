@@ -1,0 +1,24 @@
+const {start,getApp,startDeclaredApps}=await import('/startup.js');
+const root=document.querySelector('#app');
+for(let i=0;i<300&&!getApp(root);i++)await new Promise(r=>setTimeout(r,20));
+const app=getApp(root);assert.ok(app,root.textContent);
+assert.equal(root.dataset.zgStatus,'ready');assert.ok(!root.hasAttribute('aria-busy'));
+assert.deepEqual(app.features,{browser:false,math:false});
+assert.equal(window.demo,undefined); // No example-specific bootstrap or global.
+const requests=performance.getEntriesByType('resource').map(e=>new URL(e.name).pathname);
+assert.ok(!requests.some(p=>/\/(math-host|browser-host|prepaint)\.js$/.test(p)));
+const input=root.querySelector('#name'), button=root.querySelector('button[data-event="1"]'), count=root.querySelector('output');
+input.focus();input.value='Steady';input.dispatchEvent(new Event('input',{bubbles:true}));
+button.click();assert.equal(root.querySelector('#name'),input);assert.equal(document.activeElement,input);
+assert.equal(input.value,'Steady');assert.equal(root.querySelector('output'),count);assert.equal(count.textContent,'1');
+let rejected=false;try{await start({root,url:'/demo.wasm',onError:()=>{}});}catch{rejected=true;}assert.ok(rejected);
+const other=document.createElement('div');document.body.append(other);
+const second=await start({root:other,url:'/demo.wasm'});
+assert.notEqual(second.wasm.memory,app.wasm.memory);assert.equal(other.querySelector('output').textContent,'0');
+second.dispose();second.dispose();assert.equal(getApp(other),undefined);assert.equal(other.dataset.zgStatus,'disposed');
+app.dispose();assert.equal(getApp(root),undefined);
+const restarted=await start({root,manifest:'/startup.json'});assert.equal(root.querySelector('output').textContent,'0');
+const missing=document.createElement('div');missing.dataset.zgApp='/missing-startup.json';missing.dataset.zgError='Unable to start';document.body.append(missing);
+const failures=[];await startDeclaredApps({onError:e=>failures.push(e)});
+assert.equal(getApp(root),restarted);assert.equal(missing.dataset.zgStatus,'error');assert.equal(missing.textContent,'Unable to start');assert.equal(failures.length,1);
+restarted.dispose();other.remove();missing.remove();return true;

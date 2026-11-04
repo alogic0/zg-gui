@@ -10,7 +10,8 @@
     "./worker-host": "./web/worker-host.js",
     "./projection-worker": "./web/projection-worker.js",
     "./math-host": "./web/math-host.js",
-    "./browser-host": "./web/browser-host.js"
+    "./browser-host": "./web/browser-host.js",
+    "./startup": "./web/startup.js"
   },
   "scripts": {
     "build": "zig build",

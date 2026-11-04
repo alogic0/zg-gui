@@ -82,3 +82,7 @@ Optional formula ownership and finite MathML surfaces are documented in
 Bounded post-projection browser requests are specified in
 [request 084](requests/084-browser-requests.md) and documented in
 [browser requests](browser-requests.md). Consumers own policy and callback tickets.
+
+Shared browser startup and selected asset installation are documented in
+[browser startup](browser-startup.md) under
+[request 085](requests/085-shared-browser-startup.md).

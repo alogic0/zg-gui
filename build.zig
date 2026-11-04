@@ -1,6 +1,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+pub const WebAppFeatures = @import("build_web.zig").Features;
+pub const addWebApp = @import("build_web.zig").addWebApp;
+
 pub fn build(b: *std.Build) void {
     const version = std.mem.trim(u8, @embedFile(".zigversion"), " \t\r\n");
     if (!std.mem.eql(u8, builtin.zig_version_string, version)) {
