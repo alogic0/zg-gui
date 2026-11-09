@@ -1022,3 +1022,52 @@ test "optional actions: removal suppresses commands and preserves DOM and focus"
     try guard.goto("/runtime.js");
     try guard.evalCheck(@embedFile("optional_action_checks.js"));
 }
+
+test "observed sizes: layout changing breakpoints retain controls without window errors" {
+    var guard = try Harness.getSession(std.testing.allocator, std.testing.io);
+    defer guard.deinit();
+    try guard.goto("/dom.js");
+    try guard.evalCheck(
+        \\const {createDomHost}=await import('/dom.js');
+        \\const errors=[]; const error=e=>errors.push(e.message); window.addEventListener('error',error);
+        \\const style=document.createElement('style'); style.textContent='.observed-fixture{height:20px;width:160px}.observed-fixture[data-size="compact"]{height:40px}.observed-fixture[data-size="expanded"]{height:60px}'; document.head.append(style);
+        \\const root=document.createElement('main'); document.body.append(root); const dom=createDomHost({root});
+        \\const frames=async()=>{for(let i=0;i<5;i++)await new Promise(requestAnimationFrame)};
+        \\try {
+        \\ dom.initialize('<section data-node-id="1" class="observed-fixture" data-observe-size="compact:200,expanded:600"><input data-node-id="2" value="retained draft"></section>');
+        \\ const owner=root.firstElementChild, input=owner.firstElementChild; input.focus(); input.setSelectionRange(2,5);
+        \\ for(const [width,size,height] of [[160,'compact',40],[360,'standard',20],[900,'expanded',60],[160,'compact',40]]) {
+        \\  owner.style.width=width+'px'; await frames();
+        \\  assert.equal(owner.dataset.size,size); assert.equal(owner.offsetHeight,height);
+        \\  assert.equal(root.firstElementChild,owner); assert.equal(owner.firstElementChild,input); assert.equal(document.activeElement,input);
+        \\  assert.equal(input.value,'retained draft'); assert.equal(input.selectionStart,2); assert.equal(input.selectionEnd,5);
+        \\ }
+        \\ assert.deepEqual(errors,[]);
+        \\} finally {dom.dispose(); root.remove(); style.remove(); window.removeEventListener('error',error)}
+        \\return true;
+    );
+}
+
+test "observed sizes: queued delivery coalesces and stops for removed or disposed owners" {
+    var guard = try Harness.getSession(std.testing.allocator, std.testing.io);
+    defer guard.deinit();
+    try guard.goto("/dom.js");
+    try guard.evalCheck(
+        \\const {createDomHost}=await import('/dom.js');
+        \\const original=window.ResizeObserver; let deliver,disconnected=false;
+        \\window.ResizeObserver=class{constructor(callback){deliver=callback}observe(){}disconnect(){disconnected=true}};
+        \\const root=document.createElement('main'); document.body.append(root); const dom=createDomHost({root});
+        \\const frame=()=>new Promise(requestAnimationFrame);
+        \\try {
+        \\ dom.initialize('<section data-node-id="1" data-observe-size="compact:200,expanded:600"></section>');
+        \\ const owner=root.firstElementChild, emit=width=>deliver([{target:owner,contentRect:{width}}]);
+        \\ emit(100); assert.equal(owner.getAttribute('data-size'),null); emit(900); await frame(); assert.equal(owner.dataset.size,'expanded');
+        \\ emit(100); emit(900); await frame(); assert.equal(owner.dataset.size,'expanded');
+        \\ emit(100); owner.remove(); await frame(); assert.equal(owner.dataset.size,'expanded'); root.append(owner);
+        \\ emit(100); owner.removeAttribute('data-observe-size'); await frame(); assert.equal(owner.dataset.size,'expanded');
+        \\ owner.setAttribute('data-observe-size','compact:200,expanded:600'); emit(100); dom.dispose(); await frame();
+        \\ assert.ok(disconnected); assert.equal(owner.dataset.size,'expanded');
+        \\} finally {dom.dispose(); root.remove(); window.ResizeObserver=original}
+        \\return true;
+    );
+}

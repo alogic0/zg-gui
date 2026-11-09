@@ -10,6 +10,9 @@ documented in [diagrams](diagrams.md).
 Optional retained click actions are delivered under
 [request 087](requests/087-optional-click-actions.md).
 
+Observed breakpoint updates outside observer delivery are verified under
+[request 088](requests/088-observed-size-frame-updates.md).
+
 ## Available capabilities
 
 - [x] Scoped projections, disjoint node ranges and generated semantic references.

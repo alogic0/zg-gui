@@ -93,3 +93,6 @@ Optional bounded text-file selection/download is documented in
 
 Optional typed click actions retain read-only/interactive elements through
 attribute updates; see [request 087](requests/087-optional-click-actions.md).
+
+Observed breakpoint attributes update outside ResizeObserver delivery; see
+[request 088](requests/088-observed-size-frame-updates.md).

@@ -120,7 +120,19 @@ export function createDomHost({ root, onStructure = () => {}, onPatch = () => {}
   }
 
   const observedElements = new Set();
+  const pendingSizes = new Map();
   let resizeObserver = null;
+  let resizeFrame = null;
+
+  function flushObservedSizes() {
+    resizeFrame = null;
+    const updates = Array.from(pendingSizes);
+    pendingSizes.clear();
+    for (const [target, { spec, size }] of updates) {
+      if (!target.isConnected || !root.contains(target) || target.getAttribute('data-observe-size') !== spec) continue;
+      if (target.getAttribute('data-size') !== size) target.setAttribute('data-size', size);
+    }
+  }
 
   function parseBreakpoints(spec) {
     return spec.split(',').map(part => {
@@ -150,10 +162,9 @@ export function createDomHost({ root, onStructure = () => {}, onPatch = () => {}
           matchedSize = 'standard';
         }
       }
-      if (target.getAttribute('data-size') !== matchedSize) {
-        target.setAttribute('data-size', matchedSize);
-      }
+      pendingSizes.set(target, { spec, size: matchedSize });
     }
+    if (pendingSizes.size && resizeFrame === null) resizeFrame = window.requestAnimationFrame(flushObservedSizes);
   }
 
   function applyObservedSizes(scope) {
@@ -877,6 +888,9 @@ export function createDomHost({ root, onStructure = () => {}, onPatch = () => {}
     root.removeEventListener('change', handleControlInput, { capture: true });
     root.removeEventListener('keydown', handleKeyDown, { capture: true });
     root.removeEventListener('focusin', handleFocusIn, { capture: true });
+    if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame);
+    resizeFrame = null;
+    pendingSizes.clear();
     if (resizeObserver) {
       resizeObserver.disconnect();
       resizeObserver = null;
