@@ -110,9 +110,9 @@ not consumer budgets or peak-memory guarantees.
 Framework changes follow [neutral capability requests](docs/contributing.md).
 Provider verification and consumer application acceptance remain separate.
 
-The optional diagram example pins reviewed engine source and file digests under
-`vendor/diagram_engine`; it needs no sibling engine checkout. Verify it with
-`zig build verify-diagram-engine`. See [diagram dependency maintenance](docs/diagrams.md#pinned-example-engine).
+The optional diagram example uses the Mermaid engine pinned in `build.zig.zon`.
+Run `zig build verify-diagram-engine` to check the fetched package against its
+recorded hash. [Diagram dependency maintenance](docs/diagrams.md#pinned-example-engine)
 
 Numerical [chart helpers](docs/charts.md) provide linear/band scales, ticks,
 axes and clipped line/bar geometry without an engine or allocator. Run

@@ -149,25 +149,20 @@ retains its smaller UI admission limits. See request 078 for verification.
 
 ## Pinned example engine
 
-The optional example uses the reviewed source snapshot in
-`vendor/diagram_engine`, version 0.9.0 at commit
-`37b4d4960ad85b4455fb03cc45f58164fd48bb46`. Its upstream LICENSE is included.
-`vendor/diagram_engine.lock.json` records the exact source revision, version and
-SHA-256 of every snapshot file. Native verification rejects modified, missing,
-unexpected and symbolic-link files. Builds never refresh source automatically.
+The `diagram_engine` dependency in `build.zig.zon` pins an immutable GitHub
+commit and its Zig package hash. Zig fetches the engine when diagrams are
+enabled or explicitly verified. Diagram-enabled installs include its upstream
+license under `share/licenses/zig-mermaid-viewer/`.
+Core builds can run with the engine absent from the package cache.
 
 ```sh
 zig build verify-diagram-engine
-zig build test-diagrams -Ddiagrams=true
-# Explicit maintenance, only after reviewing the chosen complete commit:
-python3 tools/update_diagram_engine.py /path/to/engine FULL_40_CHARACTER_COMMIT
-zig build verify-diagram-engine test-diagrams -Ddiagrams=true
+zig build test-diagrams test-tools -Ddiagrams=true
 zig build test-browser -Ddiagrams=true -Dbrowser-filter=diagrams
 ```
 
-The updater reads immutable Git objects, excludes caches, Git internals and
-repository-only agent instructions, and replaces source plus provenance. Review
-both in the same commit. Python is needed only for this explicit update command;
-normal builds and verification use Zig. Application adapters may select their
-own compatible engine, including this same snapshot as a local path dependency.
-Core-only builds import no engine and do not require the snapshot directory.
+To update the engine, run `zig fetch` with the GitHub URL of the reviewed
+commit. Set the URL and printed hash in `build.zig.zon` and keep `.lazy = true`.
+Verification rejects unlisted files and symbolic links, then rehashes the
+resolved package to catch changes and missing files. Applications can pass
+their own compatible engine module to `addDiagrams`.

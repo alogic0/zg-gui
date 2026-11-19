@@ -117,17 +117,13 @@ test "diagram public build registration works in an independent consumer package
     defer std.Io.Dir.cwd().deleteTree(io, directory) catch {};
     const consumer_root = try std.Io.Dir.path.resolve(a, &.{ options.gui_root, directory });
     defer a.free(consumer_root);
-    const engine_root = try std.Io.Dir.path.resolve(a, &.{ options.gui_root, options.engine_root });
-    defer a.free(engine_root);
     const gui_path = try std.Io.Dir.path.relative(a, options.gui_root, null, consumer_root, options.gui_root);
     defer a.free(gui_path);
-    const engine_path = try std.Io.Dir.path.relative(a, options.gui_root, null, consumer_root, engine_root);
-    defer a.free(engine_path);
     const zon = try std.fmt.allocPrint(a,
         \\.{{ .name = .diagram_consumer, .version = "0.0.0", .fingerprint = 0x9275d53a27c8fd66, .minimum_zig_version = "0.17.0",
-        \\ .dependencies = .{{ .zg_gui = .{{ .path = "{s}" }}, .engine = .{{ .path = "{s}" }} }},
+        \\ .dependencies = .{{ .zg_gui = .{{ .path = "{s}" }}, .engine = .{{ .url = "{s}", .hash = "{s}" }} }},
         \\ .paths = .{{ "build.zig", "build.zig.zon", "main.zig" }} }}
-    , .{ gui_path, engine_path });
+    , .{ gui_path, options.engine_url, options.engine_hash });
     defer a.free(zon);
     try writeFixture(directory ++ "/build.zig.zon", zon);
     try writeFixture(directory ++ "/build.zig",

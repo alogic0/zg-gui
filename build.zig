@@ -442,19 +442,31 @@ pub fn build(b: *std.Build) void {
     test_all_step.dependOn(&b.top_level_steps.get("test").?.step);
     test_all_step.dependOn(browser_step);
 
-    const verify_engine = b.addExecutable(.{ .name = "verify-diagram-engine", .root_module = b.createModule(.{ .root_source_file = b.path("tools/verify_diagram_engine.zig"), .target = b.graph.host, .optimize = .safe }) });
-    const run_verify_engine = b.addRunArtifact(verify_engine);
-    run_verify_engine.setCwd(b.path("."));
-    run_verify_engine.has_side_effects = true;
-    b.step("verify-diagram-engine", "Verify pinned source revision, version and complete file digests").dependOn(&run_verify_engine.step);
+    const engine_pin = @import("build.zig.zon").dependencies.diagram_engine;
+    const verify_engine = b.step("verify-diagram-engine", "Verify the resolved diagram engine against its package hash");
     if (diagrams_enabled) {
-        b.getInstallStep().dependOn(&run_verify_engine.step);
+        b.getInstallStep().dependOn(verify_engine);
 
         if (b.lazyDependency("diagram_engine", .{ .target = b.graph.host, .optimize = std.builtin.OptimizeMode.debug })) |dependency| {
+            b.getInstallStep().dependOn(&b.addInstallFile(dependency.path("LICENSE"), "share/licenses/zig-mermaid-viewer/LICENSE").step);
+            const file_check = b.addRunArtifact(b.addExecutable(.{ .name = "check-diagram-package-files", .root_module = b.createModule(.{
+                .root_source_file = b.path("tools/verify_diagram_engine.zig"),
+                .target = b.graph.host,
+                .optimize = .safe,
+            }) }));
+            file_check.addDirectoryArg(dependency.path("."));
+            file_check.has_side_effects = true;
+            const hash_check = b.addSystemCommand(&.{ b.graph.zig_exe, "fetch" });
+            hash_check.addDirectoryArg(dependency.path("."));
+            hash_check.expectStdOutEqual(engine_pin.hash ++ "\n");
+            hash_check.has_side_effects = true;
+            hash_check.step.dependOn(&file_check.step);
+            verify_engine.dependOn(&hash_check.step);
             const engine = dependency.module("mermaid");
             const options = b.addOptions();
             options.addOption([]const u8, "gui_root", b.root.joinString(b.allocator, "") catch @panic("OOM"));
-            options.addOption([]const u8, "engine_root", dependency.builder.root.joinString(b.allocator, "") catch @panic("OOM"));
+            options.addOption([]const u8, "engine_url", engine_pin.url);
+            options.addOption([]const u8, "engine_hash", engine_pin.hash);
             const diagram_tests = b.addTest(.{ .root_module = b.createModule(.{
                 .root_source_file = b.path("tests/diagrams_test.zig"),
                 .target = b.graph.host,
@@ -469,7 +481,7 @@ pub fn build(b: *std.Build) void {
             run_diagram_tests.setCwd(b.path("."));
             const step = b.step("test-diagrams", "Verify optional typed diagram projections");
             step.dependOn(&run_diagram_tests.step);
-            step.dependOn(&run_verify_engine.step);
+            step.dependOn(verify_engine);
             b.top_level_steps.get("test").?.step.dependOn(step);
             const diagram_template = generateTemplate(b, .{ .compiler = template_compiler, .source = b.path("examples/diagrams.gui.html") });
             const native_example = b.addTest(.{ .root_module = b.createModule(.{
@@ -502,6 +514,16 @@ pub fn build(b: *std.Build) void {
                 b.getInstallStep().dependOn(&b.addInstallFile(example.getEmittedBin(), "web/diagrams.wasm").step);
             }
         }
+    } else {
+        // The explicit verification command can fetch the optional engine on a core-only checkout.
+        const verify_with_engine = b.addSystemCommand(&.{ b.graph.zig_exe, "build", "verify-diagram-engine", "-Ddiagrams=true" });
+        verify_with_engine.setCwd(b.path("."));
+        if (b.graph.system_package_mode) {
+            const installed = superhtml.builder.root.joinString(b.allocator, "") catch @panic("OOM");
+            verify_with_engine.addArgs(&.{ "--system", std.fs.path.dirname(installed) orelse "." });
+        }
+        verify_with_engine.has_side_effects = true;
+        verify_engine.dependOn(&verify_with_engine.step);
     }
 }
 

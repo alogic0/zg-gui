@@ -5,14 +5,18 @@
     .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .superhtml = .{
-            .url = "git+https://github.com/alogic0/superhtml.git#398343534f5a3c57e2a82792a3282234526774d5",
-            .hash = "superhtml-0.7.0-Y7MdPKLDJgBZWdqCE_KYn6LIA9Vua-JdwaKNJLUL0nUL",
+            .url = "git+https://github.com/alogic0/superhtml.git#c987b4632d7d37b01cd037a7a4b971faab0531a7",
+            .hash = "superhtml-0.7.1-Y7MdPI_DJgChdgMt7XIwDQv62pZlkUyElI-KLngPg4tS",
         },
         .zig_cdp = .{
-            .url = "git+https://github.com/alogic0/zig-cdp.git#9d9782ad4aab0f80852852e58dbede908345bc96",
-            .hash = "zig_cdp-0.5.2-_HsZ7NpqCwAVoYT_pltnLZr0HGqbfi0MR9Uzx1jNQDug",
+            .url = "git+https://github.com/alogic0/zig-cdp.git#439af5346fab09a58d5d440927033448007f4006",
+            .hash = "zig_cdp-0.5.3-_HsZ7B07CgCUyWF4d9Za_avVyLjmI8zuNwE5yCtEIwJ8",
         },
-        .diagram_engine = .{ .path = "vendor/diagram_engine", .lazy = true },
+        .diagram_engine = .{
+            .url = "git+https://github.com/alogic0/zig-mermaid-viewer.git#a5dff09db938f8e3d8a85ed641420ec1a459e5d6",
+            .hash = "zig_mermaid-0.9.4-sAKmovsqAwB-CeKoW1VjM8egWUb8w6SZBr8BLpKryZg-",
+            .lazy = true,
+        },
     },
-    .paths = .{ "build.zig", "build_web.zig", "build.zig.zon", ".zigversion", "src", "web", "examples", "vendor", "tools", "tests/templates", "tests/diagrams_test.zig", "README.md", "docs" },
+    .paths = .{ "build.zig", "build_web.zig", "build.zig.zon", ".zigversion", "src", "web", "examples", "tools", "tests/templates", "tests/diagrams_test.zig", "README.md", "docs" },
 }
