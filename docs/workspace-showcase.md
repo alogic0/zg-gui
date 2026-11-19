@@ -9,8 +9,8 @@ The original introduction is still available at `/basics.html`.
 
 ## Run and explore
 
-Use the compiler in `.zigversion`, run `npm ci`, then `npm run dev`. Open
-http://127.0.0.1:4180. Try the following journey:
+Use the compiler in `.zigversion` and run `zig build serve`. Open
+http://127.0.0.1:4180 to try the workspace.
 
 1. Click anywhere on a task row to select it and edit its name or notes in the
    detail panel. The completion button only toggles completion; the task title
@@ -115,8 +115,8 @@ are internal example conventions, not new framework APIs.
 
 ```sh
 zig build test-workspace
-npm test
-npm run test:browser
+zig build test
+zig build test-browser
 ```
 
 Native coverage includes state updates, invalid/oversized UTF-8 input, filtering,

@@ -16,13 +16,11 @@ keep their DOM identity across updates and reordering.
 
 ## Try the workspace
 
-Use the exact Zig compiler in [`.zigversion`](.zigversion). Builds also require a
-sibling `zig-cdp` checkout at `../zig-cdp`, as configured in `build.zig.zon`.
-Then:
+Build on Linux with the Zig compiler in [`.zigversion`](.zigversion). On the
+first build, Zig fetches the pinned `zig-cdp` package and its dependencies.
 
 ```sh
-npm ci
-npm run dev
+zig build serve
 ```
 
 Open **http://127.0.0.1:4180**. Stop the server with Ctrl+C.
@@ -83,7 +81,7 @@ for the two-source example. Core-only builds keep the engine dependency unused.
 | [workspace-metric.gui.html](examples/workspace-metric.gui.html) | Reusable summary card and SVG status chart |
 | [workspace.css](examples/web/workspace.css) | Responsive layout, visual design, themes |
 | [workspace.js](examples/web/workspace.js) | Loading the public browser runtime |
-| [workspace.test.mjs](tests/workspace.test.mjs) | Real WASM/browser journeys, identity, focus, limits and measurements |
+| [workspace_tests.zig](tools/browser/workspace_tests.zig) | Browser checks for the WASM workspace, DOM identity, and focus |
 
 `zig build` produces the complete static site in **zig-out/web**. All application
 assets use relative paths, including beneath a repository subpath. See the
@@ -91,19 +89,18 @@ assets use relative paths, including beneath a repository subpath. See the
 
 ## Verify
 
-For native Zig browser automation, see the [CDP README](tools/lib/README.md).
-It covers launching Chrome, page actions, screenshots, and owned cleanup.
+Install Chrome or Chromium on Linux for the native browser checks. The
+[CDP guide](tools/lib/README.md) lists the supported browser locations.
 
 ```sh
-npx playwright install chromium
-npm test
-npm run test:browser
+zig build test
+zig build test-browser
 ```
 
-`npm test` runs native, compiler, independent-package, and host tests, including
-the workspace. The browser suite exercises both examples, recovery, retained DOM
+`zig build test` runs the native framework, template compiler, workspace, and
+tool tests. The browser suite checks the examples, recovery, retained DOM
 objects, focus, selection, desktop/mobile layout, and generated-template edge
-cases. Playwright is a development dependency only.
+cases through `cdp`.
 
 The [showcase guide](docs/workspace-showcase.md#measurements) records artifact
 size, memory, and representative patch work. These are example measurements,

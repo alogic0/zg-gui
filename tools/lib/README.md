@@ -76,9 +76,9 @@ The command writes `cdp-smoke.png` in the working directory.
 
 ## Add the public module to a project
 
-This checkout uses a local `zig_cdp` dependency at `../zig-cdp`. Keep that sibling
-checkout available when building zg-gui, or adjust its `build.zig.zon` dependency
-path. Both packages use the same pinned Zig compiler.
+Zig fetches the Git revision of `zig-cdp` pinned in the framework's
+`build.zig.zon` and verifies its package hash. Both packages use the same
+pinned Zig compiler.
 
 zg-gui re-exports the dependency's public `cdp` module for existing consumers.
 In an existing Zig package, add a dependency to `build.zig.zon`, adjusting the
