@@ -17,7 +17,8 @@ keep their DOM identity across updates and reordering.
 ## Try the workspace
 
 Build on Linux with the Zig compiler in [`.zigversion`](.zigversion). On the
-first build, Zig fetches the pinned `zig-cdp` package and its dependencies.
+first build, Zig fetches the pinned SuperHTML template tokenizer and `zig-cdp`
+browser tooling.
 
 ```sh
 zig build serve

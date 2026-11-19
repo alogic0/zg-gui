@@ -2,9 +2,9 @@
 
 September 14, 2026; compiler pinned by `.zigversion`.
 
-The HTML tokenizer, character-reference data, syntax types and directive utilities
-come from the pinned local SuperHTML copy. No original package files were edited.
-Vendored hashes and the MIT license live in `vendor/superhtml/`.
+The HTML tokenizer, character-reference data, syntax types and directive
+utilities come from SuperHTML. The [dependency contract](requests/089-template-tokenizer-dependency.md)
+describes how the current build fetches and verifies that package.
 
 The native compiler produces normal Zig projection code; no parser, AST or
 source-template buffer is linked into the browser runtime. The demo no longer
@@ -17,7 +17,7 @@ Validation performed:
 - `zig build test-templates`: compiler validation/allocation-failure checks and
   generated projection tests for exact text patches, property updates,
   conditional child owners, keyed membership/reordering, overflow and recovery.
-- `npm test`: the native suite, build, DOM/date checks, vendored hash check,
+- `npm test`: the native suite, build, DOM/date checks, source integrity check,
   expected template/type diagnostics and external package integration.
 - `npm run test:browser`: the generated demo's retained controls, focus and
   selection, typed input/events, theme, visibility, Unicode admission,

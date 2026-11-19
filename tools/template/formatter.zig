@@ -1,5 +1,5 @@
 //! GUI template formatter/beautifier.
-//! Parses .gui.html templates using the vendored SuperHTML tokenizer and
+//! Parses .gui.html templates using the SuperHTML tokenizer and
 //! formats them with consistent indentation, tag balancing, and clean structure.
 
 const std = @import("std");
@@ -628,6 +628,3 @@ test "formatter: diagnostics on syntax error and mismatched tags" {
     try std.testing.expectEqualStrings("unclosed.gui.html", d.name);
     try std.testing.expectEqualStrings("unclosed tag at end of template", d.message);
 }
-
-
-

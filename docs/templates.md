@@ -181,11 +181,14 @@ Admission bounds: 256 KiB UTF-8 source, 4096 elements, depth 64, 64 attributes
 per element, and loop limits from 1 to 1024. These are compile-time validation
 limits, not a reservation of source-parser storage in the application.
 
-Run `npm run test:templates` for parser/compiler checks, generated projection
-tests, allocation-failure coverage, and expected compiler diagnostics. Vendored
-files and their unchanged source hashes are recorded in `vendor/superhtml/`.
-`npm test` additionally creates a temporary independent Zig package and verifies
-the public compiler-artifact integration shown above.
+Zig fetches SuperHTML at the revision and package hash in `build.zig.zon`. The
+native tools use its tokenizer and template syntax modules. The default build
+installs the package's MIT license under `zig-out/share/licenses/superhtml/`.
+
+Run `zig build test-tokenizers test-templates` to check all three tokenizer
+module roots, generated projections, allocation failures and compiler
+diagnostics. The template tests also build an independent Zig package using
+the public compiler artifact shown above.
 
 ## Composing independently compiled panels
 

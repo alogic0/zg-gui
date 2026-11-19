@@ -1,37 +1,6 @@
-//! Native tests for template compiler CLI, provenance, diagnostics, and external packaging.
+//! Native tests for the template compiler CLI, diagnostics, and external packaging.
 //! Replaces tests/template-compiler.test.mjs and tests/template-package.test.mjs.
 const std = @import("std");
-
-test "template compiler: vendored source hashes remain pinned" {
-    const alloc = std.testing.allocator;
-    const io = std.testing.io;
-
-    const manifest_path = "vendor/superhtml/provenance.json";
-    const content = try std.Io.Dir.cwd().readFileAlloc(io, manifest_path, alloc, .limited(32768));
-    defer alloc.free(content);
-
-    const parsed = try std.json.parseFromSlice(std.json.Value, alloc, content, .{});
-    defer parsed.deinit();
-
-    const files_obj = parsed.value.object.get("files").?.object;
-    var it = files_obj.iterator();
-    while (it.next()) |entry| {
-        const rel_path = entry.key_ptr.*;
-        const expected_hash = entry.value_ptr.string;
-
-        const target_path = try std.fs.path.join(alloc, &.{ "vendor/superhtml", rel_path });
-        defer alloc.free(target_path);
-
-        const data = try std.Io.Dir.cwd().readFileAlloc(io, target_path, alloc, .limited(1024 * 1024));
-        defer alloc.free(data);
-
-        var digest: [32]u8 = undefined;
-        std.crypto.hash.sha2.Sha256.hash(data, &digest, .{});
-        const hex = std.fmt.bytesToHex(digest, .lower);
-
-        try std.testing.expectEqualStrings(expected_hash, &hex);
-    }
-}
 
 test "template compiler: diagnostics preserve output and invalid input fails" {
     const alloc = std.testing.allocator;

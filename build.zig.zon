@@ -4,6 +4,10 @@
     .version = "0.1.0",
     .minimum_zig_version = "0.17.0",
     .dependencies = .{
+        .superhtml = .{
+            .url = "git+https://github.com/alogic0/superhtml.git#398343534f5a3c57e2a82792a3282234526774d5",
+            .hash = "superhtml-0.7.0-Y7MdPKLDJgBZWdqCE_KYn6LIA9Vua-JdwaKNJLUL0nUL",
+        },
         .zig_cdp = .{
             .url = "git+https://github.com/alogic0/zig-cdp.git#9d9782ad4aab0f80852852e58dbede908345bc96",
             .hash = "zig_cdp-0.5.2-_HsZ7NpqCwAVoYT_pltnLZr0HGqbfi0MR9Uzx1jNQDug",

@@ -4,6 +4,13 @@ const builtin = @import("builtin");
 pub const WebAppFeatures = @import("build_web.zig").Features;
 pub const addWebApp = @import("build_web.zig").addWebApp;
 
+fn templateImports(superhtml: *std.Build.Dependency) [2]std.Build.Module.Import {
+    return .{
+        .{ .name = "html-tokenizer", .module = superhtml.module("html-tokenizer") },
+        .{ .name = "template-syntax", .module = superhtml.module("template-syntax") },
+    };
+}
+
 pub fn build(b: *std.Build) void {
     const version = std.mem.trim(u8, @embedFile(".zigversion"), " \t\r\n");
     if (!std.mem.eql(u8, builtin.zig_version_string, version)) {
@@ -14,36 +21,23 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const diagrams_enabled = b.option(bool, "diagrams", "Build the optional diagram example and checks") orelse false;
     const browser_filter = b.option([]const u8, "browser-filter", "Run browser tests whose names contain this text");
-    const syntax_types = b.createModule(.{
-        .root_source_file = b.path("vendor/superhtml/src/syntax_types.zig"),
-        .target = b.graph.host,
-    });
-    const html_tokenizer = b.createModule(.{
-        .root_source_file = b.path("vendor/superhtml/src/html_tokenizer.zig"),
-        .target = b.graph.host,
-        .imports = &.{.{ .name = "syntax-types", .module = syntax_types }},
-    });
-    const template_syntax = b.createModule(.{
-        .root_source_file = b.path("vendor/superhtml/src/template_syntax.zig"),
-        .target = b.graph.host,
-        .imports = &.{.{ .name = "html-tokenizer", .module = html_tokenizer }},
-    });
-    const tokenizer_tests = b.step("test-tokenizers", "Test the vendored HTML tokenizer and syntax utilities");
-    for ([_]*std.Build.Module{ syntax_types, html_tokenizer, template_syntax }) |module| {
-        const tests = b.addTest(.{ .root_module = module });
+    const superhtml = b.dependency("superhtml", .{ .target = b.graph.host, .optimize = .safe, .tokenizers_only = true });
+    const test_superhtml = b.dependency("superhtml", .{ .target = b.graph.host, .optimize = .debug, .tokenizers_only = true });
+    const compiler_imports = templateImports(superhtml);
+    const test_compiler_imports = templateImports(test_superhtml);
+    const tokenizer_tests = b.step("test-tokenizers", "Test the SuperHTML tokenizer and syntax utilities");
+    for ([_][]const u8{ "syntax-types", "html-tokenizer", "template-syntax" }) |name| {
+        const tests = b.addTest(.{ .root_module = test_superhtml.module(name) });
         tokenizer_tests.dependOn(&b.addRunArtifact(tests).step);
     }
-    const compiler_imports: []const std.Build.Module.Import = &.{
-        .{ .name = "html-tokenizer", .module = html_tokenizer },
-        .{ .name = "template-syntax", .module = template_syntax },
-    };
+    b.getInstallStep().dependOn(&b.addInstallFile(superhtml.path("LICENSE"), "share/licenses/superhtml/LICENSE").step);
     const template_compiler = b.addExecutable(.{
         .name = "zg-template",
         .root_module = b.createModule(.{
             .root_source_file = b.path("tools/template/main.zig"),
             .target = b.graph.host,
             .optimize = .safe,
-            .imports = compiler_imports,
+            .imports = &compiler_imports,
         }),
     });
     b.installArtifact(template_compiler);
@@ -54,7 +48,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("tools/template/main.zig"),
             .target = b.graph.host,
             .optimize = .safe,
-            .imports = compiler_imports,
+            .imports = &compiler_imports,
         }),
     });
     b.installArtifact(template_formatter);
@@ -68,7 +62,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("tools/template/compiler.zig"),
             .target = b.graph.host,
             .optimize = .debug,
-            .imports = compiler_imports,
+            .imports = &test_compiler_imports,
         }),
     });
     const formatter_tests = b.addTest(.{
@@ -76,7 +70,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("tools/template/formatter.zig"),
             .target = b.graph.host,
             .optimize = .debug,
-            .imports = compiler_imports,
+            .imports = &test_compiler_imports,
         }),
     });
     const template_tests = b.step("test-templates", "Test template validation and code generation");
