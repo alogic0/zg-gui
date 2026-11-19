@@ -17,8 +17,8 @@ keep their DOM identity across updates and reordering.
 ## Try the workspace
 
 Build on Linux with the Zig compiler in [`.zigversion`](.zigversion). On the
-first build, Zig fetches the pinned SuperHTML template tokenizer and `zig-cdp`
-browser tooling.
+first build, Zig fetches `zig-html-tokenizer` for template compilation and
+`zig-cdp` for browser tooling.
 
 ```sh
 zig build serve

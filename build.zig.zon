@@ -4,9 +4,9 @@
     .version = "0.1.0",
     .minimum_zig_version = "0.17.0",
     .dependencies = .{
-        .superhtml = .{
-            .url = "git+https://github.com/alogic0/superhtml.git#c987b4632d7d37b01cd037a7a4b971faab0531a7",
-            .hash = "superhtml-0.7.1-Y7MdPI_DJgChdgMt7XIwDQv62pZlkUyElI-KLngPg4tS",
+        .zig_html_tokenizer = .{
+            .url = "git+https://github.com/alogic0/zig-html-tokenizer.git#a5cfa335a3066bdfa2224618c7b3c539584cf5af",
+            .hash = "zig_html_tokenizer-0.1.0-e-neHvEmCQCvfIl0dQ8tee99oL1LvdDnq3LEQU5a5mSG",
         },
         .zig_cdp = .{
             .url = "git+https://github.com/alogic0/zig-cdp.git#439af5346fab09a58d5d440927033448007f4006",

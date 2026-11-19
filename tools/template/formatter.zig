@@ -1,5 +1,5 @@
 //! GUI template formatter/beautifier.
-//! Parses .gui.html templates using the SuperHTML tokenizer and
+//! Parses .gui.html templates using the html-tokenizer module and
 //! formats them with consistent indentation, tag balancing, and clean structure.
 
 const std = @import("std");

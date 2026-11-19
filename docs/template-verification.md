@@ -3,8 +3,8 @@
 September 14, 2026; compiler pinned by `.zigversion`.
 
 The HTML tokenizer, character-reference data, syntax types and directive
-utilities come from SuperHTML. The [dependency contract](requests/089-template-tokenizer-dependency.md)
-describes how the current build fetches and verifies that package.
+utilities originated in SuperHTML. The current build fetches those modules from
+the standalone `zig-html-tokenizer` package. [Dependency contract](requests/089-template-tokenizer-dependency.md)
 
 The native compiler produces normal Zig projection code; no parser, AST or
 source-template buffer is linked into the browser runtime. The demo no longer

@@ -1,9 +1,9 @@
 # Compiled GUI templates
 
-Templates are HTML fragments with a small binding language. SuperHTML tokenizes
-the source; the GUI compiler validates its structure and generates ordinary Zig
-projection functions. The tokenizer, compiler and template source run only at
-build time. There is no template interpreter in the browser or WASM module.
+Templates are HTML fragments with a small binding language. The GUI compiler
+uses `zig-html-tokenizer` to read the source, validates its structure, and
+generates Zig projection functions at build time. The browser runs the
+generated code.
 
 The working demo is split into [markup](../examples/demo.gui.html) and
 [state/view values](../examples/demo.zig). Both native tests and the WASM build
@@ -181,9 +181,10 @@ Admission bounds: 256 KiB UTF-8 source, 4096 elements, depth 64, 64 attributes
 per element, and loop limits from 1 to 1024. These are compile-time validation
 limits, not a reservation of source-parser storage in the application.
 
-Zig fetches SuperHTML at the revision and package hash in `build.zig.zon`. The
-native tools use its tokenizer and template syntax modules. The default build
-installs the package's MIT license under `zig-out/share/licenses/superhtml/`.
+Zig fetches `zig-html-tokenizer` at the revision and package hash in
+`build.zig.zon`. The native tools use its tokenizer and template syntax modules.
+The default build installs the MIT license and the character reference matcher's
+0BSD notice under `zig-out/share/licenses/zig-html-tokenizer/`.
 
 Run `zig build test-tokenizers test-templates` to check all three tokenizer
 module roots, generated projections, allocation failures and compiler

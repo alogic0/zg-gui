@@ -4,10 +4,10 @@ const builtin = @import("builtin");
 pub const WebAppFeatures = @import("build_web.zig").Features;
 pub const addWebApp = @import("build_web.zig").addWebApp;
 
-fn templateImports(superhtml: *std.Build.Dependency) [2]std.Build.Module.Import {
+fn templateImports(tokenizer: *std.Build.Dependency) [2]std.Build.Module.Import {
     return .{
-        .{ .name = "html-tokenizer", .module = superhtml.module("html-tokenizer") },
-        .{ .name = "template-syntax", .module = superhtml.module("template-syntax") },
+        .{ .name = "html-tokenizer", .module = tokenizer.module("html-tokenizer") },
+        .{ .name = "template-syntax", .module = tokenizer.module("template-syntax") },
     };
 }
 
@@ -21,16 +21,18 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const diagrams_enabled = b.option(bool, "diagrams", "Build the optional diagram example and checks") orelse false;
     const browser_filter = b.option([]const u8, "browser-filter", "Run browser tests whose names contain this text");
-    const superhtml = b.dependency("superhtml", .{ .target = b.graph.host, .optimize = .safe, .tokenizers_only = true });
-    const test_superhtml = b.dependency("superhtml", .{ .target = b.graph.host, .optimize = .debug, .tokenizers_only = true });
-    const compiler_imports = templateImports(superhtml);
-    const test_compiler_imports = templateImports(test_superhtml);
-    const tokenizer_tests = b.step("test-tokenizers", "Test the SuperHTML tokenizer and syntax utilities");
+    const tokenizer = b.dependency("zig_html_tokenizer", .{ .target = b.graph.host, .optimize = .safe });
+    const test_tokenizer = b.dependency("zig_html_tokenizer", .{ .target = b.graph.host, .optimize = .debug });
+    const compiler_imports = templateImports(tokenizer);
+    const test_compiler_imports = templateImports(test_tokenizer);
+    const tokenizer_tests = b.step("test-tokenizers", "Test the HTML tokenizer and template syntax utilities");
     for ([_][]const u8{ "syntax-types", "html-tokenizer", "template-syntax" }) |name| {
-        const tests = b.addTest(.{ .root_module = test_superhtml.module(name) });
+        const tests = b.addTest(.{ .root_module = test_tokenizer.module(name) });
         tokenizer_tests.dependOn(&b.addRunArtifact(tests).step);
     }
-    b.getInstallStep().dependOn(&b.addInstallFile(superhtml.path("LICENSE"), "share/licenses/superhtml/LICENSE").step);
+    inline for (.{ "LICENSE", "NOTICE" }) |file| {
+        b.getInstallStep().dependOn(&b.addInstallFile(tokenizer.path(file), "share/licenses/zig-html-tokenizer/" ++ file).step);
+    }
     const template_compiler = b.addExecutable(.{
         .name = "zg-template",
         .root_module = b.createModule(.{
@@ -519,7 +521,7 @@ pub fn build(b: *std.Build) void {
         const verify_with_engine = b.addSystemCommand(&.{ b.graph.zig_exe, "build", "verify-diagram-engine", "-Ddiagrams=true" });
         verify_with_engine.setCwd(b.path("."));
         if (b.graph.system_package_mode) {
-            const installed = superhtml.builder.root.joinString(b.allocator, "") catch @panic("OOM");
+            const installed = tokenizer.builder.root.joinString(b.allocator, "") catch @panic("OOM");
             verify_with_engine.addArgs(&.{ "--system", std.fs.path.dirname(installed) orelse "." });
         }
         verify_with_engine.has_side_effects = true;
